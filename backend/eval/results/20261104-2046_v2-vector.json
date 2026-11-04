@@ -1,0 +1,592 @@
+{
+  "meta": {
+    "mode": "retrieval",
+    "search": "vector",
+    "rerank": false,
+    "k": 8,
+    "repeat": 1,
+    "prompt_version": "v1",
+    "embedder": "vie-v2",
+    "overrides": {},
+    "commit": "4b965a0",
+    "n_rows_in_gold": 50,
+    "n_unreviewed": 50,
+    "tag": "v2-vector",
+    "ts": "2026-11-04T20:46:59.450178+00:00",
+    "elapsed_s": 15.6
+  },
+  "rows": [
+    {
+      "id": "A01",
+      "category": "tra_cuu",
+      "rank": 2,
+      "hit@1": false,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 0.5,
+      "latency_ms": 7088.8
+    },
+    {
+      "id": "A02",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 119.1
+    },
+    {
+      "id": "A03",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 110.2
+    },
+    {
+      "id": "A04",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 133.6
+    },
+    {
+      "id": "A05",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 115.7
+    },
+    {
+      "id": "A06",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 125.5
+    },
+    {
+      "id": "A07",
+      "category": "tra_cuu",
+      "rank": 4,
+      "hit@1": false,
+      "hit@3": false,
+      "hit@k": true,
+      "rr": 0.25,
+      "latency_ms": 105.8
+    },
+    {
+      "id": "A08",
+      "category": "tra_cuu",
+      "rank": 3,
+      "hit@1": false,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 0.3333333333333333,
+      "latency_ms": 124.6
+    },
+    {
+      "id": "A09",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 141.4
+    },
+    {
+      "id": "A10",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 108.5
+    },
+    {
+      "id": "A11",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 127.0
+    },
+    {
+      "id": "A12",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 134.2
+    },
+    {
+      "id": "A13",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 125.4
+    },
+    {
+      "id": "A14",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 144.9
+    },
+    {
+      "id": "A15",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 121.0
+    },
+    {
+      "id": "A16",
+      "category": "tra_cuu",
+      "rank": 2,
+      "hit@1": false,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 0.5,
+      "latency_ms": 151.9
+    },
+    {
+      "id": "A17",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 130.7
+    },
+    {
+      "id": "A18",
+      "category": "tra_cuu",
+      "rank": null,
+      "hit@1": false,
+      "hit@3": false,
+      "hit@k": false,
+      "rr": 0.0,
+      "latency_ms": 129.5
+    },
+    {
+      "id": "A19",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 114.2
+    },
+    {
+      "id": "A20",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 134.2
+    },
+    {
+      "id": "A21",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 123.2
+    },
+    {
+      "id": "A22",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 112.5
+    },
+    {
+      "id": "A23",
+      "category": "tra_cuu",
+      "rank": 2,
+      "hit@1": false,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 0.5,
+      "latency_ms": 137.5
+    },
+    {
+      "id": "A24",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 131.4
+    },
+    {
+      "id": "A25",
+      "category": "tra_cuu",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 132.6
+    },
+    {
+      "id": "B01",
+      "category": "nghi_dinh",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 137.3
+    },
+    {
+      "id": "B02",
+      "category": "nghi_dinh",
+      "rank": 3,
+      "hit@1": false,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 0.3333333333333333,
+      "latency_ms": 123.1
+    },
+    {
+      "id": "B03",
+      "category": "nghi_dinh",
+      "rank": 2,
+      "hit@1": false,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 0.5,
+      "latency_ms": 143.9
+    },
+    {
+      "id": "B04",
+      "category": "nghi_dinh",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 145.5
+    },
+    {
+      "id": "B05",
+      "category": "nghi_dinh",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 131.8
+    },
+    {
+      "id": "C01",
+      "category": "thoi_diem",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 141.7
+    },
+    {
+      "id": "C01-as_of",
+      "category": "thoi_diem_as_of",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 169.7
+    },
+    {
+      "id": "C02",
+      "category": "thoi_diem",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 126.1
+    },
+    {
+      "id": "C02-as_of",
+      "category": "thoi_diem_as_of",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 116.3
+    },
+    {
+      "id": "C03",
+      "category": "thoi_diem",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 157.8
+    },
+    {
+      "id": "C03-as_of",
+      "category": "thoi_diem_as_of",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 139.7
+    },
+    {
+      "id": "C04",
+      "category": "thoi_diem",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 136.1
+    },
+    {
+      "id": "C04-as_of",
+      "category": "thoi_diem_as_of",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 150.6
+    },
+    {
+      "id": "C05",
+      "category": "thoi_diem",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 116.7
+    },
+    {
+      "id": "C05-as_of",
+      "category": "thoi_diem_as_of",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 115.6
+    },
+    {
+      "id": "D01",
+      "category": "nhieu_van_de",
+      "rank": 3,
+      "hit@1": false,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 0.3333333333333333,
+      "latency_ms": 518.2,
+      "recall": 0.6666666666666666
+    },
+    {
+      "id": "D02",
+      "category": "nhieu_van_de",
+      "rank": 2,
+      "hit@1": false,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 0.5,
+      "latency_ms": 410.0,
+      "recall": 0.5
+    },
+    {
+      "id": "D03",
+      "category": "nhieu_van_de",
+      "rank": 2,
+      "hit@1": false,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 0.5,
+      "latency_ms": 320.6,
+      "recall": 0.6666666666666666
+    },
+    {
+      "id": "D04",
+      "category": "nhieu_van_de",
+      "rank": 3,
+      "hit@1": false,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 0.3333333333333333,
+      "latency_ms": 416.7,
+      "recall": 0.5
+    },
+    {
+      "id": "D05",
+      "category": "nhieu_van_de",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 418.8,
+      "recall": 0.5
+    },
+    {
+      "id": "F01",
+      "category": "noi_tiep",
+      "rank": 2,
+      "hit@1": false,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 0.5,
+      "latency_ms": 286.9
+    },
+    {
+      "id": "F02",
+      "category": "noi_tiep",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 220.3
+    },
+    {
+      "id": "F03",
+      "category": "noi_tiep",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 265.7
+    },
+    {
+      "id": "F04",
+      "category": "noi_tiep",
+      "rank": 7,
+      "hit@1": false,
+      "hit@3": false,
+      "hit@k": true,
+      "rr": 0.14285714285714285,
+      "latency_ms": 252.9
+    },
+    {
+      "id": "F05",
+      "category": "noi_tiep",
+      "rank": 1,
+      "hit@1": true,
+      "hit@3": true,
+      "hit@k": true,
+      "rr": 1.0,
+      "latency_ms": 290.3
+    }
+  ],
+  "summary": {
+    "overall": {
+      "n": 50,
+      "hit@1": 0.72,
+      "hit@3": 0.94,
+      "hit@k": 0.98,
+      "mrr": 0.825,
+      "p50_ms": 134.2,
+      "p95_ms": 418.8
+    },
+    "by_category": {
+      "nghi_dinh": {
+        "n": 5,
+        "hit@1": 0.6,
+        "hit@3": 1.0,
+        "hit@k": 1.0,
+        "mrr": 0.767,
+        "p50_ms": 137.3,
+        "p95_ms": 145.5
+      },
+      "nhieu_van_de": {
+        "n": 5,
+        "hit@1": 0.2,
+        "hit@3": 1.0,
+        "hit@k": 1.0,
+        "mrr": 0.533,
+        "p50_ms": 416.7,
+        "p95_ms": 518.2
+      },
+      "noi_tiep": {
+        "n": 5,
+        "hit@1": 0.6,
+        "hit@3": 0.8,
+        "hit@k": 1.0,
+        "mrr": 0.729,
+        "p50_ms": 265.7,
+        "p95_ms": 290.3
+      },
+      "thoi_diem": {
+        "n": 5,
+        "hit@1": 1.0,
+        "hit@3": 1.0,
+        "hit@k": 1.0,
+        "mrr": 1.0,
+        "p50_ms": 136.1,
+        "p95_ms": 157.8
+      },
+      "thoi_diem_as_of": {
+        "n": 5,
+        "hit@1": 1.0,
+        "hit@3": 1.0,
+        "hit@k": 1.0,
+        "mrr": 1.0,
+        "p50_ms": 139.7,
+        "p95_ms": 169.7
+      },
+      "tra_cuu": {
+        "n": 25,
+        "hit@1": 0.76,
+        "hit@3": 0.92,
+        "hit@k": 0.96,
+        "mrr": 0.843,
+        "p50_ms": 127.0,
+        "p95_ms": 151.9
+      }
+    }
+  }
+}
