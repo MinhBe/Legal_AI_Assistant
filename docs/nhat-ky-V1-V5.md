@@ -37,3 +37,33 @@ Hai câu không đúng hạng 1: "Có bị phạt tiền khi vi phạm kỷ lu�
 **`max_seq_length` của model embedding (vie-v2):** `8192` token — số thật cho câu phỏng vấn L1-01. Ngưỡng này khá rộng so với các model embedding nhỏ (256–512), nên số node bị cắt khi embed (đo chi tiết hơn ở V3.5) nhiều khả năng rất thấp hoặc bằng 0 — sẽ xác nhận bằng số đo thật, không đoán trước.
 
 **`get_settings()`:** `embedder=vie-v2` (đúng điều kiện bắt buộc để đi tiếp), `rerank_enabled=False`, `langfuse_enabled=False`, `dahl_hedge_after=15.0`.
+
+---
+
+## V1 — đã làm xong tới [DỪNG-1]
+
+Commit `ed073d6` (gold set) và `535b0c4` (script eval), sau `4f44721` (V0).
+
+- `scripts/make_gold_candidates.py`: in 38 Điều ngẫu nhiên (seed=42) + 10 cặp 2012→2019 đổi nhiều nhất
+  (theo `node_supersession.similarity` thật, không đoán) ra `eval/candidates.md`.
+- `eval/gold_v1.jsonl`: 50 câu. Mọi mã trong `expected_articles` / `expected_nodes` /
+  `expected_articles_as_of` đã kiểm tra tồn tại thật trong `legal_node` — 0 mã thiếu.
+  Toàn bộ `reviewed: false`.
+- `tests/test_gold_file.py`: 2 passed, gồm `test_gold_ids_exist` chạy trên DB thật.
+- `scripts/eval_gold.py`: chạy thử (không ghi vào RESULTS.md vì gold set chưa duyệt):
+  - `--mode retrieval` trên cả 50 câu: hit@1=0.72, hit@8=0.98, MRR=0.825, 20,3 giây.
+  - `--mode e2e --limit 2 --repeat 1`: 2/2 đúng, 0 lỗi, 48,65 giây trung bình.
+  - 1 lỗi gặp và sửa ngay lần thử đầu (lần 1/2 theo luật số 6): `_search` dùng từ khoá `k`
+    trong khi `search_with_history` gọi bằng `top_k` — đổi tên tham số cho khớp.
+- Toàn bộ repo: `pytest -m "not llm"` 148 passed, 1 skipped; ruff sạch (ngoài 1 lỗi có từ
+  trước ở `test_env_example.py`, không thuộc phạm vi V1-V5).
+
+**Ghi chú khi viết gold set:** 2 trong 5 câu nhóm C (thời gian thử việc Điều 25/27, một phần
+làm thêm giờ Điều 107/106) có nội dung gần như không đổi giữa 2012 và 2019, chỉ đổi số Điều do
+đánh số lại — vẫn là phép thử hợp lệ cho việc "trích đúng phiên bản luật theo thời điểm", nhưng
+không minh hoạ được "nội dung luật đổi" như 3 câu C còn lại (tuổi nghỉ hưu, giấy phép lao động,
+thỏa ước lao động tập thể). Minh xem lại khi duyệt.
+
+**[DỪNG-1]:** đã gửi `backend/eval/gold_v1.jsonl` cho Minh qua thread. Chờ Minh sửa nội dung và
+đổi `"reviewed": false` thành `"reviewed": true` ở từng dòng đã xem qua, rồi báo lại. Sau đó mới
+chạy V1.5 (số nền chính thức, ~40 phút) và đưa số vào `docs/ket-qua-do-luong.md`.
