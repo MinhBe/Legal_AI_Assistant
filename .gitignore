@@ -42,3 +42,6 @@ data/escalations.json
 data/out_of_scope.jsonl
 .dahl.env
 RAG-api/
+
+# Gold set V1-V5: ứng viên sinh ra, không commit
+backend/eval/candidates.md
