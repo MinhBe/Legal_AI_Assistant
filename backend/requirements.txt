@@ -17,3 +17,6 @@ duckdb>=1.0
 # Embedding + rerank model thật (M2). Kéo theo torch — ảnh nặng nhưng để index
 # vector ổn định, không phụ thuộc API ngoài.
 sentence-transformers>=3.0
+
+underthesea>=6.8
+langfuse>=2.50,<3
