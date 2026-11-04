@@ -47,11 +47,28 @@ class Settings(BaseSettings):
     rerank_enabled: bool = False
     rerank_model: str = "BAAI/bge-reranker-v2-m3"
 
+    # Truy hồi (V2). Mặc định giữ vector cho tới khi gold set chứng minh hybrid tốt hơn.
+    search_mode: str = "vector"          # vector | bm25 | hybrid
+    bm25_tokenizer: str = "underthesea"  # underthesea | syllable
+    bm25_k1: float = 1.5
+    bm25_b: float = 0.75
+    hybrid_candidates: int = 30          # số ứng viên mỗi nhánh trước khi gộp
+    rrf_k: int = 60
+    rerank_top_n: int = 20               # số ứng viên đưa vào reranker
+
     # Observability
     langfuse_enabled: bool = False
     langfuse_host: str = "http://localhost:3002"
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
+    # Phòng thủ chèn lệnh gián tiếp (V5). Mặc định tắt; bật từng lớp để đo riêng.
+    inj_prompt_wrap: bool = False      # D3: bọc văn bản truy hồi bằng thẻ dữ liệu trong prompt
+    inj_filter_chunks: bool = False    # D1: lọc đoạn truy hồi nghi chèn lệnh trước khi vào prompt
+    inj_check_output: bool = False     # D2: kiểm tra đầu ra (URL lạ, lộ prompt, sai ngôn ngữ)
+    # Version prompt hỏi đáp đang bật (app/prompts/qa_answer.py). Đổi mặc định chỉ sau khi đo.
+    qa_prompt_version: str = "v1"
+    # Giá tham chiếu để quy đổi chi phí (USD / 1 triệu token). {} = không tính chi phí.
+    llm_prices_json: str = "{}"
 
     @property
     def gemini_keys(self) -> list[str]:
