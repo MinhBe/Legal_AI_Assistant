@@ -64,12 +64,11 @@ Câu hỏi đúng phạm vi lao động nhưng cần văn bản chưa có trong 
 <p align="center">
   <img src="docs/images/architecture.png" alt="Kiến trúc kĩ thuật" width="1200">
 </p>
-```
 
 | Tầng | Công nghệ | Ghi chú |
 |---|---|---|
-| **Web** | Next.js 15 (App Router), React 19, TypeScript | SSE streaming, citation chips |
-| **API** | FastAPI, Uvicorn, Pydantic v2, SQLAlchemy 2 | Async SSE via `POST /api/chat` |
+| **Web** | Next.js 15 (App Router), React 19, TypeScript | Nhận câu trả lời qua SSE, citation chips |
+| **API** | FastAPI, Uvicorn, Pydantic v2, SQLAlchemy 2 | SSE qua `POST /api/chat` — hiện phát từng câu sau khi LLM trả lời xong, chưa phát từng token khi đang sinh |
 | **Database** | PostgreSQL 17 + pgvector + pg_trgm | Vector (1024d) + trigram hybrid search |
 | **Embedding** | AITeamVN/Vietnamese_Embedding_v2 (self-hosted) | Không gửi dữ liệu ra ngoài |
 | **LLM** | `LLMRouter`: đua 3 model Dahl song song, Gemini/Claude dự phòng | Mỗi câu hỏi gửi đồng thời tới nhiều model, lấy câu trả lời hợp lệ sớm nhất |
@@ -86,12 +85,17 @@ Câu hỏi đúng phạm vi lao động nhưng cần văn bản chưa có trong 
 - **Time-travel law**: `law_as_of(date)` dùng CTE trên `node_supersession` để theo chuỗi BLLĐ 2012 → BLLĐ 2019
 - **No external embedding API**: model tự host trong Docker container → 0 đồng gọi API, latency ổn định
 
-### Đo trên bộ 18 câu hỏi mẫu nội bộ
+### Đo trên gold set 50 câu nội bộ
 
-| | Đúng Điều trích dẫn | Trung bình | Lâu nhất |
-|---|---|---|---|
-| Đua 3 model Dahl + Gemini dự phòng | 18/18 | ~15s | ~23s |
-| 146 test backend (pytest) | đều pass | — | — |
+Xem [`docs/ket-qua-do-luong.md`](docs/ket-qua-do-luong.md) để biết đầy đủ số đo và nguồn (file JSON, lệnh đã chạy). **Gold set do model viết, đang chờ người duyệt** — số dưới đây là số đo nội bộ, không phải số đã thẩm định.
+
+| | Giá trị |
+|---|---|
+| Đúng Điều, ít nhất 1 trong 3 lần hỏi | 88–94% |
+| Đúng Điều cả 3 lần (reliability) | 86% |
+| Trích đúng Khoản (không chỉ đúng Điều) | 73% |
+| Độ trễ trung bình một câu | ~18s |
+| 165 test backend (pytest) | đều pass |
 
 ---
 
