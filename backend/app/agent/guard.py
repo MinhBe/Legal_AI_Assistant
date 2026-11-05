@@ -112,6 +112,39 @@ def classify(router, message: str, convo: str = "") -> dict:
     return out
 
 
+# ---- phòng thủ chèn lệnh gián tiếp (V5 D1): lọc đoạn văn bản truy hồi nghi chèn lệnh ----
+_CHUNK_INJECTION = [re.compile(p, re.IGNORECASE) for p in [
+    r"(hệ thống|trợ lý|AI|mô hình|model).{0,30}(bỏ qua|phớt lờ)",
+    r"bỏ qua (các |mọi )?(quy tắc|hướng dẫn|chỉ dẫn)",
+    r"từ (bây giờ|giờ) (chỉ )?trả lời",
+    r"chép (nguyên văn|lại) .{0,20}(quy tắc|prompt|chỉ dẫn)",
+    r"ignore (all |previous )?instructions",
+    # URL không nằm trong mẫu D1 (gây dương tính giả 1/150 án lệ thật); URL lạ được D2 chặn ở đầu ra
+]]
+
+
+def filter_chunks(hits: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Tách hits thành (giữ lại, bị loại). Đoạn nào khớp mẫu chèn lệnh đều bị loại và ghi log."""
+    kept, dropped = [], []
+    for h in hits:
+        body = f"{h.get('heading') or ''} {h.get('text') or ''}"
+        if any(p.search(body) for p in _CHUNK_INJECTION):
+            dropped.append(h)
+            logger.warning("Loại đoạn nghi chèn lệnh: {}", h.get("node_id"))
+        else:
+            kept.append(h)
+    return kept, dropped
+
+
+def vi_diacritic_ratio(s: str) -> float:
+    """Tỉ lệ chữ cái có dấu tiếng Việt trên tổng chữ cái (dùng cho kiểm tra đầu ra)."""
+    letters = [c for c in s if c.isalpha()]
+    if not letters:
+        return 0.0
+    return len(re.findall(
+        r"[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]", s, re.I)) / len(letters)
+
+
 def out_of_corpus_notice(reason: str) -> str:
     return (
         f"Câu hỏi của bạn liên quan đến lao động nhưng cần văn bản chưa có trong kho ({CORPUS}), "
