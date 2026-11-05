@@ -1,0 +1,93 @@
+{
+  "ts": "2026-11-05T00:25:36.667562+00:00",
+  "phase2_vi_en": {
+    "model": "zai-org/GLM-5.3-Flash",
+    "overhead_tokens": 13,
+    "translation": "máy dịch (không có bản chính thức)",
+    "rows": [
+      {
+        "article": 25,
+        "chars_vi": 682,
+        "chars_en": 772,
+        "dahl_vi": 171,
+        "dahl_en": 139,
+        "ratio_dahl": 1.23
+      },
+      {
+        "article": 27,
+        "chars_vi": 647,
+        "chars_en": 731,
+        "dahl_vi": 153,
+        "dahl_en": 128,
+        "ratio_dahl": 1.195
+      },
+      {
+        "article": 35,
+        "chars_vi": 289,
+        "chars_en": 313,
+        "dahl_vi": 72,
+        "dahl_en": 58,
+        "ratio_dahl": 1.241
+      },
+      {
+        "article": 36,
+        "chars_vi": 504,
+        "chars_en": 524,
+        "dahl_vi": 133,
+        "dahl_en": 106,
+        "ratio_dahl": 1.255
+      },
+      {
+        "article": 41,
+        "chars_vi": 1607,
+        "chars_en": 1718,
+        "dahl_vi": 391,
+        "dahl_en": 326,
+        "ratio_dahl": 1.199
+      },
+      {
+        "article": 46,
+        "chars_vi": 1004,
+        "chars_en": 1190,
+        "dahl_vi": 265,
+        "dahl_en": 234,
+        "ratio_dahl": 1.132
+      },
+      {
+        "article": 98,
+        "chars_vi": 719,
+        "chars_en": 800,
+        "dahl_vi": 178,
+        "dahl_en": 167,
+        "ratio_dahl": 1.066
+      },
+      {
+        "article": 107,
+        "chars_vi": 651,
+        "chars_en": 661,
+        "dahl_vi": 160,
+        "dahl_en": 118,
+        "ratio_dahl": 1.356
+      },
+      {
+        "article": 113,
+        "chars_vi": 1211,
+        "chars_en": 1372,
+        "dahl_vi": 308,
+        "dahl_en": 271,
+        "ratio_dahl": 1.137
+      },
+      {
+        "article": 139,
+        "chars_vi": 1333,
+        "chars_en": 1635,
+        "dahl_vi": 333,
+        "dahl_en": 309,
+        "ratio_dahl": 1.078
+      }
+    ],
+    "ratio_dahl_mean": 1.189,
+    "ratio_dahl_min": 1.066,
+    "ratio_dahl_max": 1.356
+  }
+}
