@@ -160,8 +160,10 @@ def _patch_anti_cache(run_id: str, rep: int):
     return lambda: setattr(qa, "_answer_messages", orig)
 
 
-def _run_one_e2e(r: dict) -> dict:
+def _run_one_e2e(r: dict, tag: str = "eval") -> dict:
     from app.agent.qa import answer_with_citations
+    from app import prompts
+    from app.obs import metrics
 
     t0 = time.monotonic()
     ttft_s = None
@@ -169,8 +171,10 @@ def _run_one_e2e(r: dict) -> dict:
     refused_cue = False
     escalate = False
     error = None
+    ctx = metrics.start_request("eval", tag=tag, gold_id=r["id"],
+                                prompt_version=prompts.active_version("qa_answer"))
     try:
-        for ev, data in answer_with_citations(r["question"], r.get("history")):
+        for ev, data in metrics.traced(answer_with_citations(r["question"], r.get("history")), ctx):
             if ev == "token":
                 if ttft_s is None:
                     ttft_s = time.monotonic() - t0
@@ -183,6 +187,9 @@ def _run_one_e2e(r: dict) -> dict:
             elif ev == "done":
                 if data.get("escalate"):
                     escalate = True
+                # lạc đề / chèn lệnh được chặn bằng lời nhắc (guard.REDIRECT): đó cũng là từ chối đúng
+                if data.get("category") in ("off_topic", "injection"):
+                    refused_cue = True
             elif ev == "error":
                 error = data.get("message")
     except Exception as exc:  # noqa: BLE001 — câu lỗi vẫn phải được đếm, không làm vỡ cả lượt chạy
@@ -205,18 +212,22 @@ def _run_one_e2e(r: dict) -> dict:
         "clause_ok": clause_ok, "wrong_version": wrong_version,
         "citations": citations, "latency_s": round(time.monotonic() - t0, 2),
         "ttft_s": round(ttft_s, 2) if ttft_s is not None else None,
+        "request_id": ctx["request_id"],
+        **{k: (ctx.get("result") or {}).get(k) for k in
+           ("tokens_all", "tokens_winners", "race_overhead", "n_llm_calls", "n_llm_errors", "cost_ref_usd")},
     }
 
 
-def run_e2e(rows: list[dict], *, repeat: int, run_id: str) -> dict:
+def run_e2e(rows: list[dict], *, repeat: int, run_id: str, tag: str = "eval") -> dict:
     per_row = []
     n_error = 0
     for r in rows:
         reps = []
         for rep in range(repeat):
-            restore = _patch_anti_cache(run_id, rep) if repeat > 1 else (lambda: None)
+            # luôn có mã lượt, kể cả repeat=1: Dahl cache prompt giống hệt, lần chạy sau sẽ được trả từ cache
+            restore = _patch_anti_cache(run_id, rep)
             try:
-                reps.append(_run_one_e2e(r))
+                reps.append(_run_one_e2e(r, tag))
             finally:
                 restore()
         n_error += sum(1 for x in reps if x["error"])
@@ -338,7 +349,7 @@ def main() -> None:
     elif args.mode == "retrieval":
         result = run_retrieval(rows, k=args.k, mode=args.search, rerank=rerank)
     else:
-        result = run_e2e(rows, repeat=args.repeat, run_id=run_id)
+        result = run_e2e(rows, repeat=args.repeat, run_id=run_id, tag=args.tag)
     elapsed = round(time.monotonic() - t0, 1)
 
     merged_rows = old_rows + result["rows"]

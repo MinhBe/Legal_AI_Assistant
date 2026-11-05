@@ -33,6 +33,7 @@ from typing import Any
 from loguru import logger
 
 from app.config import get_settings
+from app.obs import metrics
 
 settings = get_settings()
 
@@ -61,6 +62,7 @@ class LLMResult:
     provider: str
     model: str
     data: Any = None  # kết quả parse (extract_json), nếu có
+    call_id: str | None = None  # id bản ghi đo lường của lời gọi này (app/obs/metrics.py)
 
 
 class LLMError(RuntimeError):
@@ -98,6 +100,31 @@ def _status(exc: Exception) -> int | None:
     return getattr(exc, "status_code", None) or getattr(
         getattr(exc, "response", None), "status_code", None
     )
+
+
+def _usage(resp: Any) -> tuple[int | None, int | None, int | None]:
+    u = getattr(resp, "usage", None)
+    rt = getattr(getattr(u, "completion_tokens_details", None), "reasoning_tokens", None)
+    return getattr(u, "prompt_tokens", None), getattr(u, "completion_tokens", None), rt
+
+
+def _record(*, provider: str, model: str, task: str, t0: float, messages, text: str = "",
+            resp: Any = None, error: str | None = None, attempts: int = 1) -> str:
+    """Ghi một lời gọi (kể cả lời gọi thua cuộc đua). Thiếu usage thì ước lượng và đánh dấu."""
+    latency = time.monotonic() - t0
+    if resp is None:  # lỗi trước khi có câu trả lời: không có token để tính
+        return metrics.record_llm(provider=provider, model=model, task=task, latency_s=latency,
+                                  input_tokens=None, output_tokens=None, estimated=False,
+                                  attempts=attempts, error=error)
+    tin, tout, rt = _usage(resp)
+    est = tin is None or tout is None
+    if tin is None:
+        tin = metrics.estimate_tokens(" ".join(str(m.get("content", "")) for m in messages))
+    if tout is None:
+        tout = metrics.estimate_tokens(text)
+    return metrics.record_llm(provider=provider, model=model, task=task, latency_s=latency,
+                              input_tokens=tin, output_tokens=tout, estimated=est,
+                              attempts=attempts, error=error, reasoning_tokens=rt)
 
 
 class LLMRouter:
@@ -182,21 +209,23 @@ class LLMRouter:
                     backup = plan[i + 1] if i + 1 < len(plan) and settings.dahl_hedge_after > 0 else None
                     if backup:
                         tried.add(backup)  # đã chạy trong cuộc đua, lỗi thì không gọi lại
-                    return self._race_dahl(messages, temperature, max_tokens, parse, backup)
-                res = self._call(provider, model, messages, temperature, max_tokens)
+                    return self._race_dahl(messages, temperature, max_tokens, parse, backup, task=task)
+                res = self._call(provider, model, messages, temperature, max_tokens, task=task)
                 if parse:
                     res.data = parse(res.text)
+                metrics.mark_winner(res.call_id)
                 return res
             except Exception as exc:  # noqa: BLE001 — thử nhà cung cấp kế tiếp
                 logger.warning("LLM {} ({}) lỗi: {}", provider, model, exc)
                 last_exc = exc
         raise LLMError(f"Mọi nhà cung cấp đều lỗi: {last_exc}")
 
-    def _call(self, provider, model, messages, temperature, max_tokens) -> LLMResult:
+    def _call(self, provider, model, messages, temperature, max_tokens, task: str = "answer") -> LLMResult:
         if provider == "claude":
-            return self._call_claude(model, messages, temperature, max_tokens)
+            return self._call_claude(model, messages, temperature, max_tokens, task=task)
         base_url, api_key = self._endpoint(provider)
-        return self._call_openai(provider, base_url, api_key, model, messages, temperature, max_tokens)
+        return self._call_openai(provider, base_url, api_key, model, messages, temperature, max_tokens,
+                                 task=task)
 
     def _endpoint(self, provider: str) -> tuple[str, str]:
         if provider == "gemini":
@@ -206,17 +235,18 @@ class LLMRouter:
         raise LLMError(f"Nhà cung cấp không hỗ trợ: {provider}")
 
     # ---- Dahl: đua song song ----
-    def _race_dahl(self, messages, temperature, max_tokens, parse, backup=None) -> LLMResult:
+    def _race_dahl(self, messages, temperature, max_tokens, parse, backup=None, task: str = "answer") -> LLMResult:
         """Đua mọi model Dahl; `backup` (nhà cung cấp kế trong kế hoạch) vào đua muộn."""
         won, dahl_failed = threading.Event(), threading.Event()
         t0 = time.monotonic()
         models = settings.dahl_model_list
         futures = {
-            _POOL.submit(self._call_dahl, m, messages, temperature, max_tokens, parse, won): m
+            metrics.submit(_POOL, self._call_dahl, m, messages, temperature, max_tokens, parse, won, task): m
             for m in models
         }
         if backup:
-            hedge = _POOL.submit(self._hedge, backup, messages, temperature, max_tokens, parse, won, dahl_failed)
+            hedge = metrics.submit(_POOL, self._hedge, backup, messages, temperature, max_tokens, parse,
+                                   won, dahl_failed, task)
             futures[hedge] = f"{backup[0]} (dự phòng)"
         errors: list[str] = []
         failed_dahl = 0
@@ -231,11 +261,13 @@ class LLMRouter:
                         dahl_failed.set()  # dự phòng khỏi phải chờ hết giờ
                 continue
             won.set()
+            metrics.mark_winner(res.call_id)
             logger.info("{}: {} thắng sau {:.1f}s", res.provider, res.model, time.monotonic() - t0)
             return res
         raise LLMError("Mọi model Dahl đều lỗi: " + " | ".join(errors))
 
-    def _hedge(self, backup, messages, temperature, max_tokens, parse, won, dahl_failed) -> LLMResult:
+    def _hedge(self, backup, messages, temperature, max_tokens, parse, won, dahl_failed,
+               task: str = "answer") -> LLMResult:
         """Chỉ gọi dự phòng khi sau DAHL_HEDGE_AFTER giây Dahl vẫn chưa trả lời, hoặc đã lỗi hết.
 
         Dahl miễn phí có lúc cả ba model cùng xếp hàng tới hơn một phút; gọi thêm
@@ -249,17 +281,18 @@ class LLMRouter:
         if won.is_set():
             raise LLMError("Dahl đã trả lời")
         provider, model = backup
-        res = self._call(provider, model, messages, temperature, max_tokens)
+        res = self._call(provider, model, messages, temperature, max_tokens, task=task)
         if parse:
             res.data = parse(res.text)
         return res
 
-    def _call_dahl(self, model, messages, temperature, max_tokens, parse, won) -> LLMResult:
+    def _call_dahl(self, model, messages, temperature, max_tokens, parse, won, task: str = "answer") -> LLMResult:
         client = self._openai_client(settings.dahl_base_url, self._next_dahl_key(), _DAHL_TIMEOUT)
         extra = {"reasoning_effort": settings.dahl_reasoning_effort} if settings.dahl_reasoning_effort else {}
         for attempt in range(_DAHL_BUSY_RETRIES):
             if won.is_set():
                 raise LLMError("đã có model khác trả lời")
+            t_att = time.monotonic()
             try:
                 resp = client.chat.completions.create(
                     model=model,
@@ -269,37 +302,57 @@ class LLMRouter:
                     extra_body=extra,
                 )
             except Exception as exc:  # noqa: BLE001
-                if _status(exc) != 429 or attempt == _DAHL_BUSY_RETRIES - 1:
+                last = _status(exc) != 429 or attempt == _DAHL_BUSY_RETRIES - 1
+                if last:
+                    _record(provider="dahl", model=model, task=task, t0=t_att, messages=messages,
+                            error=str(exc)[:200], attempts=attempt + 1)
                     raise
                 time.sleep(random.uniform(0.5, _DAHL_BUSY_DELAY))
                 continue
             text = strip_think(resp.choices[0].message.content or "")
+            # lời gọi bị loại (rỗng / chữ Hán) vẫn tốn token: phải được ghi, đây là chi phí thật của cuộc đua
+            err = None
             if not text:
+                err = "rỗng"
+            elif _CJK.search(text):
+                err = "không phải tiếng Việt"
+            cid = _record(provider="dahl", model=model, task=task, t0=t_att, messages=messages,
+                          text=text, resp=resp, error=err, attempts=attempt + 1)
+            if err == "rỗng":
                 raise LLMError("câu trả lời rỗng (hết token khi đang nghĩ?)")
-            if _CJK.search(text):
+            if err:
                 # mọi câu trả lời của ứng dụng đều phải là tiếng Việt: để model khác thắng
                 raise LLMError("trả lời không phải tiếng Việt (có chữ Hán/kana/Hangul)")
             return LLMResult(
-                text=text, provider="dahl", model=model, data=parse(text) if parse else None
+                text=text, provider="dahl", model=model, data=parse(text) if parse else None, call_id=cid
             )
         raise LLMError("hết lượt chờ chỗ")
 
     def _call_openai(
-        self, provider, base_url, api_key, model, messages, temperature, max_tokens
+        self, provider, base_url, api_key, model, messages, temperature, max_tokens, task: str = "answer"
     ) -> LLMResult:
         def _once(key: str) -> LLMResult:
             client = self._openai_client(base_url, key)
-            resp = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            return LLMResult(text=resp.choices[0].message.content or "", provider=provider, model=model)
+            t0 = time.monotonic()
+            try:
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+            except Exception as exc:  # noqa: BLE001
+                _record(provider=provider, model=model, task=task, t0=t0, messages=messages,
+                        error=str(exc)[:200])
+                raise
+            text = resp.choices[0].message.content or ""
+            cid = _record(provider=provider, model=model, task=task, t0=t0, messages=messages,
+                          text=text, resp=resp)
+            return LLMResult(text=text, provider=provider, model=model, call_id=cid)
 
         return self._with_retry(lambda: _once(api_key), provider=provider, rotate=(provider == "gemini"))
 
-    def _call_claude(self, model, messages, temperature, max_tokens) -> LLMResult:
+    def _call_claude(self, model, messages, temperature, max_tokens, task: str = "answer") -> LLMResult:
         from anthropic import Anthropic
 
         client = Anthropic(api_key=settings.anthropic_api_key, max_retries=0)
@@ -307,15 +360,27 @@ class LLMRouter:
         conv = [m for m in messages if m["role"] != "system"]
 
         def _once() -> LLMResult:
-            resp = client.messages.create(
-                model=model,
-                system=system or None,
-                messages=conv,
-                temperature=temperature,
-                max_tokens=max_tokens or 4096,
-            )
+            t0 = time.monotonic()
+            try:
+                resp = client.messages.create(
+                    model=model,
+                    system=system or None,
+                    messages=conv,
+                    temperature=temperature,
+                    max_tokens=max_tokens or 4096,
+                )
+            except Exception as exc:  # noqa: BLE001
+                _record(provider="claude", model=model, task=task, t0=t0, messages=messages,
+                        error=str(exc)[:200])
+                raise
             text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
-            return LLMResult(text=text, provider="claude", model=model)
+            u = getattr(resp, "usage", None)
+            tin = getattr(u, "input_tokens", None)
+            tout = getattr(u, "output_tokens", None)
+            cid = metrics.record_llm(provider="claude", model=model, task=task,
+                                     latency_s=time.monotonic() - t0, input_tokens=tin, output_tokens=tout,
+                                     estimated=tin is None or tout is None, attempts=1)
+            return LLMResult(text=text, provider="claude", model=model, call_id=cid)
 
         return self._with_retry(_once, provider="claude", rotate=False)
 
@@ -344,7 +409,7 @@ class LLMRouter:
             try:
                 if provider == "dahl":
                     # phần <think> chỉ bỏ được khi đã có trọn câu trả lời
-                    yield self._race_dahl(messages, temperature, None, None).text
+                    yield self._race_dahl(messages, temperature, None, None, task=task).text
                     return
                 if provider == "claude":
                     yield from self._stream_claude(model, messages, temperature)

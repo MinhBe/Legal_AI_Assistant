@@ -45,3 +45,7 @@ RAG-api/
 
 # Gold set V1-V5: ứng viên sinh ra, không commit
 backend/eval/candidates.md
+
+# Dữ liệu đo lường và cache chỉ mục (V2–V3)
+data/cache/
+data/metrics/

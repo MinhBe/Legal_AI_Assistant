@@ -34,7 +34,7 @@ def dahl_router(monkeypatch):
     router = r.LLMRouter()
     router._dahl_keys = ["k"]
 
-    def fake(model, messages, temperature, max_tokens, parse, won):
+    def fake(model, messages, temperature, max_tokens, parse, won, task="answer"):
         if model == "error":
             raise RuntimeError("429")
         if model == "fast-bad":
@@ -64,7 +64,7 @@ def test_race_falls_back_when_every_dahl_model_fails(monkeypatch):
     router._dahl_keys = ["k"]
     monkeypatch.setattr(router, "_call_dahl", lambda *a: (_ for _ in ()).throw(RuntimeError("busy")))
     monkeypatch.setattr(router, "_plan", lambda task: [("dahl", "*"), ("gemini", "g")])
-    monkeypatch.setattr(router, "_call", lambda *a: r.LLMResult(text="từ gemini", provider="gemini", model="g"))
+    monkeypatch.setattr(router, "_call", lambda *a, **k: r.LLMResult(text="từ gemini", provider="gemini", model="g"))
     assert router.chat([{"role": "user", "content": "x"}]).provider == "gemini"
 
 
@@ -103,7 +103,7 @@ def hedged_router(monkeypatch):
     monkeypatch.setattr(router, "_plan", lambda task: [("dahl", "*"), ("gemini", "g")])
     backup_calls = []
 
-    def backup(*a):
+    def backup(*a, **k):
         backup_calls.append(a)
         return r.LLMResult(text="{}", provider="gemini", model="g")
 
@@ -112,7 +112,7 @@ def hedged_router(monkeypatch):
 
 
 def _dahl_after(seconds):
-    def fake(model, messages, temperature, max_tokens, parse, won):
+    def fake(model, messages, temperature, max_tokens, parse, won, task="answer"):
         time.sleep(seconds)
         return r.LLMResult(text="{}", provider="dahl", model=model)
     return fake

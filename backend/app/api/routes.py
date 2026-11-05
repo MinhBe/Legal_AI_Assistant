@@ -15,7 +15,10 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app import prompts
 from app.agent.pipeline import run_chat
+from app.config import get_settings
+from app.obs import metrics
 from app.db.base import get_db
 from app.db.models import LegalDocument, LegalNode, Thread
 from app.graph.builder import build_graph
@@ -250,7 +253,11 @@ def chat(req: ChatRequest):
         thread_id = req.thread_id or uuid.uuid4().hex
         yield sse("start", {"thread_id": thread_id})
         try:
-            for event, data in run_chat(req.message, history, req.mode):
+            ctx = metrics.start_request(
+                "chat", mode=req.mode, prompt_version=prompts.active_version("qa_answer"),
+                search_mode=get_settings().search_mode,
+            )
+            for event, data in metrics.traced(run_chat(req.message, history, req.mode), ctx):
                 yield sse(event, data)
         except Exception as exc:  # noqa: BLE001
             yield sse("error", {"message": str(exc)})
