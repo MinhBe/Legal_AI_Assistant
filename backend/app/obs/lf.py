@@ -32,7 +32,8 @@ def send(row: dict, calls: list[dict]) -> None:
     if lf is None:
         return
     try:
-        tr = lf.trace(id=row["request_id"], name=row["kind"], metadata=row)
+        tr = lf.trace(id=row["request_id"], name=row["kind"], metadata=row,
+                      input=row.get("question"), output=row.get("answer"))
         for c in calls:
             tr.generation(name=c["task"], model=c["model"],
                           usage={"input": c["input_tokens"] or 0, "output": c["output_tokens"] or 0},

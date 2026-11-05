@@ -137,8 +137,11 @@ def end_request(ctx: dict, **attrs: Any) -> dict:
 
 
 def traced(gen, ctx: dict):
-    """Bọc generator sự kiện (name, data) của qa: gắn ctx ở mỗi bước, đo ttft, ghi khi xong."""
+    """Bọc generator sự kiện (name, data) của qa: gắn ctx ở mỗi bước, đo ttft, ghi khi xong.
+    Gộp luôn các đoạn "token" thành câu trả lời đầy đủ (ctx["answer"]) để Langfuse hiển thị
+    được Input/Output thật của trace, không chỉ số đo."""
     it = iter(gen)
+    answer_chunks: list[str] = []
     try:
         while True:
             with bind(ctx):
@@ -148,8 +151,12 @@ def traced(gen, ctx: dict):
                     break
             if ctx["ttft_s"] is None and ev[0] == "token":
                 ctx["ttft_s"] = round(time.monotonic() - ctx["t0"], 3)
+            if ev[0] == "token" and isinstance(ev[1], dict):
+                answer_chunks.append(ev[1].get("text", ""))
             if ev[0] == "done" and isinstance(ev[1], dict):
                 ctx["category"] = ev[1].get("category", ctx.get("category"))
             yield ev
     finally:
+        if answer_chunks:
+            ctx["answer"] = "".join(answer_chunks)
         ctx["result"] = end_request(ctx)

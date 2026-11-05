@@ -21,16 +21,19 @@ def _lines(path):
 def test_traced_writes_one_request_with_ttft(mdir):
     def gen():
         yield ("step", {"name": "retrieve"})
-        yield ("token", {"text": "xin chào"})
+        yield ("token", {"text": "xin "})
+        yield ("token", {"text": "chào"})
         yield ("done", {"category": "legal"})
 
-    ctx = metrics.start_request("chat", mode="law", prompt_version="v1")
+    ctx = metrics.start_request("chat", mode="law", prompt_version="v1", question="hỏi gì đó")
     events = list(metrics.traced(gen(), ctx))
-    assert [e[0] for e in events] == ["step", "token", "done"]
+    assert [e[0] for e in events] == ["step", "token", "token", "done"]
     rows = _lines(mdir / "requests.jsonl")
     assert len(rows) == 1
     assert rows[0]["kind"] == "chat" and rows[0]["ttft_s"] is not None
     assert rows[0]["category"] == "legal"
+    assert rows[0]["question"] == "hỏi gì đó"
+    assert rows[0]["answer"] == "xin chào"  # gộp các đoạn token để Langfuse hiển thị Input/Output
     assert ctx["result"]["request_id"] == rows[0]["request_id"]
 
 

@@ -255,7 +255,7 @@ def chat(req: ChatRequest):
         try:
             ctx = metrics.start_request(
                 "chat", mode=req.mode, prompt_version=prompts.active_version("qa_answer"),
-                search_mode=get_settings().search_mode,
+                search_mode=get_settings().search_mode, question=req.message,
             )
             for event, data in metrics.traced(run_chat(req.message, history, req.mode), ctx):
                 yield sse(event, data)
