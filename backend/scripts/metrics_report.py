@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -30,6 +31,34 @@ def _pct(xs: list[float], p: float) -> float | None:
     return xs[min(len(xs) - 1, int(round(p / 100 * (len(xs) - 1))))]
 
 
+# Một lượt eval_gold.py ghi các request liên tục, cách nhau vài giây đến vài chục
+# giây (thời gian trả lời LLM). Khoảng cách lớn hơn ngưỡng này nghĩa là có một lượt
+# chạy khác, riêng biệt, cũng dùng --tag này — dễ gộp nhầm số của 2 lần chạy khác nhau.
+_RUN_GAP_THRESHOLD_S = 300
+
+
+def _warn_if_tag_has_multiple_runs(tag: str, reqs: list[dict]) -> None:
+    ts = sorted(r["ts"] for r in reqs if r.get("ts"))
+    if len(ts) < 2:
+        return
+    from datetime import datetime
+
+    parsed = [datetime.fromisoformat(t) for t in ts]
+    runs = [[parsed[0]]]
+    for prev, cur in zip(parsed, parsed[1:], strict=False):  # cố ý lệch 1 phần tử (cặp liên tiếp)
+        gap = (cur - prev).total_seconds()
+        if gap > _RUN_GAP_THRESHOLD_S:
+            runs.append([])
+        runs[-1].append(cur)
+    if len(runs) > 1:
+        print(f"\033[31mCẢNH BÁO: tag \"{tag}\" có {len(runs)} lượt chạy riêng biệt "
+              f"(cách nhau hơn {_RUN_GAP_THRESHOLD_S}s), đang gộp chung. Lọc thêm bằng "
+              f"--since nếu chỉ muốn 1 lượt:\033[0m", file=sys.stderr)
+        for i, run in enumerate(runs, 1):
+            print(f"  lượt {i}: {run[0].isoformat()} .. {run[-1].isoformat()}  ({len(run)} request)",
+                  file=sys.stderr)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--since", default=None)
@@ -46,6 +75,7 @@ def main() -> None:
         reqs = [r for r in reqs if r.get("kind") == args.kind]
     if args.tag:
         reqs = [r for r in reqs if r.get("tag") == args.tag]
+        _warn_if_tag_has_multiple_runs(args.tag, reqs)
     ids = {r["request_id"] for r in reqs}
     calls = [c for c in calls if c.get("request_id") in ids]
     # cờ "thắng" được ghi riêng (mark_winner) vì bản ghi lời gọi đã ghi trước khi biết ai thắng

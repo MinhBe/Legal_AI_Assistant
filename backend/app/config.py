@@ -58,7 +58,7 @@ class Settings(BaseSettings):
 
     # Observability
     langfuse_enabled: bool = False
-    langfuse_host: str = "http://localhost:3002"
+    langfuse_host: str = "http://langfuse:3000"  # tên service trong container, không phải cổng trình duyệt 3002
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
     # Phòng thủ chèn lệnh gián tiếp (V5). Mặc định tắt; bật từng lớp để đo riêng.
