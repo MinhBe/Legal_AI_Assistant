@@ -23,3 +23,7 @@ Mỗi dòng do `scripts/eval_gold.py` tự nối thêm. Chi tiết từng lượ
 | 20261105-0040 | v4-v1 | e2e | — | — | v1 | — | — | — | 0.88 | 0.6 | — | 2efd667 |
 | 20261105-0127 | v4-v2 | e2e | — | — | v2 | — | — | — | 0.88 | 0.6 | — | 2efd667 |
 | 20261105-0236 | v5-all | inject | ASR=0.000 | P1..P5={'P1': 0.0, 'P2': 0.0, 'P3': 0.0, 'P4': 0.0, 'P5': 0.0} | án lệ P1=0.0 | control=0 |
+| 20261105-0255 | v6-k5 | retrieval | vector | False | v1 | 0.72 | 0.98 | 0.826 | — | — | 442.6 | cf2f3e3 |
+| 20261105-0256 | v6-k20 | retrieval | vector | False | v1 | 0.72 | 1.0 | 0.825 | — | — | 574.8 | cf2f3e3 |
+| 20261105-0256 | v6-k5-rr | retrieval | vector | True | v1 | 0.82 | 1.0 | 0.897 | — | — | 20076.0 | cf2f3e3 |
+| 20261105-0304 | v6-single-model | e2e | — | — | v1 | — | — | — | 0.88 | None | — | cf2f3e3 |
