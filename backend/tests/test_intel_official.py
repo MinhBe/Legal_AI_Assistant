@@ -294,3 +294,26 @@ def _item(db, source: str, url: str, title: str) -> IntelItem:
     )
     assert item is not None and item.number
     return item
+
+
+def test_status_ignores_scripts_and_other_precedents():
+    """Trang anle có script và khung tin chung nhắc "bãi bỏ án lệ" ở mọi trang: chỉ tính câu
+    nói đúng số hiệu án lệ đang xem."""
+    from app.intel.precedents import status_of
+
+    page = (
+        "<html><body><script>var x='Án lệ bị bãi bỏ hết hiệu lực';</script>"
+        "<div>Tin: Hội đồng Thẩm phán bãi bỏ Án lệ số 10/2016/AL.</div>"
+        "<p>90/2026/AL Về thẩm quyền hủy giấy chứng nhận quyền sử dụng đất của Tòa án.</p></body></html>"
+    )
+    assert status_of(page, "90/2026/AL")[0] == "dang_ap_dung"
+    assert status_of(page, "10/2016/AL")[0] == "bi_huy_bo"
+
+
+def test_title_mentioning_annulment_of_something_else_is_not_cancelled():
+    from app.intel.precedents import status_of
+
+    page = ("<p>Án lệ số 36/2020/AL về hiệu lực của hợp đồng thế chấp quyền sử dụng đất khi giấy "
+            "chứng nhận quyền sử dụng đất bị thu hồi, hủy bỏ</p>")
+    assert status_of(page, "36/2020/AL")[0] == "dang_ap_dung"
+    assert status_of("<p>Hội đồng Thẩm phán quyết định bãi bỏ Án lệ số 36/2020/AL.</p>", "36/2020/AL")[0] == "bi_huy_bo"

@@ -95,12 +95,38 @@ def parse_list(html: str) -> list[dict[str, Any]]:
     return rows
 
 
-def status_of(html: str) -> tuple[str, str]:
-    """`(trạng thái, ghi chú)` đọc từ câu trên trang chi tiết."""
-    for sentence in _SENTENCE.split(sources.plain_text(html)):
-        low = sentence.lower()
-        if "án lệ" in low and any(phrase in low for phrase in CANCEL_PHRASES):
-            return "bi_huy_bo", " ".join(sentence.split())[:500]
+_NON_TEXT = re.compile(r"(?is)<(script|style|noscript)\b[^>]*>.*?</\1>")
+_BLOCK = re.compile(r"(?i)</?(p|div|li|ul|ol|br|tr|td|th|h[1-6]|section|article|table)\b[^>]*>")
+_CANCEL_RE = re.compile(
+    r"(bãi bỏ|hủy bỏ|huỷ bỏ)\s+(các\s+)?án lệ"
+    r"|án lệ[^.;]{0,40}?(đã\s+)?bị\s+(bãi bỏ|hủy bỏ|huỷ bỏ)"
+    r"|án lệ[^.;]{0,60}?(không còn (được\s+)?áp dụng|hết hiệu lực áp dụng)"
+)
+
+
+def status_of(html: str, number: str = "") -> tuple[str, str]:
+    """`(trạng thái, ghi chú)` đọc từ câu trên trang chi tiết.
+
+    Chỉ tính câu nhắc ĐÚNG số hiệu án lệ này cùng cụm "bãi bỏ/hủy bỏ…": trang anle có script và
+    khung tin chung (xuất hiện ở mọi trang) chứa các từ đó, trước đây làm mọi án lệ bị coi là
+    đã huỷ bỏ."""
+    # Tự tách dòng ở thẻ khối (plain_text gộp mọi khoảng trắng nên cả trang thành một "câu"),
+    # rồi tách câu; bỏ đoạn dài > 400 ký tự (menu/khối dính liền, không phải một câu thật).
+    import html as html_lib
+
+    raw = _BLOCK.sub("\n", _NON_TEXT.sub(" ", html))
+    text = html_lib.unescape(re.sub(r"<[^>]+>", " ", raw))
+    num = (number or "").lower()
+    for line in text.splitlines():
+        for sentence in _SENTENCE.split(line):
+            sentence = " ".join(sentence.split())
+            if not sentence or len(sentence) > 400:
+                continue
+            low = sentence.lower()
+            # Hành động phải nhắm vào chính án lệ ("bãi bỏ án lệ…", "án lệ … bị bãi bỏ"), vì tiêu đề
+            # án lệ hay tự chứa "hủy bỏ"/"hết hiệu lực" của đối tượng khác (giấy chứng nhận, hợp đồng…).
+            if _CANCEL_RE.search(low) and (not num or num in low):
+                return "bi_huy_bo", sentence[:500]
     return "dang_ap_dung", ""
 
 
@@ -148,7 +174,7 @@ def crawl(render: Render, fetcher: Fetcher, db: Session, max_pages: int = 10) ->
             if row["doc_key"] in known:
                 upsert(db, row)
                 continue
-            status, note = status_of(render(row["url"]) or "")
+            status, note = status_of(render(row["url"]) or "", row.get("number", ""))
             upsert(db, row, status=status, note=note)
             counts["new"] += 1
             if status == "bi_huy_bo":
