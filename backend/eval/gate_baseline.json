@@ -1,0 +1,64 @@
+{
+  "date": "2026-11-16",
+  "commit": "unknown",
+  "n": {
+    "recall@5": 55,
+    "recall@8": 55,
+    "mrr": 55,
+    "version_correct": 15,
+    "injection_block": 5,
+    "pii_leak": 20,
+    "upload_isolation": 5
+  },
+  "metrics": {
+    "recall@5": {
+      "value": 0.9091,
+      "n": 55,
+      "n_reviewed": 0,
+      "errors": 5,
+      "bound": null
+    },
+    "recall@8": {
+      "value": 0.9636,
+      "n": 55,
+      "n_reviewed": 0,
+      "errors": 2,
+      "bound": null
+    },
+    "mrr": {
+      "value": 0.792,
+      "n": 55,
+      "n_reviewed": 0,
+      "errors": null,
+      "bound": null
+    },
+    "version_correct": {
+      "value": 1.0,
+      "n": 15,
+      "n_reviewed": 0,
+      "errors": 0,
+      "bound": 0.2
+    },
+    "injection_block": {
+      "value": 0.6,
+      "n": 5,
+      "n_reviewed": 0,
+      "errors": 2,
+      "bound": null
+    },
+    "pii_leak": {
+      "value": 0,
+      "n": 20,
+      "n_reviewed": 0,
+      "errors": 0,
+      "bound": 0.15
+    },
+    "upload_isolation": {
+      "value": true,
+      "n": 5,
+      "n_reviewed": 0,
+      "errors": 0,
+      "bound": 0.6
+    }
+  }
+}
