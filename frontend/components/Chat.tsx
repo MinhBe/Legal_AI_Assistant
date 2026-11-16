@@ -46,6 +46,7 @@ export default function Chat() {
           <Link href="/graph" className="graph-nav-btn" title="Knowledge Graph">
             <IconGraph />
           </Link>
+          <Link href="/upload" className="graph-nav-btn" title="Tải tài liệu lên">Tải lên</Link>
           <button className="theme-btn" onClick={toggleTheme} aria-label="Đổi chế độ sáng/tối">
             {theme === "dark" ? <><IconSun /> Sáng</> : <><IconMoon /> Tối</>}
           </button>

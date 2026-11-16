@@ -1,0 +1,194 @@
+"use client";
+
+/* Trang tải tài liệu lên: OCR + nạp vào knowledge graph, rồi duyệt/loại/xoá.
+   Backend: POST/GET/PATCH/DELETE /api/uploads (app/upload). Mặc định mức A, chờ duyệt. */
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const ACCEPT = ".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp,.docx,.txt,.md";
+
+type UploadRow = {
+  upload_id: string; doc_id: string; filename: string; mime: string;
+  size_bytes: number; pages: number | null; ocr_pages: number | null;
+  chars: number | null; mean_ocr_conf: number | null; parse_mode: string | null;
+  n_nodes: number | null; n_refs: number | null; data_class: string | null;
+  status: string; error: string | null; preview: string | null;
+  created_at: string | null; duplicate?: boolean;
+};
+
+const STATUS: Record<string, { label: string; cls: string }> = {
+  pending_review: { label: "chờ duyệt", cls: "warn" },
+  approved: { label: "đã duyệt", cls: "ok" },
+  rejected: { label: "đã loại", cls: "err" },
+  failed: { label: "lỗi", cls: "err" },
+};
+const statusOf = (s: string) => STATUS[s] ?? { label: s, cls: "" };
+
+const parseMode = (m: string | null) =>
+  m === "articles" ? "Điều/Khoản" : m === "sections" ? "Đoạn" : "—";
+
+// mean_ocr_conf là 0..1; lưu cũ có thể là phần trăm
+const confPct = (c: number | null) =>
+  c == null ? "—" : `${Math.round((c <= 1 ? c : c / 100) * 100)}%`;
+
+export default function UploadPage() {
+  const [rows, setRows] = useState<UploadRow[]>([]);
+  const [busy, setBusy] = useState<string[]>([]);
+  const [errs, setErrs] = useState<Record<string, string>>({});
+  const [open, setOpen] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const r = await fetch(`${API_BASE}/api/uploads`);
+      setRows(r.ok ? await r.json() : []);
+    } catch { setRows([]); }
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  /* tải lần lượt từng tệp: "Đang xử lý…" rồi kết quả hoặc lỗi detail */
+  async function send(files: File[]) {
+    for (const f of files) {
+      setBusy((b) => [...b, f.name]);
+      setErrs((e) => { const n = { ...e }; delete n[f.name]; return n; });
+      const fd = new FormData();
+      fd.append("file", f);
+      let detail = "";
+      try {
+        const r = await fetch(`${API_BASE}/api/uploads`, { method: "POST", body: fd });
+        if (!r.ok) {
+          detail = `Lỗi ${r.status}`;
+          try { detail = (await r.json()).detail || detail; } catch { /* không phải JSON */ }
+        }
+      } catch { detail = "Không kết nối được API"; }
+      finally {
+        setBusy((b) => b.filter((x) => x !== f.name));
+        if (detail) setErrs((e) => ({ ...e, [f.name]: detail }));
+        await refresh();
+      }
+    }
+  }
+
+  async function review(id: string, status: "approved" | "rejected") {
+    try {
+      await fetch(`${API_BASE}/api/uploads/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+    } finally { await refresh(); }
+  }
+
+  async function remove(id: string) {
+    if (!confirm("Xoá tài liệu này? Node và dẫn chiếu của nó cũng bị xoá khỏi đồ thị.")) return;
+    try { await fetch(`${API_BASE}/api/uploads/${id}`, { method: "DELETE" }); }
+    finally { await refresh(); }
+  }
+
+  const pending = busy.length + Object.keys(errs).length;
+
+  return (
+    <div className="dash-shell">
+      <div className="dash-header">
+        <Link href="/" className="dash-back">← Chat</Link>
+        <span className="dash-title">Tải tài liệu lên</span>
+        <Link href="/graph" className="dash-graph-btn">Knowledge Graph</Link>
+      </div>
+
+      <div className="dash-body">
+        <p className="up-note">
+          Tài liệu được OCR và đưa vào knowledge graph ngay trong máy. Mặc định là dữ liệu mức A,
+          chờ duyệt, không được dùng làm căn cứ khi trả lời chat.
+        </p>
+
+        <div
+          className={`up-drop${over ? " over" : ""}`}
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => {
+            e.preventDefault(); setOver(false);
+            const files = Array.from(e.dataTransfer.files || []);
+            if (files.length) send(files);
+          }}>
+          <b>Kéo tệp vào đây hoặc bấm để chọn</b>
+          <span>PDF, ảnh scan (PNG/JPG/TIFF/BMP/WebP), DOCX, TXT, MD · tối đa 20 MB · 50 trang</span>
+          <input ref={inputRef} type="file" multiple accept={ACCEPT} hidden
+            onChange={(e) => {
+              const files = Array.from(e.target.files || []);
+              e.target.value = "";
+              if (files.length) send(files);
+            }} />
+        </div>
+
+        {pending > 0 && (
+          <div className="up-list">
+            {busy.map((name) => (
+              <div key={`b-${name}`} className="up-line">Đang xử lý… {name}</div>
+            ))}
+            {Object.entries(errs).map(([name, detail]) => (
+              <div key={`e-${name}`} className="up-line up-err">{name}: {detail}</div>
+            ))}
+          </div>
+        )}
+
+        <div className="dash-card">
+          <div className="dash-card-title">Tài liệu đã tải lên ({rows.length})</div>
+          {rows.length === 0 ? (
+            <div className="dash-empty">Chưa có tài liệu nào.</div>
+          ) : (
+            <table className="dash-table up-table">
+              <thead>
+                <tr>
+                  <th>Tệp</th><th>Trạng thái</th><th>Trang</th><th>Trang OCR</th>
+                  <th>Độ tin cậy OCR</th><th>Cách tách</th><th>Nodes</th><th>Dẫn chiếu</th><th />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const st = statusOf(r.status);
+                  const isOpen = open === r.upload_id;
+                  return [
+                    <tr key={r.upload_id} className={`up-row${isOpen ? " open" : ""}`}
+                      title={r.error || undefined}
+                      onClick={() => setOpen((o) => (o === r.upload_id ? null : r.upload_id))}>
+                      <td className="up-name">
+                        {r.filename}
+                        {r.duplicate && <span className="up-dup"> · đã có</span>}
+                      </td>
+                      <td><span className={`badge ${st.cls}`}>{st.label}</span></td>
+                      <td>{r.pages ?? "—"}</td>
+                      <td>{r.ocr_pages ?? "—"}</td>
+                      <td>{confPct(r.mean_ocr_conf)}</td>
+                      <td>{parseMode(r.parse_mode)}</td>
+                      <td>{r.n_nodes ?? "—"}</td>
+                      <td>{r.n_refs ?? "—"}</td>
+                      <td className="up-actions" onClick={(e) => e.stopPropagation()}>
+                        <Link href={`/graph?doc_id=${encodeURIComponent(r.doc_id)}`} className="up-btn">Xem trên graph</Link>
+                        <button className="up-btn" disabled={r.status !== "pending_review"}
+                          onClick={() => review(r.upload_id, "approved")}>Duyệt</button>
+                        <button className="up-btn" disabled={r.status === "rejected"}
+                          onClick={() => review(r.upload_id, "rejected")}>Loại</button>
+                        <button className="up-btn up-btn-del" onClick={() => remove(r.upload_id)}>Xoá</button>
+                      </td>
+                    </tr>,
+                    isOpen && (
+                      <tr key={`${r.upload_id}-preview`} className="up-preview-row">
+                        <td colSpan={9}>
+                          <div className="up-preview">{r.preview || r.error || "Không có nội dung xem trước."}</div>
+                        </td>
+                      </tr>
+                    ),
+                  ];
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

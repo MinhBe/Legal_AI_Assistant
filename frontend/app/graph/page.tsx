@@ -22,6 +22,10 @@ import { loadNumber, saveNumber, startDrag } from "@/lib/ui/drag";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
+const DOC_STATUS: Record<string, string> = {
+  pending_review: "chờ duyệt", approved: "đã duyệt", rejected: "đã loại", failed: "lỗi",
+};
+
 const toggled = (set: Set<string>, item: string) => {
   const next = new Set(set);
   if (next.has(item)) next.delete(item); else next.add(item);
@@ -34,6 +38,8 @@ export default function GraphPage() {
 
   const [raw, setRaw] = useState<GraphData>({ nodes: [], edges: [] });
   const [query, setQuery] = useState("");
+  const [docId, setDocId] = useState<string | null>(null);
+  const [docInfo, setDocInfo] = useState<{ filename: string; status: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [d3Ready, setD3Ready] = useState(false);
   const [selected, setSelected] = useState<GNode | null>(null);
@@ -61,18 +67,35 @@ export default function GraphPage() {
     setMode(currentMode());
   }, []);
 
+  /* /graph?doc_id=… : đồ thị của một tài liệu tải lên thay cho truy vấn */
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("doc_id");
+    if (!id) return;
+    setDocId(id);
+    fetch(`${API_BASE}/api/uploads`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { doc_id?: string; filename?: string; status?: string }[]) => {
+        const hit = rows.find((u) => u.doc_id === id);
+        if (hit) setDocInfo({ filename: hit.filename || id, status: hit.status || "" });
+      })
+      .catch((e) => console.error(e));
+  }, []);
+
   /* ── fetch ──────────────────────────────────────────────────────────────── */
   const fetchGraph = useCallback(async (q: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/graph?query=${encodeURIComponent(q)}&top_k=150&mode=${currentMode()}`);
+      const url = docId
+        ? `${API_BASE}/api/graph?doc_id=${encodeURIComponent(docId)}&uploads=1&top_k=150&mode=law`
+        : `${API_BASE}/api/graph?query=${encodeURIComponent(q)}&top_k=150&mode=${currentMode()}`;
+      const res = await fetch(url);
       const data = await res.json();
       setRaw({ nodes: data.nodes || [], edges: data.edges || [] });
       setHiddenNodeTypes(new Set()); setHiddenEdgeTypes(new Set());
       setFilterTriplet(null); setHighlight(null); setFocusId(null); setSelected(null);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, []);
+  }, [docId]);
 
   useEffect(() => { if (d3Ready) fetchGraph(query); }, [d3Ready, query, fetchGraph]);
 
@@ -133,6 +156,18 @@ export default function GraphPage() {
             <b>{view.nodes.length}</b>/{raw.nodes.length} nodes · <b>{view.edges.length}</b>/{raw.edges.length} edges
           </span>
         </div>
+
+        {docId && (
+          <div className="kgv-doc-banner" style={{
+            display: "flex", alignItems: "center", gap: 8, padding: "6px 12px",
+            fontSize: 13, background: "var(--card)", borderBottom: "1px solid var(--border)",
+          }}>
+            Đang xem tài liệu tải lên: <b>{docInfo?.filename || docId}</b>
+            {docInfo?.status ? ` — ${DOC_STATUS[docInfo.status] ?? docInfo.status}` : ""}
+            {/* thẻ a thường: tải lại trang để bỏ hẳn doc_id (Link giữ nguyên state) */}
+            <a href="/graph" className="kgv-back">Bỏ lọc</a>
+          </div>
+        )}
 
         {activeFilter && (
           <FilterChips

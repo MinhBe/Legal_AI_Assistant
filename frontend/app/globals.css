@@ -977,3 +977,46 @@ html, body {
 }
 .pv-chat-input:focus { outline: none; border-color: var(--primary); }
 .pv-chat-input:disabled { opacity: 0.6; }
+
+/* ---------- Upload (/upload) ---------- */
+.up-note {
+  margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted-foreground);
+  max-width: 780px;
+}
+.up-drop {
+  display: flex; flex-direction: column; gap: 4px; align-items: center;
+  padding: 28px 20px; text-align: center; cursor: pointer; font-size: 13px;
+  background: var(--card); border: 1px dashed var(--border); border-radius: var(--radius);
+  color: var(--muted-foreground);
+}
+.up-drop b { font-size: 14px; color: var(--foreground); }
+.up-drop:hover, .up-drop.over { border-color: var(--primary); background: var(--muted); }
+.up-list { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.up-line { color: var(--muted-foreground); }
+.up-err { color: var(--destructive); }
+
+.up-table { font-size: 12px; }
+.up-table th {
+  text-align: left; padding: 5px 8px 5px 0; font-weight: 600;
+  color: var(--muted-foreground); border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.up-table td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.up-table td:first-child { width: auto; }
+.up-row { cursor: pointer; }
+.up-row:hover { background: var(--muted); }
+.up-name { font-weight: 500; word-break: break-all; }
+.up-dup { color: var(--muted-foreground); font-weight: 400; }
+.up-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.up-btn {
+  font: inherit; font-size: 12px; padding: 3px 9px; text-decoration: none;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--card); color: var(--muted-foreground); cursor: pointer;
+}
+.up-btn:hover { background: var(--muted); color: var(--foreground); }
+.up-btn:disabled { opacity: 0.45; cursor: default; }
+.up-btn-del:hover { color: var(--destructive); border-color: var(--destructive); }
+.up-preview {
+  white-space: pre-wrap; font-size: 12px; line-height: 1.5;
+  max-height: 240px; overflow: auto; padding: 8px 10px;
+  background: var(--muted); border-radius: var(--radius);
+}
