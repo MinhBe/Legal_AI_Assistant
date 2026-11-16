@@ -414,6 +414,31 @@ class IntelRun(Base):
     error: Mapped[str | None] = mapped_column(Text)
 
 
+class IntelDoc(Base):
+    """Toàn văn công khai đã tải cho một tin (LI2).
+
+    `status` `fetched` = đã tải nhưng chưa vào kho, `ingested` = đã qua
+    `upload.service.save_upload` (văn bản nằm chờ luật sư duyệt ở `/upload`), `failed` /
+    `blocked` = không lấy được (403/429: không thử lại trong cùng lượt quét).
+    """
+
+    __tablename__ = "intel_doc"
+
+    item_id: Mapped[str] = mapped_column(
+        ForeignKey("intel_item.id", ondelete="CASCADE"), primary_key=True
+    )
+    source_url: Mapped[str] = mapped_column(Text)
+    sha256: Mapped[str] = mapped_column(String(64), default="")
+    bytes: Mapped[int] = mapped_column(Integer, default=0)
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    upload_id: Mapped[str | None] = mapped_column(String(32))
+    # fetched | ingested | failed | blocked
+    status: Mapped[str] = mapped_column(String(16), default="fetched")
+    error: Mapped[str | None] = mapped_column(Text)
+
+
 class UploadJob(Base):
     """Tiến trình chép lời một tệp ghi âm/ghi hình (AU1, design §7B.3).
 

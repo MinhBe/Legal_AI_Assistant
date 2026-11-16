@@ -149,12 +149,15 @@ class Settings(BaseSettings):
     # Giá tham chiếu để quy đổi chi phí (USD / 1 triệu token). {} = không tính chi phí.
     llm_prices_json: str = "{}"
 
-    # Tin pháp luật mới (LI1): quét danh sách văn bản mới hằng ngày, phân tích bằng Dahl.
+    # Tin pháp luật mới (LI1, LI2): quét danh sách văn bản mới theo nhịp cố định, phân tích bằng
+    # Dahl, tải toàn văn công khai của tin đáng đọc trước.
     intel_enabled: bool = True
-    intel_daily_hour: int = 7            # giờ địa phương Asia/Ho_Chi_Minh, chạy một lần mỗi ngày
+    intel_interval_hours: float = 6     # chu kỳ quét tự động, tính từ lượt quét theo lịch trước
     intel_delay_s: float = 5.0           # giãn cách tối thiểu giữa hai lời gọi cùng một host
     intel_max_pages: int = 1             # số trang danh sách đọc mỗi nguồn
     intel_user_agent: str = "Mozilla/5.0 (compatible; LegalNewsBot/0.1)"
+    intel_fulltext: bool = True          # tải toàn văn công khai cho tin ưu tiên ≥ 1
+    intel_fulltext_max_mb: int = 30      # trần kích thước một tệp toàn văn
 
     @property
     def gemini_keys(self) -> list[str]:

@@ -31,6 +31,7 @@ from app.graph.builder import build_graph
 from app.intel import analyze as intel_analyze
 from app.intel import scheduler as intel_scheduler
 from app.intel import store as intel_store
+from app.intel import watchlist as intel_watchlist
 from app.llm.router import get_router
 from app.pv.library import LAYERS, load_library
 from app.pv.chat import run_pv_chat
@@ -998,6 +999,12 @@ def intel_scan(background: BackgroundTasks):
     return {"started": True}
 
 
+@router.get("/api/intel/status", dependencies=REVIEW)
+def intel_status():
+    """Chu kỳ quét tự động và mốc quét kế tiếp."""
+    return intel_scheduler.status()
+
+
 @router.get("/api/intel/runs", dependencies=REVIEW)
 def intel_runs(limit: int = 10, db: Session = Depends(get_db)):
     return [intel_store.run_dict(run) for run in intel_store.runs(db, max(1, min(limit, 100)))]
@@ -1014,7 +1021,8 @@ def intel_items(
     rows = intel_store.items(
         db, status=status or None, labor=labor, limit=max(1, min(limit, 500))
     )
-    return [intel_store.item_dict(item) for item in rows]
+    numbers = intel_watchlist.corpus_numbers(db)  # một lần cho cả danh sách
+    return [intel_store.item_dict(db, item, numbers) for item in rows]
 
 
 def _intel_item_or_404(db: Session, item_id: str):
@@ -1032,7 +1040,7 @@ def intel_approve(
 ):
     """Duyệt = đưa vào việc; giao diện nhắc tải toàn văn rồi nạp ở /upload."""
     item = _intel_item_or_404(db, item_id)
-    return intel_store.item_dict(intel_store.set_status(db, item, "approved", user.get("username")))
+    return intel_store.item_dict(db, intel_store.set_status(db, item, "approved", user.get("username")))
 
 
 @router.post("/api/intel/items/{item_id}/ignore")
@@ -1042,7 +1050,7 @@ def intel_ignore(
     db: Session = Depends(get_db),
 ):
     item = _intel_item_or_404(db, item_id)
-    return intel_store.item_dict(intel_store.set_status(db, item, "ignored", user.get("username")))
+    return intel_store.item_dict(db, intel_store.set_status(db, item, "ignored", user.get("username")))
 
 
 @router.post("/api/intel/items/{item_id}/analyse")
@@ -1051,4 +1059,4 @@ def intel_analyse(item_id: str, db: Session = Depends(get_db), _=Depends(auth.re
     item = _intel_item_or_404(db, item_id)
     ok = intel_analyze.analyse(db, item)
     db.refresh(item)
-    return {**intel_store.item_dict(item), "ok": ok}
+    return {**intel_store.item_dict(db, item), "ok": ok}

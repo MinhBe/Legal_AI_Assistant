@@ -10,9 +10,16 @@ Sự thật đo được ngày 2026-11-16 (fixture trong `data/fixtures/legal-in
   bot — không thử lại, đánh dấu `blocked` và báo "cần lấy tay".
 - luatvietnam.vn: robots.txt cấm `/tim-van-ban.html?Keywords=*` và trang tìm kiếm (không dùng);
   `/van-ban-moi.html` liệt kê văn bản mới, link tương đối kết thúc `-d1.html`, `-d2.html`...
-- anle.toaan.gov.vn: ứng dụng Oracle ADF (JavaScript) — HTTP thường chỉ trả về loader, cần
-  trình duyệt headless. Chưa cài Playwright (Minh chưa duyệt) nên adapter trả 0 item,
-  `last_status = "needs_browser"`.
+- anle.toaan.gov.vn: ứng dụng Oracle ADF (JavaScript) — HTTP thường chỉ trả về loader, nên
+  adapter này chạy qua `fetch.Renderer` (Chromium headless, LI2). Trang chủ đã render có ba
+  khối "ÁN LỆ MỚI" (`chitietanle?dDocName=TAND…`), "DỰ THẢO ÁN LỆ MỚI"
+  (`chitietanleduthao?dDocName=…`) và "NGUỒN ÁN LỆ" (`chitietnguonanle?dDocName=…`). Toàn
+  văn là tệp công khai `ShowProperty?nodeId=/UCMServer/<dDocName>`.
+- vanban.chinhphu.vn: robots `Allow: /`; trang chủ có bảng văn bản mới (số hiệu, ngày,
+  trích yếu) kèm PDF công khai trên datafiles.chinhphu.vn. Phân trang không đổi nội dung nên
+  chỉ đọc trang 1; nhịp quét 6 giờ đủ bắt văn bản mới khi còn ở trang 1.
+- congbao.chinhphu.vn: chưa tìm được trang liệt kê có tệp công khai trong một lần render —
+  giữ chỗ, không quét mù.
 """
 
 from __future__ import annotations
@@ -196,6 +203,99 @@ def make_item(source: str, url: str, title: str, category: str = "") -> dict[str
     }
 
 
+class _RowParser(HTMLParser):
+    """Thu từng hàng `<tr>`: chữ của mỗi ô (đã gộp khoảng trắng) và link trong ô."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.rows: list[list[dict[str, Any]]] = []
+        self._row: list[dict[str, Any]] | None = None
+        self._cell: dict[str, Any] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "tr":
+            self._row = []
+        elif tag == "td" and self._row is not None:
+            self._cell = {"text": [], "links": []}
+        elif tag == "a" and self._cell is not None:
+            href = dict(attrs).get("href")
+            if href:
+                self._cell["links"].append(href)
+
+    def handle_data(self, data: str) -> None:
+        if self._cell is not None:
+            self._cell["text"].append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "td" and self._cell is not None and self._row is not None:
+            self._row.append({
+                "text": " ".join("".join(self._cell["text"]).split()),
+                "links": self._cell["links"],
+            })
+            self._cell = None
+        elif tag == "tr" and self._row is not None:
+            if self._row:
+                self.rows.append(self._row)
+            self._row = None
+
+
+def _rows(html: str) -> list[list[dict[str, Any]]]:
+    parser = _RowParser()
+    try:
+        parser.feed(html or "")
+        parser.close()
+    except Exception:  # noqa: BLE001 — HTML rác: giữ những gì đã đọc được
+        pass
+    return parser.rows
+
+
+ANLE_PDF_URL = "https://anle.toaan.gov.vn/webcenter/ShowProperty?nodeId=/UCMServer/{key}"
+_ANLE_KEY = re.compile(r"[?&]dDocName=([A-Za-z0-9_.:-]+)")
+_AL_NUMBER = re.compile(r"(\d{1,4}/\d{4}/AL)\b", re.IGNORECASE)
+_DRAFT_NUMBER = re.compile(r"Số\s*(\d{1,4}/\d{4})", re.IGNORECASE)
+
+
+def doc_key(url: str) -> str:
+    """Khoá tài liệu của anle (`dDocName`) trong URL; không có thì ""."""
+    found = _ANLE_KEY.search(url or "")
+    return found.group(1) if found else ""
+
+
+def anle_pdf_url(key: str) -> str:
+    """Tệp toàn văn công khai của một án lệ theo `dDocName`."""
+    return ANLE_PDF_URL.format(key=key)
+
+
+def _anle_kind(url: str) -> str:
+    path = urlparse(url).path.lower()
+    if "chitietanleduthao" in path:
+        return "Dự thảo án lệ"
+    if "chitietnguonanle" in path:
+        return "Nguồn án lệ"
+    if "chitietanle" in path:
+        return "Án lệ"
+    return ""
+
+
+def kind_number(kind: str, text: str) -> str:
+    """Số hiệu theo loại: "84/2026/AL", "DỰ THẢO 42/2026", "143/2025/DS-PT"."""
+    if kind == "Dự thảo án lệ":
+        found = _DRAFT_NUMBER.search(text or "")
+        return f"DỰ THẢO {found.group(1)}" if found else doc_number(text)
+    if kind == "Án lệ":
+        found = _AL_NUMBER.search(text or "")
+        return found.group(1).upper() if found else doc_number(text)
+    return doc_number(text)
+
+
+def document_summary(text: str, number: str) -> str:
+    """Trích yếu của một dòng bảng: bỏ số hiệu, ngày ban hành, nhãn "Tài liệu đính kèm"."""
+    rest = (text or "").split(number, 1)[-1]
+    rest = _DATE_SHOWN.sub(" ", rest, count=1)
+    rest = re.sub(r"(Tài liệu đính kèm\s*)+", " ", rest)
+    return " ".join(rest.split())
+
+
 class ThuVienPhapLuat:
     """thuvienphapluat.vn — trang chủ liệt kê văn bản mới, loại nằm trong đường dẫn."""
 
@@ -238,13 +338,78 @@ class LuatVietnam:
 
 
 class AnLe:
-    """anle.toaan.gov.vn — Oracle ADF; HTTP thường chỉ trả loader nên không có item."""
+    """anle.toaan.gov.vn — đọc trang chủ đã render (Playwright) thành án lệ/dự thảo/nguồn."""
 
     name = "anle"
-    listing_urls = ("https://anle.toaan.gov.vn/",)
-    last_status = "needs_browser"
+    listing_urls = ("https://anle.toaan.gov.vn/webcenter/portal/anle/home",)
+    needs_render = True
+    last_status = "ok"
 
     def parse(self, html: str, base_url: str) -> list[dict[str, Any]]:
         if _ADF_LOADER.search(html or ""):
-            self.last_status = "needs_browser"  # cần trình duyệt headless, chưa được duyệt cài
+            self.last_status = "needs_browser"  # chỉ có loader: chưa render được
+            return []
+        found: dict[str, dict[str, Any]] = {}
+        for href, text in _anchors(html):
+            key = doc_key(href)
+            kind = _anle_kind(href)
+            if not key or not kind or not text:
+                continue
+            url = urljoin(base_url, href.strip())
+            item = make_item(self.name, url, text)
+            item.update(kind=kind, number=kind_number(kind, text), doc_key=key)
+            found[url] = item
+        self.last_status = "ok"
+        return list(found.values())
+
+
+class VanBanChinhPhu:
+    """vanban.chinhphu.vn — bảng văn bản mới ở trang chủ, mỗi dòng một PDF công khai."""
+
+    name = "vanban.chinhphu"
+    listing_urls = ("https://vanban.chinhphu.vn/",)
+    needs_render = True
+    last_status = "ok"
+    _PDF_HOST = "datafiles.chinhphu.vn"
+
+    def parse(self, html: str, base_url: str) -> list[dict[str, Any]]:
+        """Mỗi số hiệu một item; nhiều tệp đính kèm của cùng văn bản giữ tệp đầu tiên."""
+        found: dict[str, dict[str, Any]] = {}
+        for row in _rows(html):
+            text = row[0]["text"] if row else ""
+            number = doc_number(text)
+            if not number or number in found:
+                continue
+            pdf = next(
+                (
+                    urljoin(base_url, href.strip())
+                    for cell in row
+                    for href in cell["links"]
+                    if self._PDF_HOST in href and href.lower().endswith(".pdf")
+                ),
+                "",
+            )
+            if not pdf:
+                continue
+            summary = document_summary(text, number)
+            item = make_item(self.name, pdf, f"{number} {summary}".strip())
+            item.update(
+                number=number,
+                kind=doc_kind(summary, pdf),
+                listed_date=listed_date(text),
+                pdf_url=pdf,
+            )
+            found[number] = item
+        return list(found.values())
+
+
+class CongBao:
+    """congbao.chinhphu.vn — robots `Allow: /` nhưng chưa tìm được trang liệt kê có tệp
+    công khai trong một lần render; trả rỗng, không quét mù."""
+
+    name = "congbao"
+    listing_urls: tuple[str, ...] = ()
+    last_status = "not_implemented"
+
+    def parse(self, html: str, base_url: str) -> list[dict[str, Any]]:
         return []

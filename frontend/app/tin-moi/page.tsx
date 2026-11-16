@@ -33,6 +33,15 @@ type Analysis = {
   needs_full_text: boolean;
   confidence: number;
 };
+type Fulltext = {
+  status: string;
+  source_url: string;
+  upload_id: string | null;
+  upload_url: string;
+  bytes: number;
+  fetched_at: string | null;
+  error: string | null;
+};
 type Item = {
   id: string;
   source: string;
@@ -41,15 +50,19 @@ type Item = {
   number: string;
   kind: string;
   category: string;
+  doc_key: string | null;
   listed_date: string | null;
   first_seen: string | null;
   labor_hint: boolean;
   in_corpus: boolean;
+  priority: number;
+  fulltext: Fulltext | null;
   status: string;
   analysis: Analysis | null;
   error: string | null;
   reviewed_by: string | null;
 };
+type Auto = { interval_hours: number; next_run_at: string };
 type Tab = "queue" | "all" | "approved" | "ignored";
 
 const TABS: { key: Tab; label: string }[] = [
@@ -60,6 +73,7 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 const SOURCE_STATUS: Record<string, string> = {
   ok: "OK", blocked: "Bị chặn", needs_browser: "Cần trình duyệt", error: "Lỗi",
+  not_implemented: "Chưa hỗ trợ",
 };
 const ITEM_STATUS: Record<string, string> = {
   new: "Chờ phân tích", analysed: "Đã phân tích", skipped: "Không liên quan",
@@ -74,6 +88,45 @@ function day(iso: string | null): string {
   return new Date(iso).toLocaleString("vi-VN", {
     day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
+}
+
+function clock(iso: string): string {
+  return new Date(iso).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+}
+
+function priorityBadge(priority: number) {
+  if (priority >= 2) return <span className="intel-priority intel-priority-high">Ưu tiên cao</span>;
+  if (priority === 1) return <span className="intel-priority intel-priority-watch">Theo dõi</span>;
+  return null;
+}
+
+function hostOf(url: string): string {
+  try { return new URL(url).host; } catch { return url; }
+}
+
+// Toàn văn công khai (LI2): đã vào luồng chờ duyệt, hoặc phải tự tải tay.
+function fulltextLine(item: Item) {
+  const ft = item.fulltext;
+  if (ft?.status === "ingested") {
+    return (
+      <div className="intel-field intel-fulltext">
+        Toàn văn: đã lấy từ {hostOf(ft.source_url)} — chờ duyệt ·{" "}
+        <a href={ft.upload_url}>Xem toàn văn</a>
+      </div>
+    );
+  }
+  if (item.priority >= 1) {
+    const link = ft?.source_url || item.url;
+    return (
+      <div className="intel-field intel-fulltext intel-fulltext-manual">
+        Cần lấy tay:{" "}
+        <a href={link} target="_blank" rel="noreferrer">
+          {hostOf(link)}
+        </a>
+      </div>
+    );
+  }
+  return null;
 }
 
 function sourceChip(name: string, info: SourceStatus) {
@@ -96,18 +149,21 @@ export default function TinMoiPage() {
 function TinMoiPageInner() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [items, setItems] = useState<Item[]>([]);
+  const [auto, setAuto] = useState<Auto | null>(null);
   const [tab, setTab] = useState<Tab>("queue");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [r, i] = await Promise.all([
+    const [r, i, s] = await Promise.all([
       apiFetch("/api/intel/runs?limit=5").then((res) => res.json()).catch(() => []),
       apiFetch("/api/intel/items").then((res) => res.json()).catch(() => []),
+      apiFetch("/api/intel/status").then((res) => res.json()).catch(() => null),
     ]);
     setRuns(Array.isArray(r) ? r : []);
     setItems(Array.isArray(i) ? i : []);
+    setAuto(s && typeof s.interval_hours === "number" ? s : null);
     setLoading(false);
   }, []);
 
@@ -166,6 +222,7 @@ function TinMoiPageInner() {
         <h1 className="intel-title-main">Tin pháp luật mới</h1>
         <span className="intel-last">
           {last ? `Lượt gần nhất: ${day(last.started_at)} (${last.trigger === "manual" ? "quét tay" : "theo lịch"})` : "Chưa có lượt quét nào"}
+          {auto && ` · Quét tự động mỗi ${auto.interval_hours} giờ · lần tới ${clock(auto.next_run_at)}`}
         </span>
         <button className="intel-scan" onClick={scan} disabled={busy || running}>
           {running ? "Đang quét…" : "Quét ngay"}
@@ -203,6 +260,7 @@ function TinMoiPageInner() {
                   Ảnh hưởng: {item.analysis.impact}
                 </span>
               )}
+              {priorityBadge(item.priority)}
             </div>
 
             <div className="intel-meta">
@@ -210,6 +268,7 @@ function TinMoiPageInner() {
               <span>{item.source}</span>
               {item.kind && <span>{item.kind}</span>}
               <span>Đăng: {item.listed_date ?? "không hiển thị"}</span>
+              {item.doc_key && <span>khoá: {item.doc_key}</span>}
               <span className={`intel-status intel-status-${item.status}`}>{ITEM_STATUS[item.status] ?? item.status}</span>
               {item.in_corpus && <span className="intel-flag">đã có trong kho</span>}
             </div>
@@ -253,10 +312,12 @@ function TinMoiPageInner() {
               </div>
             )}
 
+            {fulltextLine(item)}
+
             {item.status === "approved" && (
               <div className="intel-upload-hint">
-                Đã duyệt. Tải toàn văn văn bản về máy rồi nạp ở <Link href="/upload">/upload</Link> để đưa vào kho
-                (không tự tải trang văn bản: có thể bị chặn hoặc vướng bản quyền).
+                Đã duyệt. Toàn văn công khai (nếu có) đã nằm chờ duyệt ở <Link href="/upload">/upload</Link>;
+                văn bản chưa lấy được thì tải bản gốc về máy rồi nạp ở đó.
               </div>
             )}
 

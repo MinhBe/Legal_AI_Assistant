@@ -1499,6 +1499,14 @@ a.calc-chip:hover { color: var(--foreground); background: var(--muted); }
 .intel-status-approved { color: oklch(0.55 0.15 150); }
 .intel-status-ignored { color: var(--muted-foreground); }
 .intel-flag { color: var(--muted-foreground); font-style: italic; }
+.intel-priority {
+  font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+  border: 1px solid var(--border); white-space: nowrap;
+}
+.intel-priority-high { color: var(--destructive); border-color: var(--destructive); }
+.intel-priority-watch { color: oklch(0.65 0.2 45); border-color: oklch(0.65 0.2 45 / 40%); }
+.intel-fulltext a { color: var(--foreground); text-decoration: underline; }
+.intel-fulltext-manual { color: oklch(0.65 0.2 45); }
 .intel-analysis { display: flex; flex-direction: column; gap: 6px; }
 .intel-summary { margin: 0; font-size: 13.5px; line-height: 1.6; }
 .intel-field { font-size: 13px; line-height: 1.6; color: var(--muted-foreground); }

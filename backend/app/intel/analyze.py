@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import IntelItem, LegalDocument
-from app.intel import store
+from app.intel import fulltext, store, watchlist
 from app.llm.context import cloud_first_scope, data_class_scope
 from app.llm.router import get_router
 from app.rag.search import search_nodes
@@ -85,7 +85,8 @@ QUY TẮC, theo thứ tự:
 8. routing.queue: nhóm việc cho luật sư (ví dụ "tiền lương", "bảo hiểm xã hội", "cần đối
    chiếu"); routing.action: "nạp ngay" | "theo dõi" | "bỏ qua"; routing.kg_updates: các việc
    cập nhật kho (ví dụ "thêm văn bản", "nối khoản 1 Điều 90").
-9. needs_full_text: true khi chưa có toàn văn để kết luận.
+9. needs_full_text: true khi chưa có toàn văn để kết luận; đã có `toan_van` thì chỉ true khi
+   vẫn thiếu phần cần xem.
 10. confidence: 0-1; càng ít dữ liệu càng thấp.
 11. Không biết thì để null / [] và hạ confidence. Tuyệt đối không thêm chữ ngoài JSON.
 
@@ -156,6 +157,9 @@ def _messages(db: Session, item: IntelItem, found: list[dict[str, Any]]) -> list
             for row in found
         ],
     }
+    full_text = fulltext.text_for(db, item.id)
+    if full_text:
+        context["toan_van"] = full_text
     return [
         {"role": "system", "content": _RULES},
         {
@@ -188,6 +192,7 @@ def analyse(db: Session, item: IntelItem) -> bool:
                 continue
             data = result.model_dump()
             data["affected_nodes"] = [n for n in data["affected_nodes"] if n in allowed]
+            data["priority"] = watchlist.priority(item, watchlist.corpus_numbers(db))
             store.save_analysis(db, item, data)
             return True
     store.set_error(db, item, error)
@@ -195,10 +200,16 @@ def analyse(db: Session, item: IntelItem) -> bool:
 
 
 def analyse_pending(db: Session) -> dict[str, int]:
-    """Phân tích tin mới: bỏ qua tin không liên quan lao động hoặc đã có trong kho, tối đa
-    MAX_PER_RUN lời gọi mỗi lượt (phần còn lại để lần sau)."""
+    """Phân tích tin mới: ưu tiên cao trước, rồi mới đến tin mới; bỏ qua tin không liên
+    quan lao động hoặc đã có trong kho, tối đa MAX_PER_RUN lời gọi mỗi lượt."""
     counts = {"analysed": 0, "skipped": 0, "failed": 0}
-    for item in db.scalars(select(IntelItem).where(IntelItem.status == "new")):
+    numbers = watchlist.corpus_numbers(db)
+    pending = store.pending(db)
+    pending.sort(
+        key=lambda i: (watchlist.priority(i, numbers), i.first_seen.timestamp() if i.first_seen else 0),
+        reverse=True,
+    )
+    for item in pending:
         if not item.labor_hint or item.in_corpus:
             item.status = "skipped"
             counts["skipped"] += 1

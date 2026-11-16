@@ -1,11 +1,13 @@
-"""Đọc/ghi `intel_item` và `intel_run` (LI1).
+"""Đọc/ghi `intel_item`, `intel_doc` và `intel_run` (LI1, LI2).
 
-URL là khoá tự nhiên: `add_item` bỏ qua URL đã có, nên quét lại nhiều lần không sinh trùng
-và tin đã lưu không bao giờ bị tải lại hay phân tích lại.
+URL là khoá tự nhiên của tin: `add_item` bỏ qua URL đã có, nên quét lại nhiều lần không sinh
+trùng và tin đã lưu không bao giờ bị tải lại hay phân tích lại. `intel_doc` giữ toàn văn
+công khai đã tải cho một tin (mỗi tin tối đa một tệp) và `upload_id` của luồng tải lên.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import uuid
 from datetime import datetime
@@ -14,7 +16,8 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import IntelItem, IntelRun, LegalDocument
+from app.db.models import IntelDoc, IntelItem, IntelRun, LegalDocument
+from app.intel import sources, watchlist
 
 STATUSES = ("new", "analysed", "skipped", "approved", "ignored", "blocked")
 
@@ -62,6 +65,53 @@ def add_item(db: Session, data: dict[str, Any]) -> IntelItem | None:
 
 def get_item(db: Session, item_id: str) -> IntelItem | None:
     return db.get(IntelItem, item_id)
+
+
+def pending(db: Session) -> list[IntelItem]:
+    """Tin chờ phân tích (status `new`)."""
+    return list(db.scalars(select(IntelItem).where(IntelItem.status == "new")).all())
+
+
+# ---- toàn văn công khai (LI2) ----
+def get_doc(db: Session, item_id: str) -> IntelDoc | None:
+    return db.get(IntelDoc, item_id)
+
+
+def save_doc(
+    db: Session,
+    item_id: str,
+    *,
+    source_url: str,
+    data: bytes = b"",
+    status: str = "fetched",
+    error: str | None = None,
+    upload_id: str | None = None,
+) -> IntelDoc:
+    """Ghi (hoặc ghi lại) toàn văn của một tin; mỗi tin một dòng."""
+    doc = db.get(IntelDoc, item_id) or IntelDoc(item_id=item_id)
+    doc.source_url = source_url
+    doc.sha256 = hashlib.sha256(data).hexdigest() if data else (doc.sha256 or "")
+    doc.bytes = len(data) if data else (doc.bytes or 0)
+    doc.status = status
+    doc.error = (error or "")[:500] or None
+    doc.upload_id = upload_id
+    doc.fetched_at = datetime.now().astimezone()
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    return doc
+
+
+def doc_dict(doc: IntelDoc) -> dict[str, Any]:
+    return {
+        "status": doc.status,
+        "source_url": doc.source_url,
+        "upload_id": doc.upload_id,
+        "upload_url": "/upload",
+        "bytes": doc.bytes,
+        "fetched_at": doc.fetched_at.isoformat() if doc.fetched_at else None,
+        "error": doc.error,
+    }
 
 
 def save_analysis(db: Session, item: IntelItem, analysis: dict[str, Any]) -> None:
@@ -125,7 +175,11 @@ def runs(db: Session, limit: int = 10) -> list[IntelRun]:
 
 
 # ---- để API trả JSON ----
-def item_dict(item: IntelItem) -> dict[str, Any]:
+def item_dict(
+    db: Session, item: IntelItem, numbers: set[str] | None = None
+) -> dict[str, Any]:
+    """JSON của một tin; `priority`/`fulltext` tính tại chỗ (không có cột riêng)."""
+    doc = get_doc(db, item.id)
     return {
         "id": item.id,
         "source": item.source,
@@ -134,10 +188,15 @@ def item_dict(item: IntelItem) -> dict[str, Any]:
         "number": item.number,
         "kind": item.kind,
         "category": item.category,
+        "doc_key": sources.doc_key(item.url),
         "listed_date": item.listed_date.isoformat() if item.listed_date else None,
         "first_seen": item.first_seen.isoformat() if item.first_seen else None,
         "labor_hint": item.labor_hint,
         "in_corpus": item.in_corpus,
+        "priority": watchlist.priority(
+            item, numbers if numbers is not None else watchlist.corpus_numbers(db)
+        ),
+        "fulltext": doc_dict(doc) if doc else None,
         "status": item.status,
         "analysis": json.loads(item.analysis) if item.analysis else None,
         "error": item.error,
