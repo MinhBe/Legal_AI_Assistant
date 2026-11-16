@@ -504,3 +504,17 @@ def delete_upload_route(upload_id: str, db: Session = Depends(get_db)):
 
     _upload_or_404(db, upload_id)
     service.remove_upload(db, upload_id)
+
+
+# ---------- Data Gateway ----------
+class GatewayPreviewRequest(BaseModel):
+    text: str
+
+
+@router.post("/api/gateway/preview")
+def gateway_preview(req: GatewayPreviewRequest):
+    """Xem trước phần văn bản thật sự rời hệ thống (không trả giá trị gốc)."""
+    from app.gateway.classify import gate
+
+    g = gate(req.text)
+    return {"data_class": g.data_class, "masked": g.message, "counts": g.counts}

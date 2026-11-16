@@ -15,6 +15,8 @@ from sqlalchemy import text
 
 from app.agent.guard import REDIRECT, looks_like_injection
 from app.db.base import SessionLocal
+from app.gateway.classify import gate
+from app.gateway.pii import unmask
 from app.llm.router import LLMError, get_router
 
 SYSTEM_PROMPT = (
@@ -35,11 +37,37 @@ def _data_loaded() -> bool:
         db.close()
 
 
+def _unmask_data(data: object, mapping: dict[str, str]) -> object:
+    """Che PII đã gỡ khỏi văn bản gửi LLM; client nhận lại giá trị gốc."""
+    if isinstance(data, str):
+        return unmask(data, mapping)
+    if isinstance(data, dict):
+        return {k: _unmask_data(v, mapping) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_unmask_data(v, mapping) for v in data]
+    return data
+
+
 def run_chat(
     message: str, history: list[dict[str, str]] | None = None, mode: str = "law",
 ) -> Iterator[tuple[str, object]]:
     """mode="pv": chế độ ẩn, trả lời từ bộ câu hỏi phỏng vấn thay vì kho luật."""
     history = history or []
+    g = gate(message, history)
+    logger.info("Gateway: class={} counts={}", g.data_class, g.counts)
+    for event, data in _chat(g.message, g.history, mode, original=message):
+        yield event, _unmask_data(data, g.mapping)
+
+
+def _chat(
+    message: str,
+    history: list[dict[str, str]],
+    mode: str,
+    *,
+    original: str | None = None,
+) -> Iterator[tuple[str, object]]:
+    """Phần còn lại của pipeline; `original` chỉ dùng cho kiểm tra chèn lệnh (chạy
+    tại chỗ, không gọi LLM) nên phải là câu gốc chưa che."""
     router = get_router()
 
     if not any(router.available_providers().values()):
@@ -55,8 +83,8 @@ def run_chat(
         yield ("done", {})
         return
 
-    if looks_like_injection(message):
-        logger.warning("Chặn câu chèn lệnh: {!r}", message[:200])
+    if looks_like_injection(original if original is not None else message):
+        logger.warning("Chặn câu chèn lệnh: {!r}", message[:200])  # bản đã che PII
         yield ("token", {"text": REDIRECT})
         yield ("done", {"category": "injection"})
         return
