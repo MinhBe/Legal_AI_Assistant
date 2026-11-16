@@ -263,3 +263,31 @@ class LegalLink(Base):
     valid_to: Mapped[date | None] = mapped_column(Date)
     # node_reference|node_supersession|document_relation|seed
     source: Mapped[str] = mapped_column(String(32))
+
+
+class AnswerRecord(Base):
+    """Hồ sơ một câu trả lời pháp lý (T7, design §5.3): câu hỏi/câu trả lời đã che PII,
+    căn cứ đã trích kèm phiên bản tại `as_of`, khung thời gian, verifier, ảnh chụp kho."""
+
+    __tablename__ = "answer_record"
+
+    id: Mapped[str] = mapped_column(String(16), primary_key=True)  # uuid4 hex[:12]
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    thread_id: Mapped[str | None] = mapped_column(String(64))
+    request_id: Mapped[str | None] = mapped_column(String(16))  # request id của metrics
+    data_class: Mapped[str] = mapped_column(String(1))
+    question: Mapped[str] = mapped_column(Text)  # đã che PII
+    answer: Mapped[str] = mapped_column(Text)  # đã che PII
+    advice_date: Mapped[date] = mapped_column(Date)
+    event_date: Mapped[date | None] = mapped_column(Date)
+    as_of: Mapped[date] = mapped_column(Date)
+    provisions: Mapped[str] = mapped_column(Text)  # JSON list
+    timeframe: Mapped[str] = mapped_column(Text)  # JSON
+    verifier: Mapped[str | None] = mapped_column(Text)  # JSON
+    corpus_snapshot: Mapped[str] = mapped_column(Text)  # JSON
+    prompt_version: Mapped[str] = mapped_column(String(32))
+    provider: Mapped[str | None] = mapped_column(String(32))
+    model: Mapped[str | None] = mapped_column(String(128))
+    category: Mapped[str | None] = mapped_column(String(32))

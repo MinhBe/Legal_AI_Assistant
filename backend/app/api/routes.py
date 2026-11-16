@@ -11,15 +11,17 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
+from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import prompts
+from app.agent import record
 from app.agent.pipeline import run_chat
 from app.config import get_settings
 from app.obs import metrics
-from app.db.base import get_db
+from app.db.base import SessionLocal, get_db
 from app.db.models import LegalDocument, LegalNode, Thread
 from app.graph.builder import build_graph
 from app.llm.router import get_router
@@ -267,21 +269,54 @@ def chat(req: ChatRequest):
     def gen():
         thread_id = req.thread_id or uuid.uuid4().hex
         yield sse("start", {"thread_id": thread_id})
+        ctx = None
+        events: list[tuple[str, object]] = []
+        failed = False
         try:
             ctx = metrics.start_request(
                 "chat", mode=req.mode, prompt_version=prompts.active_version("qa_answer"),
                 search_mode=get_settings().search_mode, question=req.message,
             )
             for event, data in metrics.traced(run_chat(req.message, history, req.mode), ctx):
+                events.append((event, data))
                 yield sse(event, data)
         except Exception as exc:  # noqa: BLE001
+            failed = True
             yield sse("error", {"message": str(exc)})
+        # Hồ sơ câu trả lời (T7): ghi sau khi luồng xong, hỏng thì bỏ qua, không làm gãy chat.
+        if ctx is None or failed:
+            return
+        try:
+            rec = record.build(ctx, events, thread_id)
+            if rec:
+                db = SessionLocal()
+                try:
+                    rec_id = record.save(db, rec)
+                finally:
+                    db.close()
+                yield sse("record", {"id": rec_id})
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Không ghi được hồ sơ câu trả lời: {}", exc)
 
     return StreamingResponse(
         gen(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
     )
+
+
+# ---------- Hồ sơ câu trả lời (T7) ----------
+@router.get("/api/answers/{rec_id}")
+def get_answer_route(rec_id: str, db: Session = Depends(get_db)):
+    rec = record.get(db, rec_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy hồ sơ {rec_id}")
+    return rec
+
+
+@router.get("/api/answers")
+def list_answers_route(limit: int = 50, db: Session = Depends(get_db)):
+    return record.list_recent(db, limit)
 
 
 # ---------- Threads (tối giản) ----------

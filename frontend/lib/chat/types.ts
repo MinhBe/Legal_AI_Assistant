@@ -69,6 +69,7 @@ export type Msg = {
   sections?: Section[];
   timeframe?: TimeFrame;
   verifier?: Verifier;
+  record_id?: string;
 };
 
 export type Conversation = { id: string; title: string; messages: Msg[] };

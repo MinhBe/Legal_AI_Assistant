@@ -1058,3 +1058,10 @@ html, body {
   border-left: 3px solid currentColor; border-radius: var(--radius); color: var(--foreground);
 }
 .verifier-problem { margin: 0 0 2px; font-size: 12px; line-height: 1.5; }
+
+/* ── hồ sơ tra cứu dưới câu trả lời (T7) ────────────────────────────────── */
+.record-link {
+  display: inline-block; margin-top: 8px; font-size: 12px; color: var(--muted-foreground);
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.record-link:hover { color: var(--foreground); }

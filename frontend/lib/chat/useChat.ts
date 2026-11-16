@@ -185,6 +185,8 @@ export function useChat(mode: Mode = "law") {
           update((ai) => ({ ...ai, timeframe: data as TimeFrame }));
         else if (event === "verifier")
           update((ai) => ({ ...ai, verifier: data as Verifier }));
+        else if (event === "record")
+          update((ai) => ({ ...ai, record_id: data.id }));
         else if (event === "suggest_rewrite")
           update((ai) => ({ ...ai, suggested_query: data.suggested, suggest_reason: data.reason }));
         else if (event === "error") update((ai) => ({ ...ai, content: ai.content + `\n\n⚠️ ${data.message}` }));

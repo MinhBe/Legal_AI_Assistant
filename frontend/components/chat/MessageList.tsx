@@ -11,6 +11,8 @@ import { IconGraph } from "@/components/chat/icons";
 import type { Msg } from "@/lib/chat/types";
 import type { MODE_TEXT } from "@/lib/mode";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
 export default function MessageList({
   messages, threadId, listRef, text, onAsk, onUseSuggestion, onIgnoreSuggestion, onEscalate, onDeny,
 }: {
@@ -101,6 +103,17 @@ export default function MessageList({
 
                 {m.citations && m.citations.length > 0 && (
                   <CitationList citations={m.citations} />
+                )}
+
+                {m.role === "ai" && m.record_id && (
+                  <a
+                    className="record-link"
+                    href={`${API_BASE}/api/answers/${m.record_id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Hồ sơ tra cứu #{m.record_id}
+                  </a>
                 )}
               </div>
             </div>
