@@ -118,9 +118,11 @@ def search_nodes(
     only_in_force: bool = True,
     mode: str | None = None,
     rerank: bool | None = None,
+    include_uploads: bool = False,
 ) -> list[dict[str, Any]]:
     """Truy hồi node luật. mode: vector (mặc định) | bm25 | hybrid (RRF vector + BM25).
-    rerank: xếp lại bằng cross-encoder sau khi truy hồi (mặc định theo settings)."""
+    rerank: xếp lại bằng cross-encoder sau khi truy hồi (mặc định theo settings).
+    include_uploads: mặc định loại mọi văn bản tải lên; bật thì chỉ nhận bản đã duyệt."""
     mode = mode or settings.search_mode
     rerank = settings.rerank_enabled if rerank is None else rerank
     pool = max(top_k, settings.rerank_top_n) if rerank else top_k
@@ -136,6 +138,18 @@ def search_nodes(
         params["d"] = as_of
     elif only_in_force:
         eff_clause = " AND effective_to IS NULL"
+
+    # Dữ liệu tải lên là mức A: chưa duyệt thì không được làm căn cứ trả lời.
+    if include_uploads:
+        eff_clause += (
+            " AND doc_id NOT IN (SELECT doc_id FROM legal_document"
+            " WHERE doc_type = 'upload' AND status IS DISTINCT FROM 'approved')"
+        )
+    else:
+        eff_clause += (
+            " AND doc_id NOT IN (SELECT doc_id FROM legal_document"
+            " WHERE doc_type = 'upload')"
+        )
 
     if mode == "vector":
         rows = _vector(db, query, pool, eff_clause, params)
