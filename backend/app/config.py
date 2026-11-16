@@ -90,11 +90,14 @@ class Settings(BaseSettings):
     cloud_llm_base_url: str = "https://inference.dahl.global/v1"
     cloud_llm_keys_dir: str = "/keys"  # thư mục key (docker-compose mount ./keys chỉ đọc); có key thì xoay vòng
     cloud_llm_api_key_env: str = "Dahl_token_1"  # TÊN biến môi trường chứa key, dùng khi thư mục trống
-    cloud_llm_model: str = "deepseek-ai/DeepSeek-V4-Flash-0731"
-    cloud_llm_fallback_models: str = "zai-org/GLM-5.3-Flash,MiniMaxAI/MiniMax-M2.7"
+    # Chọn bằng đo thật 2026-11-16 (3 câu golden A01/A04/A08 qua 5 key Dahl):
+    # MiniMax 3/3 đúng, 9-60 s; DeepSeek-V4-Flash đúng khi trả lời nhưng 5/9 lời gọi treo 120 s;
+    # GLM 0/5 (429 hết chỗ). Xem docs/huong-dan-doi-mo-hinh.md.
+    cloud_llm_model: str = "MiniMaxAI/MiniMax-M2.7"
+    cloud_llm_fallback_models: str = "deepseek-ai/DeepSeek-V4-Flash-0731,zai-org/GLM-5.3-Flash"
     cloud_llm_reasoning_effort: str = "low"  # rỗng = không gửi tham số này
     cloud_llm_min_tokens: int = 8192  # model có suy nghĩ cần chỗ cho phần nghĩ + câu trả lời
-    cloud_llm_timeout: float = 120
+    cloud_llm_timeout: float = 45  # lời gọi treo trên Dahl không bao giờ về; đổi key sớm thay vì chờ
     cloud_first_for_c: bool = False  # true = mức C gọi đám mây trước, mô hình trong máy làm dự phòng
     # DEEPSEEK_*: tên cũ, chỉ để tương thích; chỉ dùng khi biến chứa key CLOUD_LLM chưa có giá trị
     deepseek_base_url: str = "https://api.deepseek.com"

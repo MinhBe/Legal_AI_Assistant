@@ -38,6 +38,20 @@ Câu trả lời của model đám mây bị loại (rồi chuyển sang model d
 `DEEPSEEK_BASE_URL` / `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL` là tên cũ, chỉ được dùng khi không có
 key nào trong `keys/` hay ở `CLOUD_LLM_API_KEY_ENV`.
 
+## Model mặc định hiện tại (đo 2026-11-16)
+
+Đo trên 3 câu golden (A01 nghỉ phép năm, A04 đơn phương chấm dứt, A08 lương làm đêm), dùng đúng
+prompt trả lời của ứng dụng và xoay vòng qua 5 key Dahl:
+
+| Model | Đúng điều luật | Lời gọi thành công | Thời gian khi thành công | Ghi chú |
+|---|---|---|---|---|
+| MiniMaxAI/MiniMax-M2.7 | 3/3 | 3/4 | 9 s, 11 s, 60 s | 1 lời gọi treo tới hết giờ |
+| deepseek-ai/DeepSeek-V4-Flash-0731 | 2/2 | 2/9 | 10 s, 16 s | 5 lời gọi treo 120 s, 2 lần 429 |
+| zai-org/GLM-5.3-Flash | – | 0/5 | – | 429 "at concurrency capacity" trên cả 5 key |
+
+Vì vậy mặc định là MiniMax-M2.7, dự phòng DeepSeek-V4-Flash rồi GLM-5.3-Flash. Cả ba đều trả JSON
+hợp lệ, không lộ `<think>`, không lặp chữ. Hết giờ để 45 s: lời gọi treo không bao giờ về.
+
 ## Đổi mô hình trong máy (mức A, B)
 
 1. Tải model: `ollama pull <tên>`, ví dụ `ollama pull qwen2.5:14b`.
