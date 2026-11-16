@@ -36,16 +36,18 @@ _TEXT_PREVIEW = 300
 class _Graph:
     """Tập node + cạnh, chống trùng, chỉ nối hai đầu đã có."""
 
-    def __init__(self) -> None:
+    def __init__(self, hidden: set[str] | None = None) -> None:
         self.nodes: list[dict[str, Any]] = []
         self.ids: set[str] = set()
         self.edges: list[dict[str, str]] = []
+        self.hidden = hidden or set()  # doc_id của văn bản tải lên không được hiện
         self._edge_keys: set[tuple[str, str]] = set()
 
     def add_node(self, node: dict[str, Any]) -> None:
-        if node["id"] not in self.ids:
-            self.nodes.append(node)
-            self.ids.add(node["id"])
+        if node["id"] in self.ids or node.get("doc_id") in self.hidden:
+            return
+        self.nodes.append(node)
+        self.ids.add(node["id"])
 
     def add_edge(self, src: str, tgt: str, etype: str) -> None:
         key = (src, tgt)
@@ -56,11 +58,19 @@ class _Graph:
 
 # ── hình dạng node ──────────────────────────────────────────────────────────
 
+def _label(level: str, node_id: str, doc_id: str, heading: str | None, display: str | None) -> str:
+    """Node `section` (văn bản tải lên chia đoạn) không có số Điều/Khoản để gọi tên,
+    nên dùng tiêu đề đoạn; các mức luật giữ nhãn "Điều … (tên văn bản)"."""
+    if level == "section":
+        return f"{heading or node_id} ({doc_name(doc_id)})"
+    return display or node_id
+
+
 def _hit_node(h: dict[str, Any]) -> dict[str, Any]:
     level = h.get("level") or "article"
     return {
         "id": h["node_id"],
-        "label": h.get("display") or h["node_id"],
+        "label": _label(level, h["node_id"], h["doc_id"], h.get("heading"), h.get("display")),
         "doc_id": h["doc_id"],
         "level": level,
         "type": level,
@@ -76,7 +86,9 @@ def _orm_node(n: LegalNode, *, ghost: bool) -> dict[str, Any]:
         "article_no": n.article_no, "clause_no": n.clause_no, "point_letter": n.point_letter,
     })
     return {
-        "id": n.node_id, "label": label, "doc_id": n.doc_id,
+        "id": n.node_id,
+        "label": _label(n.level, n.node_id, n.doc_id, n.heading, label),
+        "doc_id": n.doc_id,
         "level": n.level, "type": n.level, "heading": n.heading or "",
         "text": (n.text or "")[:_TEXT_PREVIEW], "score": 0.0, "ghost": ghost,
     }
@@ -90,15 +102,51 @@ def _load_nodes(db: Session, g: _Graph, ids: set[str], *, ghost: bool) -> None:
 
 # ── pha 1: gom node ─────────────────────────────────────────────────────────
 
-def _seed_hits(db: Session, query: str, top_k: int) -> list[dict[str, Any]]:
-    """Có từ khoá: tìm theo nội dung. Không có: lấy Điều trước, rồi Khoản, rồi Điểm."""
+def _upload_exclusion(include_uploads: bool) -> str:
+    """Mảnh SQL loại văn bản tải lên, y như search_nodes (chưa duyệt thì không bao giờ)."""
+    if include_uploads:
+        return (
+            " AND doc_id NOT IN (SELECT doc_id FROM legal_document"
+            " WHERE doc_type = 'upload' AND status IS DISTINCT FROM 'approved')"
+        )
+    return " AND doc_id NOT IN (SELECT doc_id FROM legal_document WHERE doc_type = 'upload')"
+
+
+def _seed_hits(
+    db: Session,
+    query: str,
+    top_k: int,
+    *,
+    doc_id: str | None = None,
+    include_uploads: bool = False,
+) -> list[dict[str, Any]]:
+    """Có doc_id: lấy node của văn bản đó theo thứ tự. Có từ khoá: tìm theo nội dung.
+    Không có: lấy Điều trước, rồi Khoản, rồi Điểm."""
+    if doc_id:
+        hits = []
+        for n in db.execute(
+            select(LegalNode)
+            .where(LegalNode.doc_id == doc_id)
+            .order_by(LegalNode.seq, LegalNode.node_id)
+            .limit(top_k)
+        ).scalars():
+            h = {
+                "node_id": n.node_id, "doc_id": n.doc_id, "level": n.level,
+                "article_no": n.article_no, "clause_no": n.clause_no,
+                "point_letter": n.point_letter, "heading": n.heading, "text": n.text,
+            }
+            h["display"] = _display(h)
+            h["score"] = 0.0
+            hits.append(h)
+        return hits
     if query.strip():
-        return search_nodes(db, query, top_k=top_k)
+        return search_nodes(db, query, top_k=top_k, include_uploads=include_uploads)
     rows = db.execute(
         sa_text(
             "SELECT node_id, doc_id, article_no, clause_no, point_letter, heading, text, level, parent_id "
-            "FROM legal_node "
-            "ORDER BY CASE level WHEN 'article' THEN 0 WHEN 'clause' THEN 1 ELSE 2 END, node_id "
+            "FROM legal_node WHERE 1 = 1 "
+            + _upload_exclusion(include_uploads)
+            + " ORDER BY CASE level WHEN 'article' THEN 0 WHEN 'clause' THEN 1 ELSE 2 END, node_id "
             "LIMIT :k"
         ),
         {"k": top_k},
@@ -244,7 +292,9 @@ def _add_documents(db: Session, g: _Graph) -> dict[str, str]:
         })
 
     for n in g.nodes:
-        if n.get("type") == "chapter" or (n.get("type") == "article" and n.get("chapter_no") is None):
+        if n.get("type") in ("chapter", "section") or (
+            n.get("type") == "article" and n.get("chapter_no") is None
+        ):
             g.add_edge(f"doc:{n['doc_id']}", n["id"], "contains")
 
     for f_doc, t_doc, rel in db.execute(
@@ -254,17 +304,37 @@ def _add_documents(db: Session, g: _Graph) -> dict[str, str]:
     ).all():
         g.add_edge(f"doc:{f_doc}", f"doc:{t_doc}", (rel or "related").lower())
 
-    return {d.doc_id: (d.doc_type or "") for d in docs}
+    return {d.doc_id: (d.doc_type or "", d.status or "") for d in docs}
 
 
 # ── điểm vào ────────────────────────────────────────────────────────────────
 
-def build_graph(db: Session, query: str, top_k: int) -> dict[str, Any]:
-    hits = _seed_hits(db, query, top_k)
+def _hidden_docs(db: Session, doc_id: str | None, include_uploads: bool) -> set[str]:
+    """Văn bản tải lên chưa duyệt không được hiện — kể cả khi chúng dẫn chiếu tới
+    node luật đang có trong đồ thị (pha 1 kéo ngược từ node đích về nguồn)."""
+    rows = db.execute(
+        select(LegalDocument.doc_id, LegalDocument.status)
+        .where(LegalDocument.doc_type == "upload")
+    ).all()
+    return {
+        d for d, status in rows
+        if d != doc_id and not (include_uploads and status == "approved")
+    }
+
+
+def build_graph(
+    db: Session,
+    query: str,
+    top_k: int,
+    *,
+    doc_id: str | None = None,
+    include_uploads: bool = False,
+) -> dict[str, Any]:
+    hits = _seed_hits(db, query, top_k, doc_id=doc_id, include_uploads=include_uploads)
     if not hits:
         return {"nodes": [], "edges": [], "query": query}
 
-    g = _Graph()
+    g = _Graph(_hidden_docs(db, doc_id, include_uploads))
     for h in hits:
         g.add_node(_hit_node(h))
 
@@ -286,7 +356,11 @@ def build_graph(db: Session, query: str, top_k: int) -> dict[str, Any]:
     doc_type = _add_documents(db, g)
 
     for n in g.nodes:
-        n.setdefault("doc_type", doc_type.get(n.get("doc_id", ""), ""))
+        dtype, status = doc_type.get(n.get("doc_id", ""), ("", ""))
+        n["doc_type"] = dtype
+        n["upload"] = dtype == "upload"
         n["doc_name"] = doc_name(n.get("doc_id", ""))
+        if n["upload"] and n.get("type") == "document":
+            n["status"] = status
 
     return {"nodes": g.nodes, "edges": g.edges, "query": query}

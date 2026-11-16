@@ -279,13 +279,19 @@ def list_threads(db: Session = Depends(get_db)):
 # ---------- Knowledge Graph ----------
 @router.get("/api/graph")
 def graph_route(
-    query: str = "", top_k: int = 150, mode: Literal["law", "pv"] = "law", db: Session = Depends(get_db),
+    query: str = "",
+    top_k: int = 150,
+    mode: Literal["law", "pv"] = "law",
+    doc_id: str | None = None,
+    uploads: bool = False,
+    db: Session = Depends(get_db),
 ):
     """Knowledge graph quanh kết quả tra cứu. Cách dựng: app/graph/builder.py,
-    chế độ ẩn pv: app/pv/graph.py."""
+    chế độ ẩn pv: app/pv/graph.py. `doc_id`: xem đồ thị của một văn bản tải lên;
+    `uploads`: cho phép văn bản đã duyệt lọt vào kết quả tra cứu."""
     if mode == "pv":
         return build_pv_graph(db, query, top_k)
-    return build_graph(db, query, top_k)
+    return build_graph(db, query, top_k, doc_id=doc_id, include_uploads=uploads)
 
 
 # ---------- Câu hỏi phỏng vấn (/pv) ----------
