@@ -1,0 +1,2 @@
+date,step,run_id,cost_usd,input_uncached,cache_read,output,calls,exit,status
+2026-11-16T00:57:50.157Z,U2,U2-2026-11-16T00-54-32-147Z,0.023867,18759,451328,12943,21,0,done

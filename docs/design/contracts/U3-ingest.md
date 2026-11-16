@@ -60,6 +60,6 @@ clean up in a `finally`.
 ```
 docker compose exec -T api python -m pytest -q tests/test_upload_ingest.py tests/test_upload_extract.py
 docker compose exec -T api python -m pytest -q -m "not llm"
-docker compose exec -T api ruff check app/upload app/rag/search.py tests/test_upload_ingest.py
+docker compose exec -T api ruff check --select F,E9,B905,UP,SIM114,PLW2901 app/upload app/rag/search.py tests/test_upload_ingest.py
 ```
 Max 2 fix attempts per failure, then stop and report. Finish with a 5-line summary.

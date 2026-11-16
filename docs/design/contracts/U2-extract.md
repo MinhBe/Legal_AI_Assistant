@@ -72,7 +72,7 @@ when `shutil.which("tesseract")` is None.
 ```
 docker compose exec -T api python -m pytest -q tests/test_upload_extract.py
 docker compose exec -T api python -m pytest -q -m "not llm"        # baseline: 165 passed, must stay green
-docker compose exec -T api ruff check app/upload tests/test_upload_extract.py
+docker compose exec -T api ruff check --select F,E9,B905,UP,SIM114,PLW2901 app/upload tests/test_upload_extract.py
 ```
 If OCR text misses a diacritic in test 4, relax that assertion only by testing words OCR gets right in the sample; do not
 weaken tests 1–3, 5–7. Max 2 fix attempts per failure; then stop and report the failing output. Finish with a 5-line summary.
