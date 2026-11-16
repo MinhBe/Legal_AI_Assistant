@@ -15,7 +15,7 @@ from loguru import logger
 
 from app.agent import guard
 from app.obs import metrics
-from app.agent.followup import history_block, search_with_history
+from app.agent.followup import history_block, history_budget, search_with_history
 from app.db.base import SessionLocal
 from app import prompts
 from app.config import get_settings
@@ -188,7 +188,7 @@ def _issue_hits(db, issues: list[str], whole: list[dict]) -> list[dict]:
 
 def answer_with_citations(message: str, history: list[dict] | None = None) -> Iterator[tuple[str, object]]:
     router = get_router()
-    convo = history_block(history)
+    convo = history_block(history, max_tokens=history_budget(message))
     # Phân loại chạy song song với truy hồi và soạn trả lời, nên câu hỏi luật không
     # phải chờ thêm; câu bị loại thì bỏ câu trả lời đang soạn.
     verdict = metrics.submit(_POOL, guard.classify, router, message, convo)

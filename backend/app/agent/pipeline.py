@@ -13,6 +13,7 @@ from collections.abc import Iterator
 from loguru import logger
 from sqlalchemy import text
 
+from app.agent.followup import CHARS_PER_TOKEN, MAX_QUESTION_TOKENS, est_tokens
 from app.agent.guard import REDIRECT, looks_like_injection
 from app.db.base import SessionLocal
 from app.gateway.classify import gate
@@ -25,6 +26,14 @@ LOCAL_UNAVAILABLE = (
     "Câu hỏi có thông tin cá nhân nên chỉ được xử lý bằng mô hình chạy trong máy, "
     "nhưng mô hình này chưa sẵn sàng. Vui lòng thử lại sau hoặc bỏ thông tin cá nhân khỏi câu hỏi."
 )
+
+def too_long_message(message: str) -> str:
+    max_chars = int(MAX_QUESTION_TOKENS * CHARS_PER_TOKEN)
+    return (
+        f"Câu hỏi quá dài ({len(message):,} ký tự; tối đa khoảng {max_chars:,} ký tự). "
+        "Vui lòng rút gọn: chỉ giữ các tình tiết chính và điều bạn cần hỏi, rồi gửi lại."
+    ).replace(",", ".")
+
 
 SYSTEM_PROMPT = (
     "Bạn là trợ lý pháp luật lao động Việt Nam. Trả lời bằng tiếng Việt có dấu, "
@@ -60,6 +69,10 @@ def run_chat(
 ) -> Iterator[tuple[str, object]]:
     """mode="pv": chế độ ẩn, trả lời từ bộ câu hỏi phỏng vấn thay vì kho luật."""
     history = history or []
+    if est_tokens(message) > MAX_QUESTION_TOKENS:  # quá dài: mô hình trong máy sẽ cắt mất chỉ dẫn
+        yield ("token", {"text": too_long_message(message)})
+        yield ("done", {"category": "too_long"})
+        return
     g = gate(message, history)
     logger.info("Gateway: class={} counts={}", g.data_class, g.counts)
     ctx = metrics.current()

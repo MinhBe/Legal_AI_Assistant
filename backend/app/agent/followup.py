@@ -7,6 +7,7 @@ sách nào đứng trước, nên đoán sai cũng không làm mất kết quả
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Any
 
@@ -19,6 +20,23 @@ _CUES = re.compile(
 _SHORT_WORDS = 5            # câu cụt kiểu "người quản lý thì?" gần như luôn là nối tiếp
 _HISTORY_TURNS = 2          # số lượt hỏi gần nhất đưa vào prompt
 _ANSWER_PREVIEW = 300       # cắt câu trả lời trước để prompt không phình
+
+# Ngân sách prompt cho mô hình chạy trong máy (OLLAMA_CONTEXT_LENGTH=8192, chừa chỗ cho câu trả lời).
+# Đếm bằng ký tự thay vì tokenizer: tokenizer Qwen2.5 cho văn bản luật ra thấp nhất 2,5 ký tự/token
+# (trung vị 3,7), nên chia cho 2,5 luôn ước lượng dư số token.
+CHARS_PER_TOKEN = 2.5
+MAX_QUESTION_TOKENS = 3500
+PROMPT_BUDGET_TOKENS = 6000
+CONTEXT_RESERVE_TOKENS = 2400  # chỉ dẫn hệ thống + điều luật truy hồi: lớn nhất đo được 2.177 / 86 câu golden
+
+
+def est_tokens(text: str) -> int:
+    return math.ceil(len(text) / CHARS_PER_TOKEN)
+
+
+def history_budget(message: str) -> int:
+    """Token còn lại cho lịch sử hội thoại sau khi giữ nguyên chỉ dẫn, điều luật và câu hỏi."""
+    return max(0, PROMPT_BUDGET_TOKENS - CONTEXT_RESERVE_TOKENS - est_tokens(message))
 
 
 def last_user_question(history: list[dict[str, str]] | None) -> str | None:
@@ -68,8 +86,10 @@ def search_with_history(db, message: str, history: list[dict[str, str]] | None, 
     return merge_hits(alone, combined, top_k)
 
 
-def history_block(history: list[dict[str, str]] | None) -> str:
-    """Vài lượt hỏi–đáp gần nhất, để LLM hiểu đại từ và câu cụt."""
+def history_block(history: list[dict[str, str]] | None, *, max_tokens: int | None = None) -> str:
+    """Vài lượt hỏi–đáp gần nhất, để LLM hiểu đại từ và câu cụt.
+
+    `max_tokens`: ước lượng token tối đa cho khối này (xem est_tokens)."""
     turns = [t for t in (history or []) if (t.get("content") or "").strip()]
     # lấy từ lượt hỏi thứ _HISTORY_TURNS tính từ cuối trở đi
     user_idx = [i for i, t in enumerate(turns) if t.get("role") == "user"]
@@ -83,4 +103,10 @@ def history_block(history: list[dict[str, str]] | None) -> str:
         if who == "Trợ lý" and len(content) > _ANSWER_PREVIEW:
             content = content[:_ANSWER_PREVIEW] + "…"
         lines.append(f"{who}: {content}")
+    if max_tokens is not None:
+        budget = int(max_tokens * CHARS_PER_TOKEN)
+        while len(lines) > 1 and len("\n".join(lines)) > budget:
+            lines.pop(0)  # bỏ lượt cũ nhất trước
+        if lines and len(lines[0]) > budget:  # lượt cuối vẫn quá dài: giữ phần đuôi
+            lines = ["…" + lines[0][len(lines[0]) - budget + 1:]] if budget > 1 else []
     return "\n".join(lines)
