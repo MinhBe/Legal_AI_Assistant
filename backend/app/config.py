@@ -2,9 +2,51 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+@dataclass(frozen=True)
+class CloudRoute:
+    base_url: str
+    api_keys: tuple[str, ...] = field(repr=False)  # không bao giờ in key; router xoay vòng theo chỉ số
+    models: list[str] = field(default_factory=list)
+    reasoning_effort: str = ""
+    min_tokens: int = 0
+    source: str = ""  # nơi lấy key (thư mục / tên biến), để ghi log
+
+    @property
+    def api_key(self) -> str:
+        return self.api_keys[0]
+
+
+def load_key_dir(path: str) -> tuple[str, ...]:
+    """Đọc mọi tệp key trong thư mục (bỏ tệp ẩn như .cool-*, .rr-* là trạng thái xoay vòng).
+
+    Mỗi dòng là `TÊN=giá_trị` hoặc chỉ `giá_trị`; bỏ dòng trống và dòng `#`. Không ghi log giá trị."""
+    import re
+    from pathlib import Path
+
+    root = Path(path)
+    if not path or not root.is_dir():
+        return ()
+    keys: list[str] = []
+    for f in sorted(p for p in root.iterdir() if p.is_file() and not p.name.startswith(".")):
+        try:
+            lines = f.read_text(encoding="utf-8-sig").splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        for raw in lines:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            m = re.match(r"^(?:export\s+)?[A-Za-z_][A-Za-z0-9_.-]*\s*[=:]\s*(.*)$", line)
+            value = (m.group(1) if m else line).strip().strip("'\"")
+            if value:
+                keys.append(value)
+    return tuple(dict.fromkeys(keys))
 
 
 class Settings(BaseSettings):
@@ -43,7 +85,18 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://host.docker.internal:11434/v1"
     local_model: str = "qwen2.5:7b"
     local_timeout: float = 120
-    # DeepSeek API — bậc thang cho mức C khi mô hình trong máy lỗi
+    # Mô hình đám mây cho mức C (bất kỳ endpoint OpenAI-compatible nào). Đổi nhà cung cấp hay
+    # mô hình chỉ cần đổi các biến CLOUD_LLM_* này, không sửa code. Mặc định trỏ vào Dahl.
+    cloud_llm_base_url: str = "https://inference.dahl.global/v1"
+    cloud_llm_keys_dir: str = "/keys"  # thư mục key (docker-compose mount ./keys chỉ đọc); có key thì xoay vòng
+    cloud_llm_api_key_env: str = "Dahl_token_1"  # TÊN biến môi trường chứa key, dùng khi thư mục trống
+    cloud_llm_model: str = "deepseek-ai/DeepSeek-V4-Flash-0731"
+    cloud_llm_fallback_models: str = "zai-org/GLM-5.3-Flash,MiniMaxAI/MiniMax-M2.7"
+    cloud_llm_reasoning_effort: str = "low"  # rỗng = không gửi tham số này
+    cloud_llm_min_tokens: int = 8192  # model có suy nghĩ cần chỗ cho phần nghĩ + câu trả lời
+    cloud_llm_timeout: float = 120
+    cloud_first_for_c: bool = False  # true = mức C gọi đám mây trước, mô hình trong máy làm dự phòng
+    # DEEPSEEK_*: tên cũ, chỉ để tương thích; chỉ dùng khi biến chứa key CLOUD_LLM chưa có giá trị
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_api_key: str | None = None
     deepseek_model: str = "deepseek-flash"
@@ -104,6 +157,33 @@ class Settings(BaseSettings):
 
         env = {k.upper(): v.strip() for k, v in os.environ.items()}
         return [env[f"DAHL_TOKEN_{i}"] for i in range(1, 11) if env.get(f"DAHL_TOKEN_{i}")]
+
+    def cloud_route(self) -> CloudRoute | None:
+        """Tuyến đám mây cho mức C, hoặc None nếu chưa có key.
+
+        Thứ tự lấy key: mọi key trong CLOUD_LLM_KEYS_DIR (router xoay vòng); thư mục trống thì
+        biến môi trường có tên CLOUD_LLM_API_KEY_ENV (không phân biệt hoa thường); cả hai trống
+        mà DEEPSEEK_API_KEY có giá trị thì dùng tuyến DeepSeek cũ (tương thích)."""
+        import os
+
+        keys = load_key_dir(self.cloud_llm_keys_dir)
+        source = self.cloud_llm_keys_dir
+        if not keys:
+            env = {k.upper(): v.strip() for k, v in os.environ.items()}
+            single = env.get(self.cloud_llm_api_key_env.strip().upper(), "")
+            keys, source = ((single,) if single else ()), self.cloud_llm_api_key_env
+        if keys:
+            models = [self.cloud_llm_model.strip()] + [
+                m.strip() for m in self.cloud_llm_fallback_models.split(",") if m.strip()]
+            return CloudRoute(base_url=self.cloud_llm_base_url, api_keys=keys,
+                              models=[m for m in dict.fromkeys(models) if m],
+                              reasoning_effort=self.cloud_llm_reasoning_effort.strip(),
+                              min_tokens=self.cloud_llm_min_tokens, source=source)
+        if self.deepseek_api_key:
+            return CloudRoute(base_url=self.deepseek_base_url, api_keys=(self.deepseek_api_key,),
+                              models=[self.deepseek_model], reasoning_effort="", min_tokens=0,
+                              source="DEEPSEEK_API_KEY")
+        return None
 
     @property
     def dahl_model_list(self) -> list[str]:

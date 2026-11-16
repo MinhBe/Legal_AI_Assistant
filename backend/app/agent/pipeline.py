@@ -128,7 +128,8 @@ def _chat(
             {
                 "text": (
                     "Chưa cấu hình nhà cung cấp LLM nào trong .env (OLLAMA_BASE_URL/LOCAL_MODEL "
-                    "cho mô hình chạy trong máy, DEEPSEEK_API_KEY cho DeepSeek). "
+                    "cho mô hình chạy trong máy, biến có tên CLOUD_LLM_API_KEY_ENV (mặc định Dahl_token_1) "
+                    "chứa key cho mô hình đám mây). "
                     "Hãy điền rồi khởi động lại dịch vụ api. Khung hệ thống vẫn chạy bình thường."
                 )
             },

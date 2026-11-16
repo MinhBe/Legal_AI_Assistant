@@ -165,6 +165,57 @@ def parse_json(text: str) -> dict:
     return json.loads(raw[start : end + 1])
 
 
+class KeyRotation:
+    """Xoay vòng key đám mây theo chỉ số, kèm thời gian nghỉ cho key lỗi (chỉ trong bộ nhớ).
+
+    402 (hết hạn mức) / 401 / 403: cả key nghỉ LONG giây (lỗi của key).
+    429, 5xx, mạng / hết giờ: chỉ cặp (key, model) nghỉ SHORT giây, vì trên Dahl đó thường là
+    một model đang hết chỗ; model dự phòng vẫn dùng được chính key đó."""
+
+    LONG = 3600.0
+    SHORT = 90.0
+    _LONG_STATUS = {401, 402, 403}
+    _SHORT_STATUS = {408, 409, 425, 429, 500, 502, 503, 504}
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._next = 0
+        # khóa: idx (cả key) hoặc (idx, model)
+        self._cool_until: dict[int | tuple[int, str], float] = {}
+
+    def order(self, n: int, model: str = "") -> list[int]:
+        """Chỉ số key cho một lời gọi: bắt đầu từ key kế tiếp, bỏ key (hoặc key+model) đang nghỉ."""
+        if n <= 0:
+            return []
+        now = time.monotonic()
+        with self._lock:
+            start = self._next % n
+            self._next = start + 1
+            return [i for i in ((start + k) % n for k in range(n))
+                    if self._cool_until.get(i, 0.0) <= now
+                    and self._cool_until.get((i, model), 0.0) <= now]
+
+    def cool(self, idx: int, status: int | None, model: str = "") -> float | None:
+        """Cho key nghỉ; trả số giây nghỉ, hoặc None nếu lỗi không do key (đổi key vô ích)."""
+        if status in self._LONG_STATUS:
+            pause, slot = self.LONG, idx
+        elif status is None or status in self._SHORT_STATUS:
+            pause, slot = self.SHORT, (idx, model)
+        else:
+            return None
+        with self._lock:
+            self._cool_until[slot] = time.monotonic() + pause
+        return pause
+
+    def reset(self) -> None:
+        with self._lock:
+            self._next = 0
+            self._cool_until.clear()
+
+
+_KEYS = KeyRotation()
+
+
 def _status(exc: Exception) -> int | None:
     return getattr(exc, "status_code", None) or getattr(
         getattr(exc, "response", None), "status_code", None
@@ -210,14 +261,16 @@ class LLMRouter:
         return self._legacy_plan(task)
 
     def _tiered_plan(self) -> list[tuple[str, str]]:
-        """Mức A/B chỉ mô hình trong máy; mức C thêm DeepSeek làm bậc thang."""
+        """Mức A/B chỉ mô hình trong máy; mức C thêm tuyến đám mây (CLOUD_LLM_*) làm bậc thang."""
         level = get_data_class()
         local = ("local", settings.local_model)
         if level in ("A", "B"):
             if not self._available("local"):
                 raise LocalModelUnavailable(_LOCAL_DOWN)
             return [local]
-        plan = [local, ("deepseek", settings.deepseek_model)]
+        route = settings.cloud_route()
+        cloud = [("cloud", m) for m in route.models] if route else []
+        plan = cloud + [local] if settings.cloud_first_for_c else [local] + cloud
         return [(p, m) for (p, m) in plan if self._available(p)]
 
     def _legacy_plan(self, task: str) -> list[tuple[str, str]]:
@@ -245,7 +298,7 @@ class LLMRouter:
         return self.available_providers().get(provider, False)
 
     def available_providers(self) -> dict[str, bool]:
-        providers = {"local": local_reachable(), "deepseek": bool(settings.deepseek_api_key)}
+        providers = {"local": local_reachable(), "cloud": settings.cloud_route() is not None}
         if settings.llm_legacy_race:
             providers |= {
                 "dahl": bool(self._dahl_keys and settings.dahl_model_list),
@@ -286,7 +339,8 @@ class LLMRouter:
         plan = self._plan(task)
         if not plan:
             raise LLMError(
-                "Chưa cấu hình nhà cung cấp LLM nào (thiếu key Dahl/Gemini/Claude/FPT trong .env)."
+                "Chưa cấu hình nhà cung cấp LLM nào (OLLAMA_BASE_URL/LOCAL_MODEL cho mô hình trong máy, "
+                "biến có tên CLOUD_LLM_API_KEY_ENV chứa key cho tuyến đám mây)."
             )
         last_exc: Exception | None = None
         tried: set[tuple[str, str]] = set()
@@ -322,8 +376,8 @@ class LLMRouter:
             return self._call_claude(model, messages, temperature, max_tokens, task=task)
         if provider == "local":
             return self._call_local(model, messages, temperature, max_tokens, task=task)
-        if provider == "deepseek":
-            return self._call_deepseek(model, messages, temperature, max_tokens, task=task)
+        if provider == "cloud":
+            return self._call_cloud(model, messages, temperature, max_tokens, task=task)
         base_url, api_key = self._endpoint(provider)
         return self._call_openai(provider, base_url, api_key, model, messages, temperature, max_tokens,
                                  task=task)
@@ -332,16 +386,51 @@ class LLMRouter:
         return self._call_openai("local", settings.ollama_base_url, "ollama", model, messages,
                                  temperature, max_tokens, task=task, timeout=settings.local_timeout)
 
-    def _call_deepseek(self, model, messages, temperature, max_tokens, task: str = "answer") -> LLMResult:
-        return self._call_openai("deepseek", settings.deepseek_base_url,
-                                 settings.deepseek_api_key or "", model, messages, temperature,
-                                 max_tokens, task=task)
+    def _call_cloud(self, model, messages, temperature, max_tokens, task: str = "answer") -> LLMResult:
+        """Xoay vòng key: mỗi lời gọi bắt đầu ở key kế tiếp; key lỗi hạn mức / quá tải / mạng
+        bị cho nghỉ rồi thử key sau. Lỗi do chính yêu cầu (400, 404 model...) thì dừng ngay để
+        router chuyển sang model dự phòng. Log chỉ ghi chỉ số key, không bao giờ ghi giá trị."""
+        route = settings.cloud_route()
+        if route is None:
+            raise LLMError("tuyến đám mây chưa có key (xem CLOUD_LLM_KEYS_DIR / CLOUD_LLM_API_KEY_ENV)")
+        extra = {"reasoning_effort": route.reasoning_effort} if route.reasoning_effort else None
+        order = _KEYS.order(len(route.api_keys), model)
+        if not order:
+            raise LLMError(f"mọi key đám mây đang nghỉ với {model} ({len(route.api_keys)} key)")
+        last: Exception | None = None
+        for idx in order:
+            try:
+                res = self._call_openai("cloud", route.base_url, route.api_keys[idx], model, messages,
+                                        temperature, max(max_tokens or 0, route.min_tokens) or None,
+                                        task=task, timeout=settings.cloud_llm_timeout, extra_body=extra,
+                                        retry=False)
+            except Exception as exc:  # noqa: BLE001
+                status = _status(exc)
+                pause = _KEYS.cool(idx, status, model)
+                if pause is None:
+                    raise  # lỗi của yêu cầu, đổi key cũng vậy
+                logger.warning("cloud key #{} ({}) lỗi {} -> nghỉ {:.0f}s, thử key kế",
+                               idx, model, status, pause)
+                last = exc
+                continue
+            if not res.text:
+                raise LLMError("câu trả lời rỗng (hết token khi đang nghĩ?)")
+            if _CJK.search(res.text):
+                raise LLMError("trả lời không phải tiếng Việt (có chữ Hán/kana/Hangul)")
+            return res
+        raise LLMError(f"mọi key đám mây đều lỗi ({len(order)} key): {last}")
 
     def _endpoint(self, provider: str) -> tuple[str, str]:
         if provider == "local":
             return settings.ollama_base_url, "ollama"
-        if provider == "deepseek":
-            return settings.deepseek_base_url, settings.deepseek_api_key or ""
+        if provider == "cloud":
+            route = settings.cloud_route()
+            if route is None:
+                raise LLMError("tuyến đám mây chưa có key (xem CLOUD_LLM_KEYS_DIR / CLOUD_LLM_API_KEY_ENV)")
+            order = _KEYS.order(len(route.api_keys))  # stream: key kế tiếp không bị nghỉ cả key
+            if not order:
+                raise LLMError("mọi key đám mây đang nghỉ")
+            return route.base_url, route.api_keys[order[0]]
         if provider == "gemini":
             return settings.gemini_base_url, self._next_gemini_key()
         if provider == "fpt":
@@ -444,7 +533,8 @@ class LLMRouter:
 
     def _call_openai(
         self, provider, base_url, api_key, model, messages, temperature, max_tokens,
-        task: str = "answer", timeout: float = 60.0,
+        task: str = "answer", timeout: float = 60.0, extra_body: dict | None = None,
+        retry: bool = True,
     ) -> LLMResult:
         def _once(key: str) -> LLMResult:
             client = self._openai_client(base_url, key, timeout)
@@ -455,18 +545,21 @@ class LLMRouter:
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    **({"extra_body": extra_body} if extra_body else {}),
                 )
             except Exception as exc:  # noqa: BLE001
                 _record(provider=provider, model=model, task=task, t0=t0, messages=messages,
                         error=str(exc)[:200])
                 raise
             text = resp.choices[0].message.content or ""
-            if provider in ("local", "deepseek"):
+            if provider in ("local", "cloud"):
                 text = strip_think(text)
             cid = _record(provider=provider, model=model, task=task, t0=t0, messages=messages,
                           text=text, resp=resp)
             return LLMResult(text=text, provider=provider, model=model, call_id=cid)
 
+        if not retry:  # tuyến đám mây tự đổi key khi lỗi, không chờ thử lại cùng một key
+            return _once(api_key)
         return self._with_retry(lambda: _once(api_key), provider=provider, rotate=(provider == "gemini"))
 
     def _call_claude(self, model, messages, temperature, max_tokens, task: str = "answer") -> LLMResult:
@@ -525,7 +618,7 @@ class LLMRouter:
         if not plan:
             raise LLMError(
                 "Chưa cấu hình nhà cung cấp LLM nào (OLLAMA_BASE_URL/LOCAL_MODEL cho mô hình "
-                "trong máy, DEEPSEEK_API_KEY cho DeepSeek)."
+                "trong máy, biến có tên CLOUD_LLM_API_KEY_ENV chứa key cho tuyến đám mây)."
             )
         last_exc: Exception | None = None
         for i, (provider, model) in enumerate(plan):
@@ -538,7 +631,7 @@ class LLMRouter:
                     yield from self._stream_claude(model, messages, temperature)
                     return
                 chunks = self._stream_openai(provider, model, messages, temperature)
-                if provider in ("local", "deepseek"):
+                if provider in ("local", "cloud"):
                     chunks = _strip_think_stream(chunks)
                 yield from chunks
                 return
@@ -557,10 +650,15 @@ class LLMRouter:
 
     def _stream_openai(self, provider, model, messages, temperature) -> Iterator[str]:
         base_url, api_key = self._endpoint(provider)
-        timeout = settings.local_timeout if provider == "local" else 60.0
+        timeout = {"local": settings.local_timeout, "cloud": settings.cloud_llm_timeout}.get(provider, 60.0)
         client = self._openai_client(base_url, api_key, timeout)
+        extra: dict = {}
+        if provider == "cloud":
+            route = settings.cloud_route()
+            if route and route.reasoning_effort:
+                extra["extra_body"] = {"reasoning_effort": route.reasoning_effort}
         stream = client.chat.completions.create(
-            model=model, messages=messages, temperature=temperature, stream=True
+            model=model, messages=messages, temperature=temperature, stream=True, **extra
         )
         for chunk in stream:
             delta = chunk.choices[0].delta.content if chunk.choices else None

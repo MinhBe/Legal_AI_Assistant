@@ -36,6 +36,8 @@ services:
       - ./backend:/app
       - ./data:/app/data
       - modelcache:/root/.cache
+      # key mô hình đám mây (CLOUD_LLM_KEYS_DIR), chỉ đọc; keys/ nằm trong .gitignore và .dockerignore
+      - ./keys:/keys:ro
     depends_on:
       postgres:
         condition: service_healthy
