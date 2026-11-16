@@ -131,3 +131,33 @@ def test_data_class_reaches_worker_threads():
             assert metrics.submit(pool, get_data_class).result(timeout=5) == "B"
     finally:
         pool.shutdown()
+
+
+def test_run_chat_keeps_level_when_resumed_in_fresh_contexts(monkeypatch):
+    """Starlette chạy mỗi next() trong một bản sao context mới: mức B phải còn ở mọi
+    bước, và không được báo lỗi "created in a different Context"."""
+    import contextvars
+
+    from app.agent import pipeline
+
+    seen: list[str] = []
+
+    def fake_chat(message, history, mode, *, original=None):
+        for i in range(3):
+            seen.append(get_data_class())
+            yield ("token", {"text": f"{i}"})
+        seen.append(get_data_class())
+        yield ("done", {})
+
+    monkeypatch.setattr(pipeline, "_chat", fake_chat)
+    gen = pipeline.run_chat("Anh Trần Văn Bình 0912345678 bị cho nghỉ việc không báo trước")
+    events = []
+    base = contextvars.copy_context()
+    while True:
+        try:
+            events.append(base.copy().run(next, gen))
+        except StopIteration:
+            break
+    assert seen == ["B"] * 4
+    assert events[-1] == ("done", {})
+    assert get_data_class() == "C"

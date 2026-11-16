@@ -61,13 +61,23 @@ def run_chat(
     history = history or []
     g = gate(message, history)
     logger.info("Gateway: class={} counts={}", g.data_class, g.counts)
-    with data_class_scope(g.data_class):
-        try:
-            for event, data in _chat(g.message, g.history, mode, original=message):
-                yield event, _unmask_data(data, g.mapping)
-        except LocalModelUnavailable:
+    # Starlette chạy mỗi next() của generator trong một bản sao context mới, nên không
+    # bọc cả vòng lặp bằng một scope (giữa các yield mức dữ liệu sẽ rơi về "C" và
+    # reset báo lỗi "different Context"). Đặt mức quanh từng bước next() thay vào đó.
+    it = _chat(g.message, g.history, mode, original=message)
+    while True:
+        with data_class_scope(g.data_class):
+            try:
+                event, data = next(it)
+            except StopIteration:
+                return
+            except LocalModelUnavailable:
+                event = None
+        if event is None:
             yield ("token", {"text": LOCAL_UNAVAILABLE})
             yield ("done", {"category": "local_unavailable"})
+            return
+        yield event, _unmask_data(data, g.mapping)
 
 
 def _chat(
