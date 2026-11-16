@@ -33,7 +33,7 @@ from typing import Any
 from loguru import logger
 
 from app.config import get_settings
-from app.llm.context import get_answer_lang, get_data_class
+from app.llm.context import get_answer_lang, get_cloud_first, get_data_class
 from app.obs import metrics
 
 settings = get_settings()
@@ -278,7 +278,7 @@ class LLMRouter:
             return [local]
         route = settings.cloud_route()
         cloud = [("cloud", m) for m in route.models] if route else []
-        plan = cloud + [local] if settings.cloud_first_for_c else [local] + cloud
+        plan = cloud + [local] if (get_cloud_first() or settings.cloud_first_for_c) else [local] + cloud
         return [(p, m) for (p, m) in plan if self._available(p)]
 
     def _legacy_plan(self, task: str) -> list[tuple[str, str]]:

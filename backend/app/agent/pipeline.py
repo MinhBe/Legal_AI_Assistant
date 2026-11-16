@@ -19,7 +19,7 @@ from app.agent.lang import detect
 from app.db.base import SessionLocal
 from app.gateway.classify import gate
 from app.gateway.pii import unmask
-from app.llm.context import answer_lang_scope, data_class_scope, get_data_class
+from app.llm.context import answer_lang_scope, cloud_first_scope, data_class_scope, get_data_class
 from app.llm.router import LLMError, LocalModelUnavailable, get_router
 from app.obs import metrics
 
@@ -67,9 +67,11 @@ def _unmask_data(data: object, mapping: dict[str, str]) -> object:
 
 def run_chat(
     message: str, history: list[dict[str, str]] | None = None, mode: str = "law",
-    use_uploads: bool = False,
+    use_uploads: bool = False, cloud_first: bool = False,
 ) -> Iterator[tuple[str, object]]:
-    """mode="pv": chế độ ẩn, trả lời từ bộ câu hỏi phỏng vấn thay vì kho luật."""
+    """mode="pv": chế độ ẩn, trả lời từ bộ câu hỏi phỏng vấn thay vì kho luật.
+
+    `cloud_first`: ưu tiên tuyến đám mây ở mức C cho lượt chat này (vai trò VIP)."""
     history = history or []
     if est_tokens(message) > MAX_QUESTION_TOKENS:  # quá dài: mô hình trong máy sẽ cắt mất chỉ dẫn
         yield ("token", {"text": too_long_message(message)})
@@ -92,7 +94,7 @@ def run_chat(
         **{"use_uploads": True} if use_uploads else {},
     )
     while True:
-        with data_class_scope(g.data_class), answer_lang_scope(lang):
+        with data_class_scope(g.data_class), answer_lang_scope(lang), cloud_first_scope(cloud_first):
             try:
                 event, data = next(it)
             except StopIteration:

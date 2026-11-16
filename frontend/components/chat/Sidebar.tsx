@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { IconDash, IconGraph, IconPlus } from "@/components/chat/icons";
+import { useAuth } from "@/lib/auth";
 import type { Conversation } from "@/lib/chat/types";
 import type { MODE_TEXT } from "@/lib/mode";
 
@@ -13,6 +14,9 @@ export default function Sidebar({ open, text, convos, activeId, onNew, onOpen, o
   onOpen: (c: Conversation) => void;
   onDelete: (id: string) => void;
 }) {
+  const { user, can, logout } = useAuth();
+  const tag = user.role === "dev" ? "DEV" : user.username === "guest1" ? "VIP" : null;
+
   return (
     <aside className={`sidebar ${open ? "" : "closed"}`}>
       <div className="brand">
@@ -23,17 +27,41 @@ export default function Sidebar({ open, text, convos, activeId, onNew, onOpen, o
         </div>
       </div>
 
+      {/* AUTH1: ai đang dùng, và còn bao nhiêu câu trong ngày */}
+      <div className="auth-user">
+        {user.username ? (
+          <>
+            <span className="auth-who">
+              {user.username}
+              <span className="auth-role">{user.role}</span>
+              {tag && <b className={`auth-tag ${tag === "VIP" ? "vip" : ""}`}>{tag}</b>}
+            </span>
+            <button className="auth-logout" onClick={logout}>Đăng xuất</button>
+          </>
+        ) : (
+          <Link href="/login" className="auth-login-btn">Đăng nhập</Link>
+        )}
+        {user.remaining !== null && <div className="auth-quota">Còn {user.remaining} câu hôm nay</div>}
+        {!user.username && (
+          <div className="auth-banner">Khách vãng lai: lịch sử không được lưu</div>
+        )}
+      </div>
+
       <button className="new-chat" onClick={onNew}>
         <IconPlus /> Cuộc trò chuyện mới
       </button>
 
       <div className="side-quick-links">
-        <Link href="/graph" className="side-quick-btn">
-          <IconGraph /> Knowledge Graph
-        </Link>
-        <Link href="/dashboard" className="side-quick-btn">
-          <IconDash /> Dashboard
-        </Link>
+        {can("graph") && (
+          <Link href="/graph" className="side-quick-btn">
+            <IconGraph /> Knowledge Graph
+          </Link>
+        )}
+        {can("review") && (
+          <Link href="/dashboard" className="side-quick-btn">
+            <IconDash /> Dashboard
+          </Link>
+        )}
         <Link href="/tinh" className="side-quick-btn">
           Máy tính
         </Link>

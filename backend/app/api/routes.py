@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections import deque
 from pathlib import Path
 from typing import Any, Literal
 
@@ -17,6 +18,10 @@ from sqlalchemy.orm import Session
 from app import prompts
 from app.agent import record, risk
 from app.agent.pipeline import run_chat
+from app.auth import accounts as auth_accounts
+from app.auth import deps as auth
+from app.auth import quota, tokens
+from app.auth.roles import ROLES
 from app.gateway.pii import mask
 from app.config import get_settings
 from app.obs import metrics
@@ -32,6 +37,16 @@ from app.review import service as review
 from app.sse import sse
 
 router = APIRouter()
+
+# Quyền theo vai trò (AUTH1): gắn vào decorator để cửa chặn nằm ở máy chủ, không ở giao diện.
+CALC = [Depends(auth.require("calc"))]
+CHAT = [Depends(auth.require("chat"))]
+ESCALATE = [Depends(auth.require("escalate"))]
+GRAPH = [Depends(auth.require("graph"))]
+REVIEW = [Depends(auth.require("review"))]
+UPLOAD = [Depends(auth.require("upload"))]
+DEV = [Depends(auth.require("dev"))]
+HISTORY = [Depends(auth.require_history)]
 
 
 # ---------- Health ----------
@@ -132,7 +147,7 @@ _CALC_REQUIRED = {
 }
 
 
-@router.post("/api/calc/{kind}")
+@router.post("/api/calc/{kind}", dependencies=CALC)
 def calc_route(
     kind: str,
     body: dict[str, Any] = Body(default_factory=dict),
@@ -208,7 +223,7 @@ class DiffRequest(BaseModel):
     write: bool = False
 
 
-@router.post("/api/admin/diff")
+@router.post("/api/admin/diff", dependencies=UPLOAD)
 def diff_route(req: DiffRequest, db: Session = Depends(get_db)):
     from app.amend.store import diff_documents
 
@@ -263,7 +278,7 @@ def _to_input(req: DraftRequest, db: Session):
     )
 
 
-@router.post("/api/draft/preview")
+@router.post("/api/draft/preview", dependencies=REVIEW)
 def draft_preview(req: DraftRequest, db: Session = Depends(get_db)):
     from app.draft.nd30 import format_check, render_text
 
@@ -271,7 +286,7 @@ def draft_preview(req: DraftRequest, db: Session = Depends(get_db)):
     return {"text": render_text(d), "issues": format_check(d), "bases": d.bases}
 
 
-@router.post("/api/draft/export")
+@router.post("/api/draft/export", dependencies=REVIEW)
 def draft_export(req: DraftRequest, db: Session = Depends(get_db)):
     from app.draft.nd30 import render_docx
 
@@ -291,7 +306,7 @@ class PrecedentRequest(BaseModel):
     top_k: int = 4
 
 
-@router.post("/api/precedent")
+@router.post("/api/precedent", dependencies=REVIEW)
 def precedent_route(req: PrecedentRequest):
     from app.agent.precedent import synthesize
 
@@ -304,14 +319,14 @@ class ReportRequest(BaseModel):
     top_k: int = 15
 
 
-@router.post("/api/report")
+@router.post("/api/report", dependencies=REVIEW)
 def report_route(req: ReportRequest):
     from app.report.multi_doc import build_report
 
     return build_report(req.topic, top_k=req.top_k)
 
 
-@router.post("/api/report/export")
+@router.post("/api/report/export", dependencies=REVIEW)
 def report_export_route(req: ReportRequest):
     from fastapi.responses import Response
 
@@ -340,12 +355,19 @@ class ChatRequest(BaseModel):
 
 
 @router.post("/api/chat")
-def chat(req: ChatRequest):
+def chat(
+    req: ChatRequest,
+    user: dict = Depends(auth.require("chat")),
+    db: Session = Depends(get_db),
+):
     history = [{"role": m.role, "content": m.content} for m in req.history]
+    # Hạn mức ngày (AUTH1) tính trước khi mở luồng; quá hạn -> HTTP 429 ngay.
+    remaining = quota.check_and_count(db, user)
+    cloud_first = ROLES.get(user["role"], ROLES["anonymous"])["cloud_first"]
 
     def gen():
         thread_id = req.thread_id or uuid.uuid4().hex
-        yield sse("start", {"thread_id": thread_id})
+        yield sse("start", {"thread_id": thread_id, "remaining": remaining})
         ctx = None
         events: list[tuple[str, object]] = []
         failed = False
@@ -357,6 +379,7 @@ def chat(req: ChatRequest):
             for event, data in metrics.traced(
                 run_chat(
                     req.message, history, req.mode,
+                    cloud_first=cloud_first,
                     **{"use_uploads": True} if req.use_uploads else {},
                 ),
                 ctx,
@@ -425,7 +448,7 @@ def chat(req: ChatRequest):
 
 
 # ---------- Hồ sơ câu trả lời (T7) ----------
-@router.get("/api/answers/{rec_id}")
+@router.get("/api/answers/{rec_id}", dependencies=REVIEW)
 def get_answer_route(rec_id: str, db: Session = Depends(get_db)):
     rec = record.get(db, rec_id)
     if not rec:
@@ -433,7 +456,7 @@ def get_answer_route(rec_id: str, db: Session = Depends(get_db)):
     return rec
 
 
-@router.get("/api/answers")
+@router.get("/api/answers", dependencies=REVIEW)
 def list_answers_route(limit: int = 50, db: Session = Depends(get_db)):
     return record.list_recent(db, limit)
 
@@ -464,7 +487,7 @@ def _open_review_case(answer_id, question, r, thread_id) -> str:
         db.close()
 
 
-@router.get("/api/review/cases")
+@router.get("/api/review/cases", dependencies=REVIEW)
 def list_review_cases(status: str = "pending", db: Session = Depends(get_db)):
     """`status="all"` trả mọi ca; mặc định chỉ ca chờ duyệt."""
     query = select(ReviewCase).order_by(ReviewCase.created_at.desc())
@@ -473,7 +496,7 @@ def list_review_cases(status: str = "pending", db: Session = Depends(get_db)):
     return [_review_case_row(c) for c in db.scalars(query).all()]
 
 
-@router.get("/api/review/cases/{case_id}")
+@router.get("/api/review/cases/{case_id}", dependencies=REVIEW)
 def get_review_case(case_id: str, db: Session = Depends(get_db)):
     case = db.get(ReviewCase, case_id)
     if not case:
@@ -498,12 +521,12 @@ def _review_error(exc: Exception) -> HTTPException:
     return HTTPException(status_code=409, detail=str(exc))
 
 
-@router.get("/api/review/labels")
+@router.get("/api/review/labels", dependencies=REVIEW)
 def review_labels():
     return review.ERROR_LABELS
 
 
-@router.get("/api/review/stats")
+@router.get("/api/review/stats", dependencies=REVIEW)
 def review_stats(db: Session = Depends(get_db)):
     return review.stats(db)
 
@@ -520,12 +543,12 @@ class DutyRequest(BaseModel):
     backup: str | None = None
 
 
-@router.get("/api/review/autonomy")
+@router.get("/api/review/autonomy", dependencies=REVIEW)
 def review_autonomy(db: Session = Depends(get_db)):
     return autonomy.all_levels(db)
 
 
-@router.patch("/api/review/autonomy/{ct}")
+@router.patch("/api/review/autonomy/{ct}", dependencies=REVIEW)
 def review_autonomy_set(ct: str, req: AutonomyRequest, db: Session = Depends(get_db)):
     try:
         return autonomy.set_level(db, ct, req.level, req.reason)
@@ -533,17 +556,17 @@ def review_autonomy_set(ct: str, req: AutonomyRequest, db: Session = Depends(get
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-@router.get("/api/review/duty")
+@router.get("/api/review/duty", dependencies=REVIEW)
 def review_duty(db: Session = Depends(get_db)):
     return sla.get_duty(db)
 
 
-@router.patch("/api/review/duty")
+@router.patch("/api/review/duty", dependencies=REVIEW)
 def review_duty_set(req: DutyRequest, db: Session = Depends(get_db)):
     return sla.set_duty(db, req.on_duty, req.lawyer, req.backup)
 
 
-@router.get("/api/review/cases/{case_id}/package")
+@router.get("/api/review/cases/{case_id}/package", dependencies=REVIEW)
 def review_package(case_id: str, db: Session = Depends(get_db)):
     try:
         return review.package(db, case_id)
@@ -551,7 +574,7 @@ def review_package(case_id: str, db: Session = Depends(get_db)):
         raise _review_error(exc) from exc
 
 
-@router.post("/api/review/cases/{case_id}/act")
+@router.post("/api/review/cases/{case_id}/act", dependencies=REVIEW)
 def review_act(case_id: str, req: ReviewActRequest, db: Session = Depends(get_db)):
     try:
         return review.act(db, case_id, req.action, req.text, req.labels, req.reason)
@@ -560,14 +583,14 @@ def review_act(case_id: str, req: ReviewActRequest, db: Session = Depends(get_db
 
 
 # ---------- Threads (tối giản) ----------
-@router.get("/api/threads")
+@router.get("/api/threads", dependencies=HISTORY)
 def list_threads(db: Session = Depends(get_db)):
     rows = db.scalars(select(Thread).order_by(Thread.updated_at.desc())).all()
     return [{"id": t.id, "title": t.title} for t in rows]
 
 
 # ---------- Knowledge Graph ----------
-@router.get("/api/graph")
+@router.get("/api/graph", dependencies=GRAPH)
 def graph_route(
     query: str = "",
     top_k: int = 150,
@@ -667,7 +690,7 @@ def _esc_case(db: Session, esc_id: str):
     return db.get(ReviewCase, esc_id) or (db.get(ReviewCase, esc_id[:16]) if len(esc_id) > 16 else None)
 
 
-@router.post("/api/escalate")
+@router.post("/api/escalate", dependencies=ESCALATE)
 def escalate(req: EscalateRequest, db: Session = Depends(get_db)):
     """Ghi nhận câu hỏi không đủ căn cứ để nhà phát hành xem xét."""
     _import_escalations_once(db)
@@ -680,7 +703,7 @@ def escalate(req: EscalateRequest, db: Session = Depends(get_db)):
     return {"id": case.id, "status": "pending"}
 
 
-@router.get("/api/escalations")
+@router.get("/api/escalations", dependencies=REVIEW)
 def list_escalations(db: Session = Depends(get_db)):
     """Lấy danh sách câu hỏi chờ phê duyệt."""
     _import_escalations_once(db)
@@ -700,7 +723,7 @@ def get_escalation(esc_id: str, db: Session = Depends(get_db)):
     return review.esc_row(case)
 
 
-@router.patch("/api/escalations/{esc_id}")
+@router.patch("/api/escalations/{esc_id}", dependencies=REVIEW)
 def update_escalation(esc_id: str, req: EscalateUpdate, db: Session = Depends(get_db)):
     """Chuyên gia duyệt (kèm câu trả lời) hoặc từ chối (kèm lý do)."""
     reply = req.reply.strip()
@@ -738,7 +761,7 @@ def _upload_or_404(db: Session, upload_id: str):
     return row
 
 
-@router.post("/api/uploads")
+@router.post("/api/uploads", dependencies=UPLOAD)
 def create_upload(
     background: BackgroundTasks,
     response: Response,
@@ -767,7 +790,7 @@ def create_upload(
     return service.to_dict(row)
 
 
-@router.get("/api/uploads")
+@router.get("/api/uploads", dependencies=UPLOAD)
 def list_uploads(db: Session = Depends(get_db)):
     from app.db.models import UploadedFile
     from app.upload import service
@@ -778,14 +801,14 @@ def list_uploads(db: Session = Depends(get_db)):
     return [service.to_dict(r) for r in rows]
 
 
-@router.get("/api/uploads/{upload_id}")
+@router.get("/api/uploads/{upload_id}", dependencies=UPLOAD)
 def get_upload(upload_id: str, db: Session = Depends(get_db)):
     from app.upload import service
 
     return service.to_dict(_upload_or_404(db, upload_id))
 
 
-@router.get("/api/uploads/{upload_id}/text")
+@router.get("/api/uploads/{upload_id}/text", dependencies=UPLOAD)
 def get_upload_text(upload_id: str, db: Session = Depends(get_db)):
     """Toàn văn đã trích (trường preview trong danh sách chỉ là 2000 ký tự đầu)."""
     from app.upload import service
@@ -794,7 +817,7 @@ def get_upload_text(upload_id: str, db: Session = Depends(get_db)):
     return {"upload_id": upload_id, "chars": len(text), "text": text}
 
 
-@router.get("/api/uploads/{upload_id}/nodes")
+@router.get("/api/uploads/{upload_id}/nodes", dependencies=UPLOAD)
 def get_upload_nodes(upload_id: str, db: Session = Depends(get_db)):
     """Danh sách node của một tệp đã nạp (trang /upload xem nhanh cấu trúc)."""
     from app.db.models import NodeReference
@@ -832,7 +855,7 @@ def get_upload_nodes(upload_id: str, db: Session = Depends(get_db)):
     }
 
 
-@router.patch("/api/uploads/{upload_id}")
+@router.patch("/api/uploads/{upload_id}", dependencies=UPLOAD)
 def review_upload(
     upload_id: str, req: UploadStatusRequest, db: Session = Depends(get_db)
 ):
@@ -843,7 +866,7 @@ def review_upload(
     return service.to_dict(service.set_status(db, upload_id, req.status))
 
 
-@router.delete("/api/uploads/{upload_id}", status_code=204)
+@router.delete("/api/uploads/{upload_id}", status_code=204, dependencies=UPLOAD)
 def delete_upload_route(upload_id: str, db: Session = Depends(get_db)):
     """Xoá tệp: node, dẫn chiếu, tệp trên đĩa và row."""
     from app.upload import service
@@ -864,3 +887,72 @@ def gateway_preview(req: GatewayPreviewRequest):
 
     g = gate(req.text)
     return {"data_class": g.data_class, "masked": g.message, "counts": g.counts}
+
+
+# ---------- Đăng nhập demo (AUTH1) ----------
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+def _role_payload(role: str) -> dict:
+    conf = ROLES.get(role, ROLES["anonymous"])
+    return {"role": role, "perms": sorted(conf["perms"]), "daily": conf["daily"]}
+
+
+@router.post("/api/auth/login")
+def auth_login(req: LoginRequest, db: Session = Depends(get_db)):
+    """Đăng nhập tài khoản demo; sai thì 401. Hết phiên: trình duyệt bỏ token."""
+    row = auth_accounts.verify(db, req.username, req.password)
+    if row is None:
+        raise HTTPException(status_code=401, detail="Sai tên đăng nhập hoặc mật khẩu")
+    return {
+        "token": tokens.issue(row.username, row.role),
+        "username": row.username,
+        **_role_payload(row.role),
+    }
+
+
+@router.get("/api/auth/me")
+def auth_me(user: dict = Depends(auth.current_user), db: Session = Depends(get_db)):
+    """Người đang gọi + quyền + số câu còn lại hôm nay (khách vãng lai cũng xem được)."""
+    role = user["role"] if user["role"] in ROLES else "anonymous"
+    return {
+        "username": user["username"],
+        **_role_payload(role),
+        "remaining": quota.remaining(db, user),
+    }
+
+
+# ---------- Công cụ cho tài khoản dev ----------
+_SECRET_WORDS = ("key", "token", "secret", "password", "salt", "dsn", "credential", "url")
+# "url": database_url / base url có thể chứa user:pass@ — chỉ báo đã đặt
+
+
+def _masked(name: str, value: object) -> object:
+    """Tên cấu hình bí mật chỉ báo đã đặt/trống, không bao giờ trả giá trị."""
+    low = name.lower()
+    if low == "database_url" or any(w in low for w in _SECRET_WORDS):
+        return "đã đặt" if value not in (None, "") else "trống"
+    return value
+
+
+@router.get("/api/dev/config", dependencies=DEV)
+def dev_config():
+    return {name: _masked(name, value) for name, value in get_settings().model_dump().items()}
+
+
+@router.get("/api/dev/logs", dependencies=DEV)
+def dev_logs(n: int = 100):
+    """n dòng cuối của nhật ký gọi LLM (đã che câu hỏi, xem app/obs/metrics.py)."""
+    path = Path("/app/data/metrics/llm_calls.jsonl")
+    if not path.exists():
+        return {"path": str(path), "rows": []}
+    lines = deque(path.read_text(encoding="utf-8").splitlines(), maxlen=max(n, 0))
+    rows = []
+    for line in lines:
+        try:
+            rows.append(json.loads(line))
+        except ValueError:
+            rows.append({"raw": line})
+    return {"path": str(path), "rows": rows}

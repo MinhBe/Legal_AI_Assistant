@@ -13,6 +13,15 @@ import os
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _auth_mode(request, monkeypatch):
+    """Mọi test cũ chạy khi chưa bật đăng nhập; tests/test_auth.py tự bật lại."""
+    from app.auth import deps
+
+    on = str(request.fspath).replace("\\", "/").endswith("tests/test_auth.py")
+    monkeypatch.setattr(deps.settings, "auth_required", on)
+
+
 def pytest_collection_modifyitems(config, items):
     if os.getenv("RUN_LLM_TESTS") == "1":
         return

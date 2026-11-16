@@ -17,10 +17,10 @@ import {
   buildView, type ColorBy, deriveOntology, type GNode, type GraphData, type GroupBy, lookupNodes,
   ontoPositions, type Panel, type Triplet,
 } from "@/lib/graph/model";
+import { apiFetch } from "@/lib/api";
+import { RequirePerm } from "@/lib/auth";
 import { currentMode, type Mode, MODE_TEXT } from "@/lib/mode";
 import { loadNumber, saveNumber, startDrag } from "@/lib/ui/drag";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 const DOC_STATUS: Record<string, string> = {
   pending_review: "chờ duyệt", approved: "đã duyệt", rejected: "đã loại", failed: "lỗi",
@@ -33,6 +33,14 @@ const toggled = (set: Set<string>, item: string) => {
 };
 
 export default function GraphPage() {
+  return (
+    <RequirePerm perm="graph">
+      <GraphPageInner />
+    </RequirePerm>
+  );
+}
+
+function GraphPageInner() {
   const svgRef = useRef<SVGSVGElement>(null);
   const graphRef = useRef<ForceGraph | null>(null);
 
@@ -72,7 +80,7 @@ export default function GraphPage() {
     const id = new URLSearchParams(window.location.search).get("doc_id");
     if (!id) return;
     setDocId(id);
-    fetch(`${API_BASE}/api/uploads`)
+    apiFetch("/api/uploads")
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: { doc_id?: string; filename?: string; status?: string }[]) => {
         const hit = rows.find((u) => u.doc_id === id);
@@ -86,9 +94,9 @@ export default function GraphPage() {
     setLoading(true);
     try {
       const url = docId
-        ? `${API_BASE}/api/graph?doc_id=${encodeURIComponent(docId)}&uploads=1&top_k=150&mode=law`
-        : `${API_BASE}/api/graph?query=${encodeURIComponent(q)}&top_k=150&mode=${currentMode()}`;
-      const res = await fetch(url);
+        ? `/api/graph?doc_id=${encodeURIComponent(docId)}&uploads=1&top_k=150&mode=law`
+        : `/api/graph?query=${encodeURIComponent(q)}&top_k=150&mode=${currentMode()}`;
+      const res = await apiFetch(url);
       const data = await res.json();
       setRaw({ nodes: data.nodes || [], edges: data.edges || [] });
       setHiddenNodeTypes(new Set()); setHiddenEdgeTypes(new Set());

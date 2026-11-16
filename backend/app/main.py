@@ -13,7 +13,8 @@ from loguru import logger
 from sqlalchemy import text
 
 from app.api.routes import router
-from app.db.base import Base, engine
+from app.auth import accounts
+from app.db.base import Base, SessionLocal, engine
 from app.demo_limits import DemoRateLimitMiddleware
 
 
@@ -25,6 +26,14 @@ async def lifespan(app: FastAPI):
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
     Base.metadata.create_all(bind=engine)
     logger.info("DB sẵn sàng, bảng đã tạo.")
+    # Tài khoản demo (AUTH1): tạo còn thiếu, đổi vai trò nếu roles.py đã đổi.
+    db = SessionLocal()
+    try:
+        accounts.seed(db)
+    except Exception as exc:  # noqa: BLE001 — không seed được thì API vẫn chạy, chỉ là chưa đăng nhập được
+        logger.warning("Không tạo được tài khoản demo: {}", exc)
+    finally:
+        db.close()
     # Model embedding nạp lười mất ~12 giây, dồn hết vào câu hỏi đầu tiên sau mỗi
     # lần khởi động; nạp sẵn ở luồng nền để API vẫn lên ngay.
     threading.Thread(target=_warm_up, name="warm-up", daemon=True).start()
@@ -60,7 +69,7 @@ app.add_middleware(
         *_extra_origins,
     ],
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "X-Client-Id", "Content-Type", "*"],
 )
 
 app.include_router(router)

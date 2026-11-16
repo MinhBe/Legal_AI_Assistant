@@ -123,6 +123,10 @@ class Settings(BaseSettings):
     rrf_k: int = 60
     rerank_top_n: int = 20               # số ứng viên đưa vào reranker
 
+    # Đăng nhập demo (AUTH1). Tắt khi chạy test; bật trên máy chạy thật.
+    auth_required: bool = True
+    auth_secret: str | None = None  # để trống = tạo ngẫu nhiên một lần ở data/.auth_secret
+
     # Observability
     langfuse_enabled: bool = False
     langfuse_host: str = "http://langfuse:3000"  # tên service trong container, không phải cổng trình duyệt 3002

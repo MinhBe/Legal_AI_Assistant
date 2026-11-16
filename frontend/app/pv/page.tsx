@@ -9,7 +9,8 @@ import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+import { apiFetch } from "@/lib/api";
+
 
 /* nhóm câu hỏi (khớp với G-prefix trong thư viện) */
 const GROUPS = [
@@ -61,7 +62,7 @@ function useInterview() {
     abortRef.current = new AbortController();
 
     try {
-      const res = await fetch(`${API_BASE}/api/pv/chat`, {
+      const res = await apiFetch(`/api/pv/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: abortRef.current.signal,

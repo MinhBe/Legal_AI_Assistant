@@ -115,7 +115,7 @@ def test_save_get_round_trip_and_routes(db):
     db.commit()
 
 
-def _fake_chat(message, history, mode):
+def _fake_chat(message, history, mode, **kwargs):
     yield ("step", {"name": "retrieve", "label": "Đang tra cứu văn bản"})
     yield ("token", {"text": "Theo Điều 36 BLLĐ 2019, người lao động phải báo trước 45 ngày."})
     yield ("citation", {"n": 1, "node_id": "blld2019-d36", "display": "Điều 36", "text": "..."})

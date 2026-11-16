@@ -6,6 +6,8 @@
 import { useState } from "react";
 import Link from "next/link";
 
+import { apiFetch } from "@/lib/api";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 const WARNING = "Kết quả tính tự động — cần luật sư đối chiếu";
 
@@ -234,7 +236,7 @@ export default function CalcPage() {
       body[field.name] = field.type === "money" || field.type === "number" ? Number(raw) : raw;
     }
     try {
-      const res = await fetch(`${API_BASE}/api/calc/${tab.kind}`, {
+      const res = await apiFetch(`/api/calc/${tab.kind}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

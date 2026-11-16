@@ -5,12 +5,13 @@
    gợi ý câu hỏi chuẩn hơn. Component chỉ hiển thị và gọi các hàm này. */
 import { useEffect, useRef, useState } from "react";
 
+import { API_BASE, apiFetch } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { genId, loadConvos, saveConvos } from "@/lib/chat/storage";
 import type { Calc, Conversation, Facts, Msg, Risk, Section, TimeFrame, Verifier } from "@/lib/chat/types";
 import type { Mode } from "@/lib/mode";
 import { streamChat } from "@/lib/sse";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 const REFUSAL = "Không đủ căn cứ trong kho văn bản để trả lời chắc chắn câu này.";
 const ESCALATION_POLL_MS = 10_000;
 
@@ -35,6 +36,7 @@ function setUrl(id: string | null) {
 }
 
 export function useChat(mode: Mode = "law") {
+  const { user, refresh: refreshAuth } = useAuth();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [convos, setConvos] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -44,7 +46,7 @@ export function useChat(mode: Mode = "law") {
 
   // switching mode opens that mode's own history, starting from an empty chat
   useEffect(() => {
-    const saved = loadConvos(mode);
+    const saved = loadConvos(mode, user.username);
     setConvos(saved);
     setMessages([]);
     setActiveId(null);
@@ -59,7 +61,7 @@ export function useChat(mode: Mode = "law") {
         threadId.current = match.id;
       }
     } catch { /* ignore */ }
-  }, [mode]);
+  }, [mode, user.username]);
 
   function scrollDown() {
     requestAnimationFrame(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight }));
@@ -83,7 +85,7 @@ export function useChat(mode: Mode = "law") {
   function deleteConvo(id: string) {
     setConvos((prev) => {
       const next = prev.filter((x) => x.id !== id);
-      saveConvos(next, mode);
+      saveConvos(next, mode, user.username);
       return next;
     });
     if (activeId === id) newChat();
@@ -97,7 +99,7 @@ export function useChat(mode: Mode = "law") {
     setConvos((prev) => {
       const rest = prev.filter((c) => c.id !== id);
       const next = [{ id, title, messages: msgs }, ...rest];
-      saveConvos(next, mode);
+      saveConvos(next, mode, user.username);
       return next;
     });
     setActiveId(id);
@@ -113,7 +115,7 @@ export function useChat(mode: Mode = "law") {
 
   async function escalate(question: string, msgIdx: number) {
     try {
-      const res = await fetch(`${API_BASE}/api/escalate`, {
+      const res = await apiFetch("/api/escalate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, thread_id: threadId.current }),
@@ -136,7 +138,7 @@ export function useChat(mode: Mode = "law") {
     const check = () => waitingKey.split(",").forEach(async (pair) => {
       const [idx, id] = pair.split(":");
       try {
-        const r = await fetch(`${API_BASE}/api/escalations/${id}`);
+        const r = await apiFetch(`/api/escalations/${id}`);
         if (!r.ok) return;
         const e = await r.json();
         if (e.status === "approved") patchMessage(+idx, { escalate_status: "answered", escalate_reply: e.reply });
@@ -228,9 +230,12 @@ export function useChat(mode: Mode = "law") {
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Lỗi không xác định";
-      update((ai) => ({ ...ai, content: ai.content + `\n\n⚠️ Lỗi kết nối: ${msg}` }));
+      // 429: hết lượt hỏi trong ngày — hiện nguyên văn thông báo hạn mức (AUTH1)
+      const quota = msg.includes("câu hỏi hôm nay");
+      update((ai) => ({ ...ai, content: ai.content + (quota ? `\n\n⚠️ ${msg}` : `\n\n⚠️ Lỗi kết nối: ${msg}`) }));
     } finally {
       setBusy(false);
+      void refreshAuth();  // cập nhật số câu còn lại cho thanh bên
       setMessages((m) => {
         const copy = m.map((x) => ({ ...x, step: undefined }));
         persist(copy);

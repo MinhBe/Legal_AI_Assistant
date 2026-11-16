@@ -136,6 +136,28 @@ docker compose up -d --build
 
 Dừng: `docker compose down` (thêm `-v` nếu muốn xóa cả dữ liệu DB).
 
+### ⚠️ Tài khoản demo (đăng nhập, phân quyền, hạn mức ngày)
+
+Bản chạy cục bộ có đăng nhập theo vai trò (contract AUTH1). **Mật khẩu bằng đúng tên
+đăng nhập** — đây là tài khoản demo cho máy nội bộ, không phải bảo mật thật.
+
+| Tài khoản | Vai trò | Quyền / hạn mức |
+|---|---|---|
+| `admin` / `admin` | admin | tải lên, đồ thị, duyệt, không giới hạn câu |
+| `dev` / `dev` | dev | như admin, thêm `/api/dev/*` |
+| `user1`, `user2`, `user3` (mật khẩu = tên) | user | 50 câu/ngày, gửi luật sư |
+| `guest1` / `guest1` | guest_vip | không giới hạn, ưu tiên mô hình đám mây |
+| `guest2`, `guest3` (mật khẩu = tên) | guest | 20 câu/ngày |
+| không đăng nhập | anonymous | 10 câu/ngày, không lưu lịch sử |
+
+Đăng nhập ở http://localhost:3000/login. Muốn tắt kiểm tra quyền khi thử nhanh thì đặt
+`AUTH_REQUIRED=false` rồi khởi động lại dịch vụ api.
+
+**Trước khi đưa lên mạng công khai:** đổi toàn bộ mật khẩu (`ACCOUNTS` trong
+`backend/app/auth/roles.py` và bảng `app_user`), đặt `AUTH_SECRET` (để trống thì hệ thống
+tự tạo `data/.auth_secret`), và chạy sau HTTPS. Để nguyên tài khoản demo là lỗ hổng chiếm
+toàn quyền.
+
 ### Chạy bản đóng gói v1.0 (final)
 
 Image `<dockerhub-user>/lawvn-api:1.0` đã có sẵn khóa Dahl, chỉ cần chạy:

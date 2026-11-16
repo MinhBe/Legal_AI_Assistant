@@ -346,3 +346,27 @@ class DutyStatus(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class AppUser(Base):
+    """Tài khoản demo (AUTH1): chỉ lưu băm PBKDF2 + muối, không lưu mật khẩu gốc."""
+
+    __tablename__ = "app_user"
+
+    username: Mapped[str] = mapped_column(String(32), primary_key=True)
+    role: Mapped[str] = mapped_column(String(16))
+    salt: Mapped[str] = mapped_column(String(32))
+    pw_hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class UsageCount(Base):
+    """Số câu hỏi đã dùng trong ngày của một khoá (user:<tên> hoặc anon:<mã trình duyệt>)."""
+
+    __tablename__ = "usage_count"
+
+    key: Mapped[str] = mapped_column(String(80), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    n: Mapped[int] = mapped_column(Integer, default=0)

@@ -1,6 +1,8 @@
 // Đọc SSE từ một POST request bằng fetch + ReadableStream.
 // Mỗi sự kiện: dòng "event: <type>" và "data: <json>", ngăn nhau bằng dòng trống.
 
+import { apiFetch } from "@/lib/api";
+
 export type SSEHandler = (event: string, data: any) => void;
 
 export async function streamChat(
@@ -9,14 +11,17 @@ export async function streamChat(
   onEvent: SSEHandler,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`${apiBase}/api/chat`, {
+  const res = await apiFetch(`${apiBase}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     signal,
   });
   if (!res.ok || !res.body) {
-    throw new Error(`Chat request failed: ${res.status}`);
+    // 429/401: máy chủ trả {"detail": ...} — chuyển nguyên văn để chat hiện đúng lý do
+    let detail = "";
+    try { detail = (await res.json()).detail || ""; } catch { /* không phải JSON */ }
+    throw new Error(detail || `Chat request failed: ${res.status}`);
   }
 
   const reader = res.body.getReader();

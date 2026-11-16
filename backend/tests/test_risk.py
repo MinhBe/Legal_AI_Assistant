@@ -129,7 +129,7 @@ def test_threshold_is_three():
 
 
 # ---- luồng chat: chấm điểm, tạo ca, đọc lại ----
-def _fake_chat(message, history, mode):
+def _fake_chat(message, history, mode, **kwargs):
     yield ("step", {"name": "retrieve", "label": "Đang tra cứu văn bản"})
     yield ("token", {"text": "Công ty sa thải bạn phải báo trước 45 ngày theo Điều 36."})
     yield ("citation", {"n": 1, "node_id": "blld2019-d36", "display": "Điều 36", "text": "..."})

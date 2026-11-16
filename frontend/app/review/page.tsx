@@ -6,10 +6,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { apiFetch } from "@/lib/api";
+import { RequirePerm } from "@/lib/auth";
+
 import { TimeFrameBox } from "@/components/chat/AnswerParts";
 import type { TimeFrame, Verifier } from "@/lib/chat/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 type RiskReason = { code: string; weight: number | "inf"; message: string };
 type CaseRow = {
@@ -85,6 +87,14 @@ function Diff({ text }: { text: string }) {
 }
 
 export default function ReviewPage() {
+  return (
+    <RequirePerm perm="review">
+      <ReviewPageInner />
+    </RequirePerm>
+  );
+}
+
+function ReviewPageInner() {
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [filter, setFilter] = useState<Filter>("pending");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -103,11 +113,11 @@ export default function ReviewPage() {
 
   const load = useCallback(async () => {
     const [c, s, l, d, a] = await Promise.all([
-      fetch(`${API_BASE}/api/review/cases?status=all`).then((r) => r.json()).catch(() => []),
-      fetch(`${API_BASE}/api/review/stats`).then((r) => r.json()).catch(() => null),
-      fetch(`${API_BASE}/api/review/labels`).then((r) => r.json()).catch(() => ({})),
-      fetch(`${API_BASE}/api/review/duty`).then((r) => r.json()).catch(() => null),
-      fetch(`${API_BASE}/api/review/autonomy`).then((r) => r.json()).catch(() => []),
+      apiFetch(`/api/review/cases?status=all`).then((r) => r.json()).catch(() => []),
+      apiFetch(`/api/review/stats`).then((r) => r.json()).catch(() => null),
+      apiFetch(`/api/review/labels`).then((r) => r.json()).catch(() => ({})),
+      apiFetch(`/api/review/duty`).then((r) => r.json()).catch(() => null),
+      apiFetch(`/api/review/autonomy`).then((r) => r.json()).catch(() => []),
     ]);
     const rows: CaseRow[] = Array.isArray(c) ? c : [];
     rows.sort((a, b) => Number(b.status === "pending") - Number(a.status === "pending"));
@@ -128,7 +138,7 @@ export default function ReviewPage() {
   useEffect(() => {
     if (!openId) { setPkg(null); return; }
     let alive = true;
-    fetch(`${API_BASE}/api/review/cases/${openId}/package`)
+    apiFetch(`/api/review/cases/${openId}/package`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((p: Pkg) => {
         if (!alive) return;
@@ -148,7 +158,7 @@ export default function ReviewPage() {
     setBusy(true);
     setErr("");
     try {
-      const r = await fetch(`${API_BASE}/api/review/cases/${pkg.id}/act`, {
+      const r = await apiFetch(`/api/review/cases/${pkg.id}/act`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, text: draft, labels: chosen, reason }),
@@ -158,7 +168,7 @@ export default function ReviewPage() {
         setErr(typeof body?.detail === "string" ? body.detail : "Không gửi được hành động.");
         return;
       }
-      const fresh: Pkg = await fetch(`${API_BASE}/api/review/cases/${pkg.id}/package`).then((x) => x.json());
+      const fresh: Pkg = await apiFetch(`/api/review/cases/${pkg.id}/package`).then((x) => x.json());
       setPkg(fresh);
       setDraft(fresh.draft ?? "");
       setExtra(null);
@@ -173,7 +183,7 @@ export default function ReviewPage() {
 
   async function toggleDuty() {
     if (!duty) return;
-    const r = await fetch(`${API_BASE}/api/review/duty`, {
+    const r = await apiFetch(`/api/review/duty`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ on_duty: !duty.on_duty }),
@@ -183,7 +193,7 @@ export default function ReviewPage() {
   }
 
   async function changeLevel(ct: string, level: number) {
-    const r = await fetch(`${API_BASE}/api/review/autonomy/${ct}`, {
+    const r = await apiFetch(`/api/review/autonomy/${ct}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ level, reason: "" }),

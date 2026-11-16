@@ -44,6 +44,26 @@ def get_answer_lang() -> str:
     return current_answer_lang.get()
 
 
+# Cho phép một lượt chat gọi đám mây trước ở mức C (AUTH1: tài khoản VIP).
+# Mức A/B vẫn chỉ dùng mô hình trong máy — router không đọc cờ này cho A/B.
+current_cloud_first: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "cloud_first", default=False
+)
+
+
+@contextmanager
+def cloud_first_scope(on: bool) -> Iterator[None]:
+    token = current_cloud_first.set(bool(on))
+    try:
+        yield
+    finally:
+        current_cloud_first.reset(token)
+
+
+def get_cloud_first() -> bool:
+    return current_cloud_first.get()
+
+
 # metrics.submit chỉ chép ContextVar _REQ của nó, nên mức dữ liệu không tự sang
 # luồng worker (qa.py gọi guard/generate trong pool). Bọc lại để chép cả context.
 # shortcut: sửa tại đây thay vì app/obs/metrics.py vì file đó ngoài phạm vi contract G2;

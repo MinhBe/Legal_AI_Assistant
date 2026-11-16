@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-const STORE_KEY = "llv_conversations";
+import { apiFetch } from "@/lib/api";
+import { RequirePerm, useAuth } from "@/lib/auth";
+import { loadConvos } from "@/lib/chat/storage";
 
 type Escalation = {
   id: string; question: string; status: string;
@@ -27,7 +28,7 @@ function EscalationReview({ esc, onDone }: { esc: Escalation; onDone: (e: Escala
     if (status === "approved" && !reply.trim()) { setErr("Viết câu trả lời trước khi duyệt."); return; }
     setBusy(true); setErr("");
     try {
-      const r = await fetch(`${API_BASE}/api/escalations/${esc.id}`, {
+      const r = await apiFetch(`/api/escalations/${esc.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, reply }),
@@ -63,28 +64,33 @@ function timeAgo(iso: string): string {
 }
 
 export default function DashboardPage() {
+  return (
+    <RequirePerm perm="review">
+      <DashboardPageInner />
+    </RequirePerm>
+  );
+}
+
+function DashboardPageInner() {
+  const { user } = useAuth();
   const [health, setHealth] = useState<HealthData | null>(null);
   const [escalations, setEscalations] = useState<Escalation[]>([]);
   const [convos, setConvos] = useState<Convo[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load conversations from localStorage
-    try {
-      const raw = localStorage.getItem(STORE_KEY);
-      setConvos(raw ? JSON.parse(raw) : []);
-    } catch { setConvos([]); }
+    setConvos(loadConvos("law", user.username) as Convo[]);
 
     // Fetch health + escalations in parallel
     Promise.all([
-      fetch(`${API_BASE}/health`).then((r) => r.json()).catch(() => null),
-      fetch(`${API_BASE}/api/escalations`).then((r) => r.json()).catch(() => []),
+      apiFetch("/health").then((r) => r.json()).catch(() => null),
+      apiFetch("/api/escalations").then((r) => r.json()).catch(() => []),
     ]).then(([h, e]) => {
       setHealth(h);
       setEscalations(Array.isArray(e) ? e : []);
       setLoading(false);
     });
-  }, []);
+  }, [user.username]);
 
   const pending = escalations.filter((e) => e.status === "pending").length;
   const totalMsgs = convos.reduce((s, c) => s + c.messages.length, 0);

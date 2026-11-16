@@ -9,6 +9,7 @@ import {
   TimeFrameBox, VerifierBadge,
 } from "@/components/chat/AnswerParts";
 import { IconGraph } from "@/components/chat/icons";
+import { useAuth } from "@/lib/auth";
 import type { Msg, Risk } from "@/lib/chat/types";
 import type { MODE_TEXT } from "@/lib/mode";
 
@@ -47,6 +48,9 @@ export default function MessageList({
 }) {
   // the user turn just above an AI message is the question it answered
   const questionBefore = (i: number) => (messages[i - 1]?.role === "user" ? messages[i - 1].content : "");
+
+  // AUTH1: vai trò không có quyền `escalate` thì không thấy nút gửi luật sư
+  const canEscalate = useAuth().can("escalate");
 
   return (
     <div className="messages" ref={listRef}>
@@ -124,8 +128,8 @@ export default function MessageList({
                   />
                 )}
 
-                {/* thẻ phê duyệt chỉ hiện khi bị từ chối */}
-                {m.refusal && m.role === "ai" && (
+                {/* thẻ phê duyệt chỉ hiện khi bị từ chối (và khi được phép gửi luật sư) */}
+                {canEscalate && m.refusal && m.role === "ai" && (
                   <ApprovalCard
                     question={questionBefore(i)}
                     threadId={threadId}

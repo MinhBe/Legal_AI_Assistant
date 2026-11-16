@@ -5,7 +5,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+import { apiFetch } from "@/lib/api";
+import { RequirePerm } from "@/lib/auth";
+
 const ACCEPT = ".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp,.docx,.txt,.md";
 
 type UploadRow = {
@@ -38,6 +40,14 @@ const confPct = (c: number | null) =>
   c == null ? "—" : `${Math.round((c <= 1 ? c : c / 100) * 100)}%`;
 
 export default function UploadPage() {
+  return (
+    <RequirePerm perm="upload">
+      <UploadPageInner />
+    </RequirePerm>
+  );
+}
+
+function UploadPageInner() {
   const [rows, setRows] = useState<UploadRow[]>([]);
   const [busy, setBusy] = useState<string[]>([]);
   const [errs, setErrs] = useState<Record<string, string>>({});
@@ -52,7 +62,7 @@ export default function UploadPage() {
     setOpenNodes((o) => (o === id ? null : id));
     if (nodes[id] !== undefined) return;
     try {
-      const r = await fetch(`${API_BASE}/api/uploads/${id}/nodes`);
+      const r = await apiFetch(`/api/uploads/${id}/nodes`);
       if (r.ok) {
         const d = await r.json();
         setNodes((m) => ({ ...m, [id]: d.nodes || [] }));
@@ -64,7 +74,7 @@ export default function UploadPage() {
     setOpen((o) => (o === id ? null : id));
     if (fullText[id] !== undefined) return;
     try {
-      const r = await fetch(`${API_BASE}/api/uploads/${id}/text`);
+      const r = await apiFetch(`/api/uploads/${id}/text`);
       if (r.ok) {
         const d = await r.json();
         setFullText((m) => ({ ...m, [id]: d.text || "" }));
@@ -76,7 +86,7 @@ export default function UploadPage() {
 
   const refresh = useCallback(async () => {
     try {
-      const r = await fetch(`${API_BASE}/api/uploads`);
+      const r = await apiFetch(`/api/uploads`);
       setRows(r.ok ? await r.json() : []);
     } catch { setRows([]); }
   }, []);
@@ -99,7 +109,7 @@ export default function UploadPage() {
       fd.append("file", f);
       let detail = "";
       try {
-        const r = await fetch(`${API_BASE}/api/uploads`, { method: "POST", body: fd });
+        const r = await apiFetch(`/api/uploads`, { method: "POST", body: fd });
         if (!r.ok) {
           detail = `Lỗi ${r.status}`;
           try { detail = (await r.json()).detail || detail; } catch { /* không phải JSON */ }
@@ -115,7 +125,7 @@ export default function UploadPage() {
 
   async function review(id: string, status: "approved" | "rejected") {
     try {
-      await fetch(`${API_BASE}/api/uploads/${id}`, {
+      await apiFetch(`/api/uploads/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
@@ -125,7 +135,7 @@ export default function UploadPage() {
 
   async function remove(id: string) {
     if (!confirm("Xoá tài liệu này? Node và dẫn chiếu của nó cũng bị xoá khỏi đồ thị.")) return;
-    try { await fetch(`${API_BASE}/api/uploads/${id}`, { method: "DELETE" }); }
+    try { await apiFetch(`/api/uploads/${id}`, { method: "DELETE" }); }
     finally { await refresh(); }
   }
 
