@@ -34,7 +34,7 @@ Căn cứ giá và số đo: bench pi-dev B1–B3b (bench/results trong repo pi-
 | F. Giai đoạn 4: intake, máy tính, án lệ | 23–25/11 | I1, I2, I4; I3 chỉ phần code (chưa chạy batch LLM) | Pi + Claude review | $0.35–0.70 |
 | V. Việc còn sót từ kế hoạch V1–V5 | xen kẽ | VL3 (gộp vào G5), VL4 bật/tắt phòng thủ, VL5 streaming; VL1 và VL6 do Minh, VL2 là lượt đo e2e (chi phí LLM chạy, xem mục 4) | Pi | $0.04–0.11 |
 | G. Dự phòng sửa lỗi, làm lại | suốt quá trình | Mục nào trượt cổng thì làm lại một lần | Pi | $0.40–0.80 |
-| **Tổng coding** | | | | **$2.03–4.19 (trần $4); nếu hoãn G7 và R5: $1.97–4.03** |
+| **Tổng coding** | | | | **$2.03–4.19 chưa gồm G7 và R5; gồm cả hai: $2.09–4.35 (trần $4)** |
 
 Nếu chạm trần $3.20 thì hoãn theo thứ tự: G7 (tìm web), R5 (Verifier bằng model), VL5 (streaming). Số thật sau B1 sẽ quyết định có cần hoãn hay không.
 
