@@ -55,20 +55,22 @@ def _fake_fetcher(handler, cache_root=None):
 def clean(db):
     """Bảng tin và lượt quét sạch trong lúc test, rồi trả lại dữ liệu thật như cũ
     (test chạy trên DB dev: không được xoá tin đã quét thật)."""
-    # bảng sao thường (không TEMP): session trả kết nối về pool sau commit nên bảng TEMP sẽ mất
-    for table in ("intel_item", "intel_run"):
+    # bảng sao thường (không TEMP): session trả kết nối về pool sau commit nên bảng TEMP sẽ mất.
+    # Bảng con trước: intel_impact/intel_doc trỏ tới intel_item (xoá item sẽ kéo theo chúng).
+    tables = ("intel_impact", "intel_doc", "intel_item", "intel_run")
+    for table in tables:
         db.execute(text(f"DROP TABLE IF EXISTS _test_bk_{table}"))
         db.execute(text(f"CREATE TABLE _test_bk_{table} AS SELECT * FROM {table}"))
-    db.execute(text("DELETE FROM intel_item"))
-    db.execute(text("DELETE FROM intel_run"))
+    for table in tables:
+        db.execute(text(f"DELETE FROM {table}"))
     db.commit()
     yield
     db.rollback()
-    db.execute(text("DELETE FROM intel_item"))
-    db.execute(text("DELETE FROM intel_run"))
-    db.execute(text("INSERT INTO intel_run SELECT * FROM _test_bk_intel_run"))
-    db.execute(text("INSERT INTO intel_item SELECT * FROM _test_bk_intel_item"))
-    for table in ("intel_item", "intel_run"):
+    for table in tables:
+        db.execute(text(f"DELETE FROM {table}"))
+    for table in reversed(tables):
+        db.execute(text(f"INSERT INTO {table} SELECT * FROM _test_bk_{table}"))
+    for table in tables:
         db.execute(text(f"DROP TABLE _test_bk_{table}"))
     db.commit()
 

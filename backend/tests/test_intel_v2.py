@@ -22,7 +22,8 @@ FIXTURES = Path(__file__).resolve().parents[1] / "data" / "fixtures" / "legal-in
 SAMPLES = Path(__file__).resolve().parents[1] / "data" / "samples" / "upload"
 ANLE_HOME = "https://anle.toaan.gov.vn/webcenter/portal/anle/home"
 VBCP_HOME = "https://vanban.chinhphu.vn/"
-TABLES = ("intel_doc", "intel_item", "intel_run")
+# bảng con trước (xoá trước, khôi phục sau): intel_impact/intel_doc trỏ tới intel_item
+TABLES = ("intel_impact", "intel_doc", "intel_item", "intel_run")
 
 
 def _html(name: str) -> str:
@@ -256,7 +257,8 @@ def _anle_item(db, key: str = "TAND377305", number: str = "84/2026/AL") -> Intel
     item = store.add_item(db, {
         "source": "anle",
         "url": f"https://anle.toaan.gov.vn/webcenter/portal/anle/chitietanle?dDocName={key}",
-        "title": f"{number}: Về chấm dứt việc nuôi con nuôi là người chưa thành niên",
+        # án lệ về lao động: chỉ những án lệ có từ lao động trong tiêu đề mới được lấy toàn văn
+        "title": f"{number}: Về việc sa thải người lao động khi chấm dứt hợp đồng lao động",
         "number": number,
         "kind": "Án lệ",
         "labor_hint": True,
@@ -295,3 +297,28 @@ class FakeRouter:
         title = context.split('"title": "', 1)[-1].split('",', 1)[0]
         self.calls.append({"title": title})
         return self.replies.pop(0) if len(self.replies) > 1 else self.replies[0]
+
+
+def test_robots_404_means_no_restrictions_but_5xx_is_cautious():
+    import httpx
+
+    from app.intel.fetch import Fetcher
+
+    def handler(code):
+        def h(req):
+            if req.url.path == "/robots.txt":
+                return httpx.Response(code, text="not found")
+            return httpx.Response(200, content=b"%PDF-1.4")
+        return h
+
+    f404 = Fetcher("UA", 0, client=httpx.Client(transport=httpx.MockTransport(handler(404))))
+    assert f404.allowed("https://anle.example/webcenter/ShowProperty?nodeId=/UCMServer/T1")
+    f503 = Fetcher("UA", 0, client=httpx.Client(transport=httpx.MockTransport(handler(503))))
+    assert not f503.allowed("https://anle.example/webcenter/ShowProperty?nodeId=/UCMServer/T1")
+
+
+def test_non_labour_precedent_is_not_a_labour_hint():
+    from app.intel.sources import labor_hint
+
+    assert not labor_hint({"title": "84/2026/AL: Về chấm dứt việc nuôi con nuôi", "kind": "Án lệ", "category": ""})
+    assert labor_hint({"title": "Án lệ về hợp đồng lao động và sa thải", "kind": "Án lệ", "category": ""})

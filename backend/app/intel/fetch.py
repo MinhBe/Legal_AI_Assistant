@@ -84,7 +84,10 @@ class Fetcher:
             resp = self._client.get(f"{root}/robots.txt", timeout=_ROBOTS_TIMEOUT)
             if resp.status_code == 200:
                 parser.parse(resp.text.splitlines())
-            else:
+            elif 400 <= resp.status_code < 500:
+                # RFC 9309 §2.3.1.3: robots.txt 4xx (vd. anle trả 404) = không giới hạn gì
+                parser.parse([])
+            else:  # 5xx: thận trọng, chỉ cho URL danh sách đã cấu hình
                 parser = None
         except Exception as exc:  # noqa: BLE001 — mạng hỏng thì coi như không có robots
             logger.info("Không đọc được robots.txt của {}: {}", root, exc.__class__.__name__)

@@ -44,7 +44,11 @@ LABOR_KEYWORDS = (
     "viên chức",
     "lao-dong-tien-luong",
     "bao-hiem",
-    "án lệ",
+    # "án lệ" đã bỏ: mọi án lệ (dân sự, đất đai, hình sự…) đều chứa chữ này nên bị coi là
+    # lao động và tốn lượt Dahl. Án lệ chỉ được xét khi tiêu đề có từ lao động ở trên.
+    "hợp đồng lao động",
+    "sa thải",
+    "kỷ luật lao động",
 )
 
 # Số hiệu: "399/2026/NĐ-CP", "113/2026/VBHN-TT-BNNMT" (có năm) rồi "11636/VPCP-KGVX" (không năm).
