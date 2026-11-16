@@ -9,7 +9,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
 const ACCEPT = ".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp,.docx,.txt,.md";
 
 type UploadRow = {
-  upload_id: string; doc_id: string; filename: string; mime: string;
+  upload_id: string; doc_id: string | null; filename: string; mime: string;
   size_bytes: number; pages: number | null; ocr_pages: number | null;
   chars: number | null; mean_ocr_conf: number | null; parse_mode: string | null;
   n_nodes: number | null; n_refs: number | null; data_class: string | null;
@@ -18,6 +18,7 @@ type UploadRow = {
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
+  processing: { label: "Đang xử lý…", cls: "warn" },
   pending_review: { label: "chờ duyệt", cls: "warn" },
   approved: { label: "đã duyệt", cls: "ok" },
   rejected: { label: "đã loại", cls: "err" },
@@ -81,6 +82,13 @@ export default function UploadPage() {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  // còn tệp đang xử lý ở nền -> hỏi lại mỗi 2 giây, xong hết thì dừng
+  useEffect(() => {
+    if (!rows.some((r) => r.status === "processing")) return;
+    const id = setInterval(refresh, 2000);
+    return () => clearInterval(id);
+  }, [rows, refresh]);
 
   /* tải lần lượt từng tệp: "Đang xử lý…" rồi kết quả hoặc lỗi detail */
   async function send(files: File[]) {
@@ -200,7 +208,7 @@ export default function UploadPage() {
                       <td>{r.n_nodes ?? "—"}</td>
                       <td>{r.n_refs ?? "—"}</td>
                       <td className="up-actions" onClick={(e) => e.stopPropagation()}>
-                        <Link href={`/graph?doc_id=${encodeURIComponent(r.doc_id)}`} className="up-btn">Xem trên graph</Link>
+                        {r.doc_id && <Link href={`/graph?doc_id=${encodeURIComponent(r.doc_id)}`} className="up-btn">Xem trên graph</Link>}
                         <button className="up-btn" onClick={() => toggleNodes(r.upload_id)}>Xem node</button>
                         <button className="up-btn" disabled={r.status !== "pending_review"}
                           onClick={() => review(r.upload_id, "approved")}>Duyệt</button>

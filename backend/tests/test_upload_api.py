@@ -30,8 +30,11 @@ def sample(name: str) -> bytes:
 
 def _post(client: TestClient, name: str, **extra) -> dict:
     r = client.post("/api/uploads", files={"file": (name, sample(name))}, data=extra)
-    assert r.status_code == 200, r.text
-    return r.json()
+    assert r.status_code in (200, 202), r.text
+    body = r.json()
+    if body["status"] == "processing":  # xử lý ở nền xong rồi mới xem trạng thái cuối
+        body = client.get(f"/api/uploads/{body['upload_id']}").json()
+    return body
 
 
 @pytest.fixture(scope="module")
@@ -126,12 +129,46 @@ def test_full_text_endpoint_returns_more_than_preview(client):
     """Hồi quy: trang /upload chỉ hiện preview 2000 ký tự nên tài liệu dài trông như bị cắt."""
     data = (SAMPLES / "ban-an-mau-nhieu-trang.pdf").read_bytes()
     r = client.post("/api/uploads", files={"file": ("ban-an-mau-nhieu-trang.pdf", data, "application/pdf")})
-    assert r.status_code == 200, r.text
+    assert r.status_code in (200, 202), r.text
     up = r.json()
     try:
+        if up["status"] == "processing":
+            up = client.get(f"/api/uploads/{up['upload_id']}").json()
         assert len(up["preview"]) <= 2000
         t = client.get(f"/api/uploads/{up['upload_id']}/text").json()
         assert t["chars"] == len(t["text"]) > 2000
         assert "câu cuối cùng của bản án mẫu nằm ở trang ba." in " ".join(t["text"].split())
     finally:
         client.delete(f"/api/uploads/{up['upload_id']}")
+
+
+def test_post_returns_processing_or_final_status(client, uploads):
+    """Tải lên trả về ngay (202) khi còn xử lý, hoặc trạng thái cuối nếu đã xong."""
+    r = client.post("/api/uploads", files={"file": (TXT, sample(TXT))})
+    assert r.status_code in (200, 202), r.text
+    body = r.json()
+    uploads.append(body["upload_id"])
+    assert body["status"] in {"processing", "pending_review", "failed"}
+
+
+def test_reference_to_decree_by_number_creates_node_reference(client, uploads, db):
+    """"khoản 1 Điều 3 Nghị định 145/2020/NĐ-CP" phải trỏ tới node của nghị định 145."""
+    has_node = db.execute(
+        text("SELECT 1 FROM legal_node WHERE node_id = 'nd145_2020-d3-k1'")
+    ).scalar()
+    if not has_node:
+        pytest.skip("kho thiếu nd145_2020-d3-k1")
+    content = "Quy định nội bộ: theo khoản 1 Điều 3 Nghị định 145/2020/NĐ-CP.\n".encode()
+    r = client.post("/api/uploads", files={"file": ("quy-dinh-noi-bo-u9.txt", content)})
+    assert r.status_code in (200, 202), r.text
+    up = r.json()
+    uploads.append(up["upload_id"])
+    if up["status"] == "processing":
+        up = client.get(f"/api/uploads/{up['upload_id']}").json()
+    assert up["status"] == "pending_review", up.get("error")
+    refs = [
+        to_id
+        for n in client.get(f"/api/uploads/{up['upload_id']}/nodes").json()["nodes"]
+        for to_id in n["refs"]
+    ]
+    assert "nd145_2020-d3-k1" in refs

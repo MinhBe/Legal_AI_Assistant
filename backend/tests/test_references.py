@@ -1,6 +1,17 @@
 """Bộ trích dẫn chiếu: phần khó là đoán đúng văn bản đích, không phải bắt con số."""
 
-from app.ingestion.references import extract_refs
+import pytest
+
+from app.ingestion.references import extract_refs, known_docs_from_db
+
+# bản đồ như known_docs_from_db dựng từ legal_document
+KNOWN = {
+    "145/2020/nđ-cp": "nd145_2020",
+    "45/2019/qh14": "blld2019",
+    "10/2012/qh13": "blld2012",
+    "bộ luật lao động 2019": "blld2019",
+    "bộ luật lao động 2012": "blld2012",
+}
 
 
 def targets(text, src_doc, **kw):
@@ -47,3 +58,59 @@ def test_repeated_reference_is_reported_once():
 
 def test_empty_text():
     assert extract_refs("", "blld2019") == []
+
+
+# ---------- nhận ra văn bản theo số hiệu / tên (U9) ----------
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("khoản 1 Điều 3 Nghị định 145/2020/NĐ-CP", "nd145_2020-d3-k1"),
+        ("khoản 1 Điều 3 Nghị định số 145/2020/NĐ-CP", "nd145_2020-d3-k1"),
+        ("khoản 1 Điều 3 NĐ 145/2020", "nd145_2020-d3-k1"),
+        ("khoản 1 Điều 3 Nghị định 145", "nd145_2020-d3-k1"),
+        ("khoản 1 Điều 2 Bộ luật Lao động 2012", "blld2012-d2-k1"),
+        ("khoản 1 Điều 2 Bộ luật Lao động năm 2012", "blld2012-d2-k1"),
+        ("khoản 1 Điều 2 BLLĐ 2019", "blld2019-d2-k1"),
+        ("khoản 1 Điều 2 Luật số 45/2019/QH14", "blld2019-d2-k1"),
+    ],
+)
+def test_doc_number_or_name_after_reference(text, expected):
+    assert targets(text, "up_x", known_docs=KNOWN) == [expected]
+
+
+def test_year_qualified_code_picks_that_year():
+    assert targets("Điều 37 Bộ luật Lao động 2012", "nd145_2020", known_docs=KNOWN) == [
+        "blld2012-d37"
+    ]
+    assert targets("Điều 37 Bộ luật Lao động 2019", "nd145_2020", known_docs=KNOWN) == [
+        "blld2019-d37"
+    ]
+
+
+def test_bare_doc_mention_is_not_a_node_reference():
+    assert extract_refs(
+        "Theo Nghị định 145/2020/NĐ-CP và Bộ luật Lao động 2019, ...",
+        "up_x",
+        known_docs=KNOWN,
+    ) == []
+
+
+def test_numbered_doc_as_inherited_context():
+    ctx = "Căn cứ Nghị định 145/2020/NĐ-CP. Quy định chi tiết tại khoản 1 Điều 3."
+    assert targets("Quy định chi tiết tại khoản 1 Điều 3.", "up_x", article_context=ctx,
+                   known_docs=KNOWN) == ["nd145_2020-d3-k1"]
+
+
+def test_unknown_doc_number_falls_back_to_source():
+    assert targets("khoản 1 Điều 3 Nghị định 999/2099/NĐ-CP", "up_x", known_docs=KNOWN) == [
+        "up_x-d3-k1"
+    ]
+
+
+@pytest.mark.db
+def test_known_docs_from_db_has_numbers_and_titles(db):
+    known = known_docs_from_db(db)
+    assert known["145/2020/nd-cp"] == "nd145_2020"
+    assert known["45/2019/qh14"] == "blld2019"
+    assert known["bo luat lao dong 2012"] == "blld2012"
+    assert all(not doc.startswith("up_") for doc in known.values())

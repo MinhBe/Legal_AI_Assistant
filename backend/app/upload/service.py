@@ -13,12 +13,16 @@ from pathlib import Path
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
+from app.db.base import SessionLocal
 from app.db.models import LegalDocument, LegalNode, UploadedFile
-from app.upload.extract import TooLarge, UnsupportedFile, extract
+from app.upload.extract import IMAGE_MIMES, MAX_BYTES, TooLarge, UnsupportedFile, extract
 from app.upload.ingest import delete_upload, ingest_upload, make_doc_id
 
 UPLOAD_DIR = Path("/app/data/uploads")
 PREVIEW_CHARS = 2000
+#: đuôi tệp được nhận; ảnh lấy từ bảng mime của extract
+SUPPORTED_SUFFIXES = {".pdf", ".docx", ".txt", ".md", *IMAGE_MIMES}
+_MAGIC = {".pdf": b"%PDF"}
 
 
 def _path(sha256_hex: str, filename: str) -> Path:
@@ -42,26 +46,59 @@ def full_text(db: Session, row: UploadedFile) -> str:
     return "\n\n".join(t for t in texts if t)
 
 
-def save_upload(
+def precheck(data: bytes, filename: str) -> None:
+    """Từ chối sớm (trước khi ghi row): quá lớn, sai đuôi tệp, sai magic."""
+    if len(data) > MAX_BYTES:
+        raise TooLarge(f"tệp lớn hơn {MAX_BYTES} byte")
+    suffix = Path(filename).suffix.lower()
+    if suffix not in SUPPORTED_SUFFIXES:
+        raise UnsupportedFile(f"không hỗ trợ định dạng {suffix or filename!r}")
+    magic = _MAGIC.get(suffix)
+    if magic and not data.startswith(magic):
+        raise UnsupportedFile(f"nội dung tệp không khớp định dạng {suffix}")
+
+
+def register_upload(
     db: Session, data: bytes, filename: str, title: str | None = None
-) -> UploadedFile:
-    """Lưu tệp rồi nạp thành node; tệp trùng (cùng sha256) trả lại row cũ."""
+) -> tuple[UploadedFile, bool]:
+    """Ghi row ở trạng thái `processing`; tệp trùng (cùng sha256) trả row cũ.
+
+    Trả ``(row, is_new)`` — ``is_new=False`` nghĩa là không cần xử lý lại.
+    """
     sha = hashlib.sha256(data).hexdigest()
     row = db.scalar(select(UploadedFile).where(UploadedFile.sha256 == sha))
     if row is not None and row.status != "failed":
         row.duplicate = True
-        return row
+        return row, False
 
     if row is None:  # tệp mới, hoặc lần trước lỗi -> thử lại trên cùng row
-        row = UploadedFile(
-            upload_id=uuid.uuid4().hex, sha256=sha, filename=filename, size_bytes=len(data)
-        )
+        row = UploadedFile(upload_id=uuid.uuid4().hex, sha256=sha)
         db.add(row)
     row.duplicate = False
     row.filename = filename
     row.size_bytes = len(data)
-    upload_id = row.upload_id
+    row.status = "processing"
+    row.error = None
+    db.commit()
+    return row, True
 
+
+def process_upload(
+    upload_id: str, data: bytes, filename: str, title: str | None = None
+) -> UploadedFile:
+    """Trích chữ (OCR nếu scan) rồi nạp thành node; tự mở và đóng session."""
+    db = SessionLocal()
+    try:
+        return _process(db, upload_id, data, filename, title)
+    finally:
+        db.close()
+
+
+def _process(
+    db: Session, upload_id: str, data: bytes, filename: str, title: str | None
+) -> UploadedFile:
+    row = db.get(UploadedFile, upload_id)
+    sha = row.sha256
     try:
         e = extract(data, filename)
         UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -74,13 +111,11 @@ def save_upload(
             text=e.text,
             filename=filename,
         )
-    except (UnsupportedFile, TooLarge):
-        db.rollback()  # không để lại row cho tệp bị từ chối
-        raise
-    except Exception as exc:  # noqa: BLE001 - mọi lỗi khác: ghi row failed để người dùng thấy
+    except Exception as exc:  # noqa: BLE001 - mọi lỗi (kể cả định dạng lọt qua precheck): ghi row failed
+        # chạy ở nền nên không được ném lỗi ra ngoài, nếu không row kẹt mãi ở "processing"
         db.rollback()
         row = db.get(UploadedFile, upload_id)
-        if row is None:  # row mới chưa từng được commit
+        if row is None:  # row chưa từng được commit
             row = UploadedFile(upload_id=upload_id, sha256=sha)
             db.add(row)
         row.filename = filename
@@ -105,6 +140,19 @@ def save_upload(
     row.preview = e.text[:PREVIEW_CHARS]
     row.duplicate = False
     db.commit()
+    return row
+
+
+def save_upload(
+    db: Session, data: bytes, filename: str, title: str | None = None
+) -> UploadedFile:
+    """Lưu tệp rồi nạp thành node ngay trong lượt gọi (test và script dùng)."""
+    precheck(data, filename)
+    row, is_new = register_upload(db, data, filename, title=title)
+    if not is_new:
+        return row
+    process_upload(row.upload_id, data, filename, title)
+    db.refresh(row)
     return row
 
 

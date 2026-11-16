@@ -19,9 +19,16 @@ curl -sf "$API/health" >/dev/null && ok "API sống" || { bad "API không trả 
 for f in noi-quy-lao-dong.pdf hop-dong-lao-dong-mau.docx quyet-dinh-ky-luat-scan.jpg quyet-dinh-ky-luat-scan.pdf; do
   echo "== Tải lên $f"
   r=$(curl -s -F "file=@$DIR/$f" "$API/api/uploads")
-  id=$(echo "$r" | j "d.get('upload_id','')"); doc=$(echo "$r" | j "d.get('doc_id') or ''")
+  id=$(echo "$r" | j "d.get('upload_id','')")
   [ -n "$id" ] || { bad "không có upload_id: ${r:0:200}"; continue; }
   ids+=("$id")
+  # xử lý chạy ở nền: chờ tới khi row rời trạng thái "processing"
+  for _ in $(seq 1 90); do
+    [ "$(echo "$r" | j "d.get('status')")" = "processing" ] || break
+    sleep 2
+    r=$(curl -s "$API/api/uploads/$id")
+  done
+  doc=$(echo "$r" | j "d.get('doc_id') or ''")
   echo "$r" | j "f\"  trang={d['pages']} ocr={d['ocr_pages']} conf={d['mean_ocr_conf']} kiểu={d['parse_mode']} node={d['n_nodes']} dẫn_chiếu={d['n_refs']} mức={d['data_class']} trạng_thái={d['status']}\""
   [ "$(echo "$r" | j "d['status']")" = "pending_review" ] && ok "chờ duyệt, mức $(echo "$r" | j "d['data_class']")" || bad "trạng thái không phải pending_review"
   [ "$(echo "$r" | j "int((d['n_refs'] or 0) >= 1)")" = "1" ] && ok "có dẫn chiếu tới điều luật" || bad "không có dẫn chiếu"

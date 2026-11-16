@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.db.models import LegalDocument, LegalNode, NodeReference
 from app.ingestion.ingest import _nodes_from_articles
 from app.ingestion.parser import assign_ids, parse_articles, validate
-from app.ingestion.references import extract_refs
+from app.ingestion.references import extract_refs, known_docs_from_db
 from app.rag.embeddings import embed
 
 SECTION_TARGET = 800  # ký tự mỗi node section
@@ -109,10 +109,13 @@ def ingest_upload(
     db.flush()
 
     article_text = {r["article_no"]: r["text"] for r in rows if r["level"] == "article"}
+    known_docs = known_docs_from_db(db)
     pairs: dict[tuple[str, str], str] = {}
     for r in rows:
         ctx = None if r["level"] == "section" else article_text.get(r["article_no"])
-        for to_id, ref_text in extract_refs(r["text"], doc_id, article_context=ctx):
+        for to_id, ref_text in extract_refs(
+            r["text"], doc_id, article_context=ctx, known_docs=known_docs
+        ):
             if to_id != r["node_id"]:
                 pairs.setdefault((r["node_id"], to_id), ref_text)
 

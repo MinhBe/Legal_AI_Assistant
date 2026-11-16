@@ -9,7 +9,7 @@ from datetime import datetime, UTC
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel
@@ -497,22 +497,30 @@ def _upload_or_404(db: Session, upload_id: str):
 
 @router.post("/api/uploads")
 def create_upload(
+    background: BackgroundTasks,
+    response: Response,
     file: UploadFile = File(...),
     title: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
-    """Tải tệp lên, trích chữ (OCR nếu scan) và nạp thành node đồ thị."""
+    """Tải tệp lên: ghi row `processing` rồi trích chữ/nạp node ở nền."""
     from app.upload import extract, service
 
+    filename = file.filename or "tep"
     data = file.file.read(extract.MAX_BYTES + 1)
     if not data:
         raise HTTPException(status_code=422, detail="Tệp rỗng")
     try:
-        row = service.save_upload(db, data, file.filename or "tep", title=title)
+        service.precheck(data, filename)
+        row, is_new = service.register_upload(db, data, filename, title=title)
     except extract.TooLarge as exc:
         raise HTTPException(status_code=413, detail=f"Tệp quá lớn: {exc}") from exc
     except extract.UnsupportedFile as exc:
         raise HTTPException(status_code=415, detail=f"Định dạng không hỗ trợ: {exc}") from exc
+    if not is_new:  # tệp trùng: trả ngay bản cũ
+        return service.to_dict(row)
+    background.add_task(service.process_upload, row.upload_id, data, filename, title)
+    response.status_code = 202
     return service.to_dict(row)
 
 
