@@ -33,6 +33,7 @@ from typing import Any
 from loguru import logger
 
 from app.config import get_settings
+from app.llm.context import get_data_class
 from app.obs import metrics
 
 settings = get_settings()
@@ -40,6 +41,11 @@ settings = get_settings()
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 _MAX_ATTEMPTS = 4
 _BASE_DELAY = 1.0
+
+# Dò mô hình trong máy (Ollama): nhớ kết quả 60 s, không dò lúc import.
+_LOCAL_CACHE_TTL = 60.0
+_LOCAL_CACHE: list = [0.0, None]  # [lần dò trước, có sống không]
+_LOCAL_LOCK = threading.Lock()
 
 # Dahl trả 429 ngay (dưới 1 giây) khi model hết chỗ, nên thử lại dày và lâu hơn
 # các nhà cung cấp khác: model nào có chỗ trước thì thắng.
@@ -69,6 +75,41 @@ class LLMError(RuntimeError):
     pass
 
 
+class LocalModelUnavailable(LLMError):
+    """Mức A/B không được ra ngoài mà mô hình trong máy không sẵn sàng."""
+
+
+_LOCAL_DOWN = (
+    "Mô hình chạy trong máy chưa sẵn sàng (kiểm tra OLLAMA_BASE_URL), "
+    "nên câu hỏi mức A/B không được gửi ra nhà cung cấp bên ngoài."
+)
+
+
+def _probe_local() -> bool:
+    """Ollama sống không: GET <OLLAMA_BASE_URL>/models với 2 giây chờ."""
+    import httpx
+
+    try:
+        resp = httpx.get(f"{settings.ollama_base_url.rstrip('/')}/models", timeout=2.0)
+        return resp.status_code == 200
+    except Exception:  # noqa: BLE001 — không kết nối được nghĩa là chưa sẵn sàng
+        return False
+
+
+def local_reachable() -> bool:
+    """Kết quả dò có nhớ 60 giây (nhiều request không dò lại liên tục)."""
+    now = time.monotonic()
+    if _LOCAL_CACHE[1] is not None and now - _LOCAL_CACHE[0] < _LOCAL_CACHE_TTL:
+        return bool(_LOCAL_CACHE[1])
+    with _LOCAL_LOCK:
+        now = time.monotonic()
+        if _LOCAL_CACHE[1] is not None and now - _LOCAL_CACHE[0] < _LOCAL_CACHE_TTL:
+            return bool(_LOCAL_CACHE[1])
+        ok = _probe_local()
+        _LOCAL_CACHE[:] = [now, ok]
+        return ok
+
+
 def strip_think(text: str) -> str:
     """Bỏ phần suy nghĩ <think>…</think> một số model để lẫn vào câu trả lời.
 
@@ -81,6 +122,34 @@ def strip_think(text: str) -> str:
     if "<think>" in text:
         text = text.split("<think>", 1)[0]
     return text.strip()
+
+
+def _strip_think_stream(chunks: Iterator[str]) -> Iterator[str]:
+    """Bỏ khối <think>…</think> khi đang stream, giữ đuôi có thể là nửa thẻ."""
+    keep = len("</think>") - 1
+    buf, thinking = "", False
+    for delta in chunks:
+        buf += delta
+        out = ""
+        while buf:
+            tag = "</think>" if thinking else "<think>"
+            i = buf.find(tag)
+            if i != -1:
+                if not thinking:
+                    out += buf[:i]
+                buf = buf[i + len(tag):]
+                thinking = not thinking
+                continue
+            if thinking:
+                buf = buf[-keep:] if len(buf) > keep else buf
+            elif len(buf) > keep:
+                out += buf[:-keep]
+                buf = buf[-keep:]
+            break
+        if out:
+            yield out
+    if buf and not thinking:
+        yield buf
 
 
 def parse_json(text: str) -> dict:
@@ -136,6 +205,23 @@ class LLMRouter:
 
     # ---- chọn nhà cung cấp + model theo task ----
     def _plan(self, task: str) -> list[tuple[str, str]]:
+        if not settings.llm_legacy_race:
+            return self._tiered_plan()
+        return self._legacy_plan(task)
+
+    def _tiered_plan(self) -> list[tuple[str, str]]:
+        """Mức A/B chỉ mô hình trong máy; mức C thêm DeepSeek làm bậc thang."""
+        level = get_data_class()
+        local = ("local", settings.local_model)
+        if level in ("A", "B"):
+            if not self._available("local"):
+                raise LocalModelUnavailable(_LOCAL_DOWN)
+            return [local]
+        plan = [local, ("deepseek", settings.deepseek_model)]
+        return [(p, m) for (p, m) in plan if self._available(p)]
+
+    def _legacy_plan(self, task: str) -> list[tuple[str, str]]:
+        """Kế hoạch cũ: đua Dahl rồi Gemini/Claude/FPT — chỉ khi LLM_LEGACY_RACE=true."""
         dahl = ("dahl", "*")  # "*" = đua mọi model Dahl
         g_flash = ("gemini", settings.gemini_model)
         g_lite = ("gemini", settings.gemini_model_lite)
@@ -159,12 +245,15 @@ class LLMRouter:
         return self.available_providers().get(provider, False)
 
     def available_providers(self) -> dict[str, bool]:
-        return {
-            "dahl": bool(self._dahl_keys and settings.dahl_model_list),
-            "gemini": bool(self._gemini_keys),
-            "claude": bool(settings.anthropic_api_key),
-            "fpt": bool(settings.fpt_api_key),
-        }
+        providers = {"local": local_reachable(), "deepseek": bool(settings.deepseek_api_key)}
+        if settings.llm_legacy_race:
+            providers |= {
+                "dahl": bool(self._dahl_keys and settings.dahl_model_list),
+                "gemini": bool(self._gemini_keys),
+                "claude": bool(settings.anthropic_api_key),
+                "fpt": bool(settings.fpt_api_key),
+            }
+        return providers
 
     # ---- client ----
     def _openai_client(self, base_url: str, api_key: str, timeout: float = 60.0):
@@ -216,18 +305,43 @@ class LLMRouter:
                 metrics.mark_winner(res.call_id)
                 return res
             except Exception as exc:  # noqa: BLE001 — thử nhà cung cấp kế tiếp
-                logger.warning("LLM {} ({}) lỗi: {}", provider, model, exc)
+                logger.warning("LLM {} ({}) lỗi ở mức {}: {}", provider, model,
+                               get_data_class(), exc)
                 last_exc = exc
+                if i + 1 < len(plan):
+                    logger.info(
+                        "nâng bậc: provider={} model={} data_class={} escalated_from={}",
+                        plan[i + 1][0], plan[i + 1][1], get_data_class(), provider,
+                    )
+        if get_data_class() in ("A", "B"):
+            raise LocalModelUnavailable(_LOCAL_DOWN) from last_exc
         raise LLMError(f"Mọi nhà cung cấp đều lỗi: {last_exc}")
 
     def _call(self, provider, model, messages, temperature, max_tokens, task: str = "answer") -> LLMResult:
         if provider == "claude":
             return self._call_claude(model, messages, temperature, max_tokens, task=task)
+        if provider == "local":
+            return self._call_local(model, messages, temperature, max_tokens, task=task)
+        if provider == "deepseek":
+            return self._call_deepseek(model, messages, temperature, max_tokens, task=task)
         base_url, api_key = self._endpoint(provider)
         return self._call_openai(provider, base_url, api_key, model, messages, temperature, max_tokens,
                                  task=task)
 
+    def _call_local(self, model, messages, temperature, max_tokens, task: str = "answer") -> LLMResult:
+        return self._call_openai("local", settings.ollama_base_url, "ollama", model, messages,
+                                 temperature, max_tokens, task=task, timeout=settings.local_timeout)
+
+    def _call_deepseek(self, model, messages, temperature, max_tokens, task: str = "answer") -> LLMResult:
+        return self._call_openai("deepseek", settings.deepseek_base_url,
+                                 settings.deepseek_api_key or "", model, messages, temperature,
+                                 max_tokens, task=task)
+
     def _endpoint(self, provider: str) -> tuple[str, str]:
+        if provider == "local":
+            return settings.ollama_base_url, "ollama"
+        if provider == "deepseek":
+            return settings.deepseek_base_url, settings.deepseek_api_key or ""
         if provider == "gemini":
             return settings.gemini_base_url, self._next_gemini_key()
         if provider == "fpt":
@@ -329,10 +443,11 @@ class LLMRouter:
         raise LLMError("hết lượt chờ chỗ")
 
     def _call_openai(
-        self, provider, base_url, api_key, model, messages, temperature, max_tokens, task: str = "answer"
+        self, provider, base_url, api_key, model, messages, temperature, max_tokens,
+        task: str = "answer", timeout: float = 60.0,
     ) -> LLMResult:
         def _once(key: str) -> LLMResult:
-            client = self._openai_client(base_url, key)
+            client = self._openai_client(base_url, key, timeout)
             t0 = time.monotonic()
             try:
                 resp = client.chat.completions.create(
@@ -346,6 +461,8 @@ class LLMRouter:
                         error=str(exc)[:200])
                 raise
             text = resp.choices[0].message.content or ""
+            if provider in ("local", "deepseek"):
+                text = strip_think(text)
             cid = _record(provider=provider, model=model, task=task, t0=t0, messages=messages,
                           text=text, resp=resp)
             return LLMResult(text=text, provider=provider, model=model, call_id=cid)
@@ -405,7 +522,13 @@ class LLMRouter:
         temperature: float = 0.2,
     ) -> Iterator[str]:
         plan = self._plan(task)
-        for provider, model in plan:
+        if not plan:
+            raise LLMError(
+                "Chưa cấu hình nhà cung cấp LLM nào (OLLAMA_BASE_URL/LOCAL_MODEL cho mô hình "
+                "trong máy, DEEPSEEK_API_KEY cho DeepSeek)."
+            )
+        last_exc: Exception | None = None
+        for i, (provider, model) in enumerate(plan):
             try:
                 if provider == "dahl":
                     # phần <think> chỉ bỏ được khi đã có trọn câu trả lời
@@ -414,20 +537,36 @@ class LLMRouter:
                 if provider == "claude":
                     yield from self._stream_claude(model, messages, temperature)
                     return
-                base_url, api_key = self._endpoint(provider)
-                client = self._openai_client(base_url, api_key)
-                stream = client.chat.completions.create(
-                    model=model, messages=messages, temperature=temperature, stream=True
-                )
-                for chunk in stream:
-                    delta = chunk.choices[0].delta.content if chunk.choices else None
-                    if delta:
-                        yield delta
+                chunks = self._stream_openai(provider, model, messages, temperature)
+                if provider in ("local", "deepseek"):
+                    chunks = _strip_think_stream(chunks)
+                yield from chunks
                 return
             except Exception as exc:  # noqa: BLE001
-                logger.warning("stream {} lỗi, thử nhà cung cấp kế: {}", provider, exc)
-                continue
-        raise LLMError("Không stream được từ nhà cung cấp nào.")
+                logger.warning("stream {} ({}) lỗi ở mức {}: {}", provider, model,
+                               get_data_class(), exc)
+                last_exc = exc
+                if i + 1 < len(plan):
+                    logger.info(
+                        "nâng bậc: provider={} model={} data_class={} escalated_from={}",
+                        plan[i + 1][0], plan[i + 1][1], get_data_class(), provider,
+                    )
+        if get_data_class() in ("A", "B"):
+            raise LocalModelUnavailable(_LOCAL_DOWN) from last_exc
+        raise LLMError(f"Không stream được từ nhà cung cấp nào: {last_exc}")
+
+    def _stream_openai(self, provider, model, messages, temperature) -> Iterator[str]:
+        base_url, api_key = self._endpoint(provider)
+        timeout = settings.local_timeout if provider == "local" else 60.0
+        client = self._openai_client(base_url, api_key, timeout)
+        stream = client.chat.completions.create(
+            model=model, messages=messages, temperature=temperature, stream=True
+        )
+        for chunk in stream:
+            delta = chunk.choices[0].delta.content if chunk.choices else None
+            if delta:
+                yield delta
+
 
     def _stream_claude(self, model, messages, temperature) -> Iterator[str]:
         from anthropic import Anthropic

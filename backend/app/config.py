@@ -39,6 +39,17 @@ class Settings(BaseSettings):
     fpt_api_key: str | None = None
     fpt_model: str = "gpt-oss-20b"
 
+    # Mô hình chạy trong máy (Ollama, OpenAI-compatible) — mức dữ liệu A/B chỉ gọi cái này
+    ollama_base_url: str = "http://host.docker.internal:11434/v1"
+    local_model: str = "qwen2.5:7b"
+    local_timeout: float = 120
+    # DeepSeek API — bậc thang cho mức C khi mô hình trong máy lỗi
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_api_key: str | None = None
+    deepseek_model: str = "deepseek-flash"
+    # true = kế hoạch cũ (đua Dahl rồi Gemini/Claude/FPT); mặc định dùng định tuyến theo mức
+    llm_legacy_race: bool = False
+
     # Embedding
     embedder: str = "hashing"
     embed_dim: int = 1024

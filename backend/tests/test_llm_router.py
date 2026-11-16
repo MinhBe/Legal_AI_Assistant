@@ -8,6 +8,12 @@ import pytest
 from app.llm import router as r
 
 
+@pytest.fixture(autouse=True)
+def legacy_race(monkeypatch):
+    """Mặc định giờ là định tuyến theo mức dữ liệu; test cuộc đua phải bật cờ cũ."""
+    monkeypatch.setattr(r.settings, "llm_legacy_race", True)
+
+
 @pytest.mark.parametrize(
     ("raw", "want"),
     [

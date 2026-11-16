@@ -17,7 +17,13 @@ from app.agent.guard import REDIRECT, looks_like_injection
 from app.db.base import SessionLocal
 from app.gateway.classify import gate
 from app.gateway.pii import unmask
-from app.llm.router import LLMError, get_router
+from app.llm.context import data_class_scope, get_data_class
+from app.llm.router import LLMError, LocalModelUnavailable, get_router
+
+LOCAL_UNAVAILABLE = (
+    "Câu hỏi có thông tin cá nhân nên chỉ được xử lý bằng mô hình chạy trong máy, "
+    "nhưng mô hình này chưa sẵn sàng. Vui lòng thử lại sau hoặc bỏ thông tin cá nhân khỏi câu hỏi."
+)
 
 SYSTEM_PROMPT = (
     "Bạn là trợ lý pháp luật lao động Việt Nam. Trả lời bằng tiếng Việt có dấu, "
@@ -55,8 +61,13 @@ def run_chat(
     history = history or []
     g = gate(message, history)
     logger.info("Gateway: class={} counts={}", g.data_class, g.counts)
-    for event, data in _chat(g.message, g.history, mode, original=message):
-        yield event, _unmask_data(data, g.mapping)
+    with data_class_scope(g.data_class):
+        try:
+            for event, data in _chat(g.message, g.history, mode, original=message):
+                yield event, _unmask_data(data, g.mapping)
+        except LocalModelUnavailable:
+            yield ("token", {"text": LOCAL_UNAVAILABLE})
+            yield ("done", {"category": "local_unavailable"})
 
 
 def _chat(
@@ -70,30 +81,37 @@ def _chat(
     tại chỗ, không gọi LLM) nên phải là câu gốc chưa che."""
     router = get_router()
 
-    if not any(router.available_providers().values()):
-        yield (
-            "token",
-            {
-                "text": (
-                    "Chưa cấu hình khóa LLM nào trong .env (Gemini/Claude/FPT). "
-                    "Hãy điền khóa rồi khởi động lại dịch vụ api. Khung hệ thống vẫn chạy bình thường."
-                )
-            },
-        )
-        yield ("done", {})
-        return
-
     if looks_like_injection(original if original is not None else message):
         logger.warning("Chặn câu chèn lệnh: {!r}", message[:200])  # bản đã che PII
         yield ("token", {"text": REDIRECT})
         yield ("done", {"category": "injection"})
         return
 
-    if mode == "pv":
+    if mode == "pv":  # chế độ phỏng vấn trả lời từ thư viện, không gọi LLM
         from app.pv.qa import answer_pv
 
         yield from answer_pv(message, history)
         return
+
+    if not any(router.available_providers().values()):
+        yield (
+            "token",
+            {
+                "text": (
+                    "Chưa cấu hình nhà cung cấp LLM nào trong .env (OLLAMA_BASE_URL/LOCAL_MODEL "
+                    "cho mô hình chạy trong máy, DEEPSEEK_API_KEY cho DeepSeek). "
+                    "Hãy điền rồi khởi động lại dịch vụ api. Khung hệ thống vẫn chạy bình thường."
+                )
+            },
+        )
+        yield ("done", {})
+        return
+
+    if get_data_class() in ("A", "B"):
+        # Router giả trong test không khai báo mô hình trong máy -> không chặn.
+        ready = router.available_providers().get("local")
+        if ready is False:
+            raise LocalModelUnavailable(LOCAL_UNAVAILABLE)
 
     if _data_loaded():
         from app.agent.qa import answer_with_citations
