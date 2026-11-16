@@ -12,6 +12,10 @@ import os
 
 import pytest
 
+# Test không bao giờ được quét mạng thật: tắt luồng quét tin mới (LI1) trước khi app được import,
+# vì mọi TestClient(app) chạy lifespan và sẽ khởi động bộ hẹn giờ.
+os.environ["INTEL_ENABLED"] = "false"
+
 
 @pytest.fixture(autouse=True)
 def _auth_mode(request, monkeypatch):

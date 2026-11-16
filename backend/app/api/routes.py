@@ -28,6 +28,9 @@ from app.obs import metrics
 from app.db.base import SessionLocal, get_db
 from app.db.models import LegalDocument, LegalNode, ReviewCase, Thread
 from app.graph.builder import build_graph
+from app.intel import analyze as intel_analyze
+from app.intel import scheduler as intel_scheduler
+from app.intel import store as intel_store
 from app.llm.router import get_router
 from app.pv.library import LAYERS, load_library
 from app.pv.chat import run_pv_chat
@@ -956,3 +959,69 @@ def dev_logs(n: int = 100):
         except ValueError:
             rows.append({"raw": line})
     return {"path": str(path), "rows": rows}
+
+
+# ---------- Tin pháp luật mới (LI1) — chỉ admin/dev ----------
+@router.post("/api/intel/scan", status_code=202, dependencies=REVIEW)
+def intel_scan(background: BackgroundTasks):
+    """Chạy một lượt quét tay ở luồng nền; 409 nếu đang có lượt khác."""
+    if intel_scheduler.is_running():
+        raise HTTPException(status_code=409, detail="Đang có vòng quét chạy")
+    background.add_task(intel_scheduler.run_scan, "manual")
+    return {"started": True}
+
+
+@router.get("/api/intel/runs", dependencies=REVIEW)
+def intel_runs(limit: int = 10, db: Session = Depends(get_db)):
+    return [intel_store.run_dict(run) for run in intel_store.runs(db, max(1, min(limit, 100)))]
+
+
+@router.get("/api/intel/items", dependencies=REVIEW)
+def intel_items(
+    status: str | None = None,
+    labor: bool | None = None,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+):
+    """Tin mới nhất trước; `labor=true` chỉ tin có dấu hiệu liên quan lao động."""
+    rows = intel_store.items(
+        db, status=status or None, labor=labor, limit=max(1, min(limit, 500))
+    )
+    return [intel_store.item_dict(item) for item in rows]
+
+
+def _intel_item_or_404(db: Session, item_id: str):
+    item = intel_store.get_item(db, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy tin {item_id}")
+    return item
+
+
+@router.post("/api/intel/items/{item_id}/approve")
+def intel_approve(
+    item_id: str,
+    user: dict = Depends(auth.require("review")),
+    db: Session = Depends(get_db),
+):
+    """Duyệt = đưa vào việc; giao diện nhắc tải toàn văn rồi nạp ở /upload."""
+    item = _intel_item_or_404(db, item_id)
+    return intel_store.item_dict(intel_store.set_status(db, item, "approved", user.get("username")))
+
+
+@router.post("/api/intel/items/{item_id}/ignore")
+def intel_ignore(
+    item_id: str,
+    user: dict = Depends(auth.require("review")),
+    db: Session = Depends(get_db),
+):
+    item = _intel_item_or_404(db, item_id)
+    return intel_store.item_dict(intel_store.set_status(db, item, "ignored", user.get("username")))
+
+
+@router.post("/api/intel/items/{item_id}/analyse")
+def intel_analyse(item_id: str, db: Session = Depends(get_db), _=Depends(auth.require("review"))):
+    """Phân tích lại một tin (ví dụ sau khi đã có toàn văn)."""
+    item = _intel_item_or_404(db, item_id)
+    ok = intel_analyze.analyse(db, item)
+    db.refresh(item)
+    return {**intel_store.item_dict(item), "ok": ok}

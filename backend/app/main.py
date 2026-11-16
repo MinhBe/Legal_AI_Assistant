@@ -14,8 +14,10 @@ from sqlalchemy import text
 
 from app.api.routes import router
 from app.auth import accounts
+from app.config import get_settings
 from app.db.base import Base, SessionLocal, engine
 from app.demo_limits import DemoRateLimitMiddleware
+from app.intel import scheduler as intel_scheduler
 
 
 @asynccontextmanager
@@ -37,7 +39,11 @@ async def lifespan(app: FastAPI):
     # Model embedding nạp lười mất ~12 giây, dồn hết vào câu hỏi đầu tiên sau mỗi
     # lần khởi động; nạp sẵn ở luồng nền để API vẫn lên ngay.
     threading.Thread(target=_warm_up, name="warm-up", daemon=True).start()
+    # Tin pháp luật mới (LI1): luồng nền quét danh sách văn bản mới mỗi ngày một lượt.
+    if get_settings().intel_enabled:
+        intel_scheduler.start()
     yield
+    intel_scheduler.stop()
 
 
 def _warm_up() -> None:

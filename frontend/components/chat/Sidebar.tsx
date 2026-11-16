@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { IconDash, IconGraph, IconPlus } from "@/components/chat/icons";
+import { IconDash, IconGraph, IconPlus, IconSearch } from "@/components/chat/icons";
 import { useAuth } from "@/lib/auth";
 import type { Conversation } from "@/lib/chat/types";
 import type { MODE_TEXT } from "@/lib/mode";
@@ -60,6 +60,11 @@ export default function Sidebar({ open, text, convos, activeId, onNew, onOpen, o
         {can("review") && (
           <Link href="/dashboard" className="side-quick-btn">
             <IconDash /> Dashboard
+          </Link>
+        )}
+        {can("review") && (
+          <Link href="/tin-moi" className="side-quick-btn">
+            <IconSearch /> Tin pháp luật mới
           </Link>
         )}
         <Link href="/tinh" className="side-quick-btn">

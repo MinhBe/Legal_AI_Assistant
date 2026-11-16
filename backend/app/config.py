@@ -141,6 +141,13 @@ class Settings(BaseSettings):
     # Giá tham chiếu để quy đổi chi phí (USD / 1 triệu token). {} = không tính chi phí.
     llm_prices_json: str = "{}"
 
+    # Tin pháp luật mới (LI1): quét danh sách văn bản mới hằng ngày, phân tích bằng Dahl.
+    intel_enabled: bool = True
+    intel_daily_hour: int = 7            # giờ địa phương Asia/Ho_Chi_Minh, chạy một lần mỗi ngày
+    intel_delay_s: float = 5.0           # giãn cách tối thiểu giữa hai lời gọi cùng một host
+    intel_max_pages: int = 1             # số trang danh sách đọc mỗi nguồn
+    intel_user_agent: str = "Mozilla/5.0 (compatible; LegalNewsBot/0.1)"
+
     @property
     def gemini_keys(self) -> list[str]:
         """Gom GEMINI_API_KEY_1..10 từ môi trường, bỏ ô trống."""

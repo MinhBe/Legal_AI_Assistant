@@ -370,3 +370,45 @@ class UsageCount(Base):
     key: Mapped[str] = mapped_column(String(80), primary_key=True)
     day: Mapped[date] = mapped_column(Date, primary_key=True)
     n: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class IntelItem(Base):
+    """Một văn bản/án lệ mới thấy trên trang nguồn (LI1). URL là khoá tự nhiên: đã có
+    thì không tải lại, không phân tích lại. `analysis` là JSON của analyze.Analysis."""
+
+    __tablename__ = "intel_item"
+
+    id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    source: Mapped[str] = mapped_column(String(32))
+    url: Mapped[str] = mapped_column(Text, unique=True)
+    title: Mapped[str] = mapped_column(Text)
+    number: Mapped[str] = mapped_column(String(64), default="")
+    kind: Mapped[str] = mapped_column(String(32), default="")
+    category: Mapped[str] = mapped_column(String(64), default="")
+    listed_date: Mapped[date | None] = mapped_column(Date)
+    first_seen: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    labor_hint: Mapped[bool] = mapped_column(default=False)
+    in_corpus: Mapped[bool] = mapped_column(default=False)  # số hiệu đã có trong legal_document
+    # new | analysed | skipped | approved | ignored | blocked
+    status: Mapped[str] = mapped_column(String(16), default="new")
+    analysis: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(Text)
+    reviewed_by: Mapped[str | None] = mapped_column(String(32))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class IntelRun(Base):
+    """Một lượt quét tin mới (LI1). `per_source` = JSON {source: {status, found, new}}."""
+
+    __tablename__ = "intel_run"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    trigger: Mapped[str] = mapped_column(String(16))  # schedule | manual
+    per_source: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(Text)
