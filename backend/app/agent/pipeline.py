@@ -15,10 +15,11 @@ from sqlalchemy import text
 
 from app.agent.followup import CHARS_PER_TOKEN, MAX_QUESTION_TOKENS, est_tokens
 from app.agent.guard import REDIRECT, looks_like_injection
+from app.agent.lang import detect
 from app.db.base import SessionLocal
 from app.gateway.classify import gate
 from app.gateway.pii import unmask
-from app.llm.context import data_class_scope, get_data_class
+from app.llm.context import answer_lang_scope, data_class_scope, get_data_class
 from app.llm.router import LLMError, LocalModelUnavailable, get_router
 from app.obs import metrics
 
@@ -75,6 +76,8 @@ def run_chat(
         yield ("done", {"category": "too_long"})
         return
     g = gate(message, history)
+    lang = detect(message)  # câu gốc, trước khi che PII
+    logger.info("Ngôn ngữ câu hỏi: {}", lang)
     logger.info("Gateway: class={} counts={}", g.data_class, g.counts)
     ctx = metrics.current()
     if ctx is not None:  # nhật ký chỉ lưu câu đã che; mapping để che lại câu trả lời
@@ -89,7 +92,7 @@ def run_chat(
         **{"use_uploads": True} if use_uploads else {},
     )
     while True:
-        with data_class_scope(g.data_class):
+        with data_class_scope(g.data_class), answer_lang_scope(lang):
             try:
                 event, data = next(it)
             except StopIteration:

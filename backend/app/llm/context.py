@@ -27,6 +27,23 @@ def get_data_class() -> str:
     return current_data_class.get()
 
 
+# Ngôn ngữ câu trả lời của request hiện tại (contract ML1): "vi" | "en" | "ja" | "zh".
+current_answer_lang: contextvars.ContextVar[str] = contextvars.ContextVar("answer_lang", default="vi")
+
+
+@contextmanager
+def answer_lang_scope(lang: str) -> Iterator[None]:
+    token = current_answer_lang.set(lang or "vi")
+    try:
+        yield
+    finally:
+        current_answer_lang.reset(token)
+
+
+def get_answer_lang() -> str:
+    return current_answer_lang.get()
+
+
 # metrics.submit chỉ chép ContextVar _REQ của nó, nên mức dữ liệu không tự sang
 # luồng worker (qa.py gọi guard/generate trong pool). Bọc lại để chép cả context.
 # shortcut: sửa tại đây thay vì app/obs/metrics.py vì file đó ngoài phạm vi contract G2;

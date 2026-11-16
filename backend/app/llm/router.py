@@ -33,7 +33,7 @@ from typing import Any
 from loguru import logger
 
 from app.config import get_settings
-from app.llm.context import get_data_class
+from app.llm.context import get_answer_lang, get_data_class
 from app.obs import metrics
 
 settings = get_settings()
@@ -60,6 +60,14 @@ _POOL = ThreadPoolExecutor(max_workers=24, thread_name_prefix="llm-race")
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
 # Chữ Hán / kana / Hangul: model nhỏ đôi khi trả lời bằng tiếng Trung dù prompt tiếng Việt
 _CJK = re.compile(r"[぀-ヿ㐀-䶿一-鿿가-힯＀-￯]")
+_HANGUL = re.compile(r"[가-힯]")  # chưa hỗ trợ tiếng Hàn: luôn bị loại
+
+
+def _wrong_script(text: str) -> bool:
+    """Chữ Hán/kana chỉ hợp lệ khi câu trả lời phải là tiếng Nhật/Trung (ML1)."""
+    if get_answer_lang() in ("ja", "zh"):
+        return bool(_HANGUL.search(text))
+    return bool(_CJK.search(text))
 
 
 @dataclass
@@ -415,7 +423,7 @@ class LLMRouter:
                 continue
             if not res.text:
                 raise LLMError("câu trả lời rỗng (hết token khi đang nghĩ?)")
-            if _CJK.search(res.text):
+            if _wrong_script(res.text):
                 raise LLMError("trả lời không phải tiếng Việt (có chữ Hán/kana/Hangul)")
             return res
         raise LLMError(f"mọi key đám mây đều lỗi ({len(order)} key): {last}")
@@ -517,7 +525,7 @@ class LLMRouter:
             err = None
             if not text:
                 err = "rỗng"
-            elif _CJK.search(text):
+            elif _wrong_script(text):
                 err = "không phải tiếng Việt"
             cid = _record(provider="dahl", model=model, task=task, t0=t_att, messages=messages,
                           text=text, resp=resp, error=err, attempts=attempt + 1)

@@ -30,4 +30,9 @@ ghi các mục được hoãn hoặc làm tắt, để quay lại dọn sau.
   theo từng tin nhắn. Gộp vào props + `Msg.uses_uploads`.
 - U8: bộ phân loại câu hỏi chỉ biết 3 văn bản cố định; khi có đoạn khớp từ tài liệu đã duyệt thì bỏ qua kết luận
   "ngoài kho". Gọn hơn: đưa danh sách tài liệu đã duyệt vào prompt phân loại.
+- ML1: nhận diện ngôn ngữ bằng quy tắc. Tiếng Việt gõ không dấu bị coi là tiếng Anh (trả lời bằng tiếng Anh).
+- ML1: bộ phân loại 7B hay coi câu tiếng Nhật/Trung là "ngoài kho"; code bỏ qua kết luận đó khi truy hồi có
+  đoạn khớp. Gọn hơn: dịch câu hỏi sang tiếng Việt trước khi phân loại, hoặc mô hình phân loại mạnh hơn.
+- ML1: che PII chỉ bắt tên kiểu Việt; tên tiếng Anh/Nhật/Trung không bị che (SĐT, email, số tiền vẫn che), nên
+  câu nước ngoài có tên riêng có thể bị coi là mức C. Lớp chống chèn lệnh chưa có mẫu tiếng Nhật/Trung.
 - Chạy mức C mặc định qua mô hình 7B trong máy trước; 7B từng trích sai điều luật. Cân nhắc `CLOUD_FIRST_FOR_C=true`.

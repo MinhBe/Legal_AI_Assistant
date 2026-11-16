@@ -17,6 +17,8 @@ from sqlalchemy.orm import Session
 
 from loguru import logger
 
+from app.llm.context import get_answer_lang
+
 MIN_QUOTE = 12  # đoạn ngắn hơn thường là tên điều khoản, không phải trích dẫn
 
 # «…», “…” và "…" — nhóm nào khớp thì lấy nhóm đó
@@ -149,9 +151,12 @@ def verify(db: Session, result: dict, hits: list[dict], as_of: date) -> dict:
                     "message": f"Trích dẫn không khớp nguyên văn: «{quote}»",
                 })
 
-    global_ids = [str(i) for i in (result.get("citation_node_ids") or [])]
-    check_quotes(result.get("summary") or result.get("answer") or "", global_ids)
-    for s in result.get("sections") or []:
-        check_quotes(str(s.get("detail") or ""), [str(i) for i in (s.get("citation_node_ids") or [])])
+    # Bản dịch không thể khớp nguyên văn: chỉ kiểm đoạn trích khi trả lời bằng tiếng Việt.
+    if get_answer_lang() == "vi":
+        global_ids = [str(i) for i in (result.get("citation_node_ids") or [])]
+        check_quotes(result.get("summary") or result.get("answer") or "", global_ids)
+        for s in result.get("sections") or []:
+            check_quotes(str(s.get("detail") or ""),
+                         [str(i) for i in (s.get("citation_node_ids") or [])])
 
     return {"ok": not problems, "checked": len(cited), "problems": problems, "dropped": dropped}
