@@ -1166,3 +1166,160 @@ def intel_precedents_crawl(background: BackgroundTasks):
         raise HTTPException(status_code=409, detail="Đang có vòng quét chạy")
     background.add_task(intel_scheduler.run_catalog, "catalog-manual")
     return {"started": True}
+
+
+# ---------- Biểu mẫu (TPL1) ----------
+class TemplatePatch(BaseModel):
+    name: str | None = None
+    kind: str | None = None
+    description: str | None = None
+    legal_basis: list[str] | None = None
+    status: Literal["active", "archived"] | None = None
+
+
+def _template_or_404(db: Session, template_id: str):
+    from app.templates_lib import service as tpl
+
+    row = tpl.get(db, template_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy biểu mẫu")
+    return row
+
+
+def _basis_ids(raw: str | None) -> list[str]:
+    return [part for part in (raw or "").split(",") if part.strip()]
+
+
+@router.post("/api/templates", status_code=201)
+def create_template(
+    response: Response,
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    kind: str = Form(...),
+    description: str | None = Form(None),
+    legal_basis: str | None = Form(None),
+    user: dict = Depends(auth.require("upload")),
+    db: Session = Depends(get_db),
+):
+    """Tải biểu mẫu lên (admin/dev). Biểu mẫu không vào kho luật, không vào đồ thị."""
+    import hashlib
+
+    from fastapi.responses import JSONResponse
+
+    from app.templates_lib import service as tpl
+
+    filename = file.filename or "bieu-mau"
+    data = file.file.read(tpl.MAX_BYTES + 1)
+    existing = tpl.by_sha(db, hashlib.sha256(data).hexdigest()) if data else None
+    if existing is not None:  # cùng nội dung: trả bản đã có, không tạo bản trùng
+        return JSONResponse(
+            status_code=409,
+            content={"detail": "Tệp này đã có trong thư viện biểu mẫu", "id": existing.id},
+        )
+    try:
+        row = tpl.create(
+            db,
+            data,
+            filename,
+            name=name,
+            kind=kind,
+            description=description,
+            legal_basis=_basis_ids(legal_basis),
+            created_by=user["username"] or "anonymous",
+        )
+    except tpl.TemplateError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    response.status_code = 201
+    return tpl.to_dict(row)
+
+
+@router.get("/api/templates", dependencies=REVIEW)
+def list_templates(
+    q: str | None = None,
+    kind: str | None = None,
+    status: str | None = "active",
+    db: Session = Depends(get_db),
+):
+    from app.templates_lib import service as tpl
+
+    return [tpl.to_dict(row) for row in tpl.search(db, q, kind, status)]
+
+
+@router.get("/api/templates/{template_id}", dependencies=REVIEW)
+def get_template(template_id: str, db: Session = Depends(get_db)):
+    from app.templates_lib import service as tpl
+
+    row = _template_or_404(db, template_id)
+    return tpl.to_dict(row, db, detail=True)
+
+
+@router.get("/api/templates/{template_id}/file", dependencies=REVIEW)
+def download_template(template_id: str, db: Session = Depends(get_db)):
+    from fastapi.responses import FileResponse
+
+    from app.templates_lib import service as tpl
+
+    row = _template_or_404(db, template_id)
+    path = tpl.file_path(row)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Tệp biểu mẫu không còn trên đĩa")
+    return FileResponse(path, media_type=row.mime or None, filename=row.filename)
+
+
+@router.patch("/api/templates/{template_id}", dependencies=UPLOAD)
+def patch_template(template_id: str, req: TemplatePatch, db: Session = Depends(get_db)):
+    from app.templates_lib import service as tpl
+
+    row = _template_or_404(db, template_id)
+    try:
+        row = tpl.update(
+            db,
+            row,
+            name=req.name,
+            kind=req.kind,
+            description=req.description,
+            legal_basis=req.legal_basis,
+            status=req.status,
+        )
+    except tpl.TemplateError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return tpl.to_dict(row, db, detail=True)
+
+
+@router.post("/api/templates/{template_id}/file", dependencies=UPLOAD)
+def replace_template_file(
+    template_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Bản mới của biểu mẫu: thay tệp, version + 1."""
+    import hashlib
+
+    from app.templates_lib import service as tpl
+
+    row = _template_or_404(db, template_id)
+    data = file.file.read(tpl.MAX_BYTES + 1)
+    if data:
+        other = tpl.by_sha(db, hashlib.sha256(data).hexdigest())
+        if other is not None and other.id != row.id:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Tệp này đã có trong biểu mẫu {other.id}",
+            )
+    try:
+        row = tpl.replace_file(db, row, data, file.filename or row.filename)
+    except tpl.TemplateError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return tpl.to_dict(row, db, detail=True)
+
+
+@router.delete("/api/templates/{template_id}", dependencies=UPLOAD)
+def delete_template(
+    template_id: str, hard: bool = False, db: Session = Depends(get_db)
+):
+    """Mặc định lưu trữ (ẩn khỏi danh sách); `?hard=true` xoá hẳn dòng và tệp."""
+    from app.templates_lib import service as tpl
+
+    row = _template_or_404(db, template_id)
+    tpl.remove(db, row, hard=hard)
+    return {"id": template_id, "deleted": hard, "status": None if hard else "archived"}

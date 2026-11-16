@@ -92,6 +92,11 @@ export default function Sidebar({ open, text, convos, activeId, onNew, onOpen, o
             )}
           </Link>
         )}
+        {(can("upload") || canReview) && (
+          <Link href="/bieu-mau" className="side-quick-btn">
+            <IconSearch /> Biểu mẫu
+          </Link>
+        )}
         <Link href="/tinh" className="side-quick-btn">
           Máy tính
         </Link>

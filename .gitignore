@@ -54,4 +54,5 @@ backend/eval/candidates.md
 data/cache/
 data/metrics/
 data/uploads/
+data/templates/
 data/.auth_secret

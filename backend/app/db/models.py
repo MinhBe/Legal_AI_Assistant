@@ -507,3 +507,33 @@ class UploadJob(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class Template(Base):
+    """Biểu mẫu người dùng tải lên (TPL1): tệp để tái sử dụng, KHÔNG phải văn bản luật.
+
+    Không bao giờ vào `legal_node`, `search_nodes` hay knowledge graph; `legal_basis` là
+    danh sách node_id (JSON) người tải khai, đã kiểm tra tồn tại trước khi lưu.
+    """
+
+    __tablename__ = "template"
+
+    id: Mapped[str] = mapped_column(String(16), primary_key=True)  # uuid4 hex[:16]
+    name: Mapped[str] = mapped_column(Text)
+    # hop_dong | quyet_dinh | don | bien_ban | thong_bao | quy_che | khac
+    kind: Mapped[str] = mapped_column(String(24))
+    description: Mapped[str | None] = mapped_column(Text)
+    legal_basis: Mapped[str] = mapped_column(Text, default="[]")  # JSON list node_id
+    filename: Mapped[str] = mapped_column(Text)
+    mime: Mapped[str | None] = mapped_column(String(128))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    sha256: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    text_preview: Mapped[str] = mapped_column(Text, default="")  # 1500 ký tự đầu
+    placeholders: Mapped[str] = mapped_column(Text, default="[]")  # JSON list
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active | archived
+    created_by: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
