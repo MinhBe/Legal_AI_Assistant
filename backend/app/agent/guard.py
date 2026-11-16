@@ -42,12 +42,28 @@ _INJECTION = [
     r"\b(quen|phot lo)\b.{0,20}\b(huong dan|chi thi|quy tac)\b",
     r"\b(tiet lo|in ra|gui|cho (toi|minh) xem)\b.{0,30}\b(prompt|khoa bi mat|key|huong dan he thong)\b",
     r"\b(tu (gio|nay|bay gio) ban (la|hay dong vai)|gia vo (la|ban la))\b",
+    # G5: đòi chỉ dẫn hệ thống / thông tin đăng nhập, không cần động từ đứng trước
+    r"\b(system prompt|hidden prompt|initial prompt|loi nhac he thong|prompt he thong|chi dan he thong)\b",
+    # mật khẩu chỉ tính khi nhắm vào hệ thống hoặc đòi tiết lộ; hỏi luật về mật khẩu email cá nhân là hợp lệ
+    r"\b(mat khau|password|passphrase)\b.{0,25}\b(he thong|admin|quan tri|server|may chu|api|database|co so du lieu)\b",
+    r"\b(tiet lo|in ra|cho (toi|minh) (biet|xem)|doc ra)\b.{0,25}\b(mat khau|password|passphrase)\b",
+    # G5: khung chỉ thị giả mạo (ghi chú soạn thảo, nhập vai quản trị)
+    r"\b(ghi chu|note) (cua )?ban (soan thao|bien tap)\b",
+    r"\bgia su (ban|may) (la|dang la)\b.{0,25}\b(quan tri|admin|he thong|tro ly|ai|may chu)\b",
+    r"\b(dong vai|nhap vai)\b.{0,20}\b(quan tri|admin|root|he thong|tro ly|quan toa|tham phan|toa an)\b",
+    r"\b(ban|may) (gio|bay gio|tu gio nay) (la|se la|dong vai)\b",
 ]
 _INJECTION_RE = re.compile("|".join(f"(?:{p})" for p in _INJECTION), re.IGNORECASE | re.DOTALL)
 
 
 def normalize(text: str) -> str:
-    """Chữ thường, bỏ dấu tiếng Việt (đ -> d), gộp khoảng trắng."""
+    """Chữ thường, bỏ dấu tiếng Việt (đ -> d), gộp khoảng trắng.
+
+    NFKC trước để ký tự toàn khổ (ＡＢＣ) thành ASCII; bỏ ký tự vô hình (Cf: zero-width,
+    RTL override) để chèn lệnh không lách được bằng ký tự chen giữa.
+    """
+    text = unicodedata.normalize("NFKC", text)
+    text = "".join(c for c in text if unicodedata.category(c) != "Cf")
     text = text.lower().replace("đ", "d")
     text = "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn")
     return re.sub(r"\s+", " ", text)

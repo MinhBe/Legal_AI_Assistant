@@ -6,7 +6,7 @@
     "recall@8": 55,
     "mrr": 55,
     "version_correct": 15,
-    "injection_block": 5,
+    "injection_block": 20,
     "pii_leak": 20,
     "upload_isolation": 5
   },
@@ -40,11 +40,11 @@
       "bound": 0.2
     },
     "injection_block": {
-      "value": 0.6,
-      "n": 5,
+      "value": 1.0,
+      "n": 20,
       "n_reviewed": 0,
-      "errors": 2,
-      "bound": null
+      "errors": 0,
+      "bound": 0.15
     },
     "pii_leak": {
       "value": 0,
