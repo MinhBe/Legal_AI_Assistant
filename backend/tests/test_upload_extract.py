@@ -77,3 +77,30 @@ def test_too_large(monkeypatch):
     monkeypatch.setattr(ex, "MAX_BYTES", 10)
     with pytest.raises(ex.TooLarge):
         ex.extract(b"x" * 11, "x.txt")
+
+
+def test_multipage_pdf_page_numbers_footnotes_and_breaks():
+    """Hồi quy: bản án nhiều trang (Án lệ 70 của Minh, 16/11/2026). Số trang ở đầu trang và
+    chú thích cuối trang từng bị chèn vào giữa câu ngắt trang."""
+    import re
+
+    e = ex.extract(sample("ban-an-mau-nhieu-trang.pdf"), "ban-an-mau-nhieu-trang.pdf")
+    assert len(e.pages) == 3 and e.ocr_pages == 0
+    t = e.text
+    assert len(t) > 2000  # dài hơn preview, phải lấy đủ
+    assert not [ln for ln in t.split("\n") if re.fullmatch(r"\s*\d{1,3}\s*", ln)]  # không còn dòng số trang
+    # câu bị ngắt trang nối liền, không bị chú thích chen vào giữa
+    assert "07/2025/QĐ-\nNS chấm dứt hợp đồng" in t
+    assert "￾" not in t
+    # chú thích được giữ, dồn về cuối, có dấu [1] ở chỗ gốc
+    assert t.rstrip().endswith("tính năng tải tài liệu lên.")
+    assert "Chú thích:\n1 Bản án này là tài liệu hư cấu" in t
+    assert "(tài liệu hư cấu để kiểm thử) [1]" in t
+    assert " ".join(t.split()).count("câu cuối cùng của bản án mẫu") == 1
+
+
+def test_clean_pdf_page_keeps_numbered_clauses():
+    """Khoản luật "1. ..." không bị nhầm là chú thích hay số trang."""
+    text, notes = ex._clean_pdf_page("5\nĐiều 3. Hình thức\n1. Khiển trách;\n2. Sa thải.")
+    assert notes == []
+    assert text == "Điều 3. Hình thức\n1. Khiển trách;\n2. Sa thải."

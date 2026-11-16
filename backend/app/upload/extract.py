@@ -8,6 +8,7 @@ Không gọi mạng, không gọi LLM.
 from __future__ import annotations
 
 import io
+import re
 import subprocess
 import tempfile
 import unicodedata
@@ -35,6 +36,13 @@ IMAGE_MIMES = {
     ".webp": "image/webp",
 }
 TEXT_MIMES = {".txt": "text/plain", ".md": "text/markdown"}
+
+_SENTENCE_END = ".:;!?\"”)]"
+# Dòng chỉ có số trang ("2", "- 2 -", "Trang 2", "2/4") ở đầu hoặc cuối trang PDF
+_PAGE_NO = re.compile(r"^\s*(?:-\s*)?(?:trang\s+)?\d{1,3}(?:\s*/\s*\d{1,3})?(?:\s*-)?\s*$", re.I)
+# Chú thích cuối trang: số không có dấu chấm, rồi chữ ("1 Án lệ này do ...");
+# khác Khoản luật ("1. Người lao động ...") vốn có dấu chấm sau số.
+_FOOTNOTE = re.compile(r"^\d{1,2}\s+[^\d\s.)]")
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 JPEG_MAGIC = b"\xff\xd8\xff"
@@ -64,7 +72,16 @@ class Extraction:
 
     @property
     def text(self) -> str:
-        return "\n\n".join(p.text for p in self.pages if p.text)
+        # Trang kết thúc giữa câu (không có dấu kết câu) thì nối liền trang sau bằng một
+        # dòng, để câu bị ngắt trang không bị tách thành hai đoạn.
+        out = ""
+        for p in self.pages:
+            if not p.text:
+                continue
+            if out:
+                out += "\n" if out.rstrip()[-1] not in _SENTENCE_END else "\n\n"
+            out += p.text
+        return out
 
     @property
     def ocr_pages(self) -> int:
@@ -171,6 +188,7 @@ def _pdf_pages(data: bytes) -> list[PageText]:
         if len(doc) > MAX_PAGES:
             raise TooLarge(f"tệp có hơn {MAX_PAGES} trang")
         pages = []
+        footnotes: list[str] = []
         for i in range(len(doc)):
             page = doc[i]
             text = _normalize(page.get_textpage().get_text_range())
@@ -178,10 +196,47 @@ def _pdf_pages(data: bytes) -> list[PageText]:
                 text, conf = ocr_image(page.render(scale=300 / 72).to_pil())
                 pages.append(PageText(i + 1, text, "ocr", conf))
             else:
+                text, notes = _clean_pdf_page(text)
+                footnotes += notes
                 pages.append(PageText(i + 1, text, "text"))
     finally:
         doc.close()
+    if footnotes and pages:  # giữ chú thích, nhưng dồn về cuối để không cắt ngang câu
+        last = pages[-1]
+        last.text = (last.text + "\n\nChú thích:\n" + "\n".join(footnotes)).strip()
     return pages
+
+
+def _clean_pdf_page(text: str) -> tuple[str, list[str]]:
+    """Bỏ dòng số trang ở đầu/cuối trang; tách chú thích cuối trang ra riêng."""
+    lines = text.split("\n")
+    while lines and (not lines[0].strip() or _PAGE_NO.match(lines[0])):
+        lines.pop(0)
+    while lines and (not lines[-1].strip() or _PAGE_NO.match(lines[-1])):
+        lines.pop()
+    notes: list[str] = []
+    # Chú thích là khối dòng cuối trang bắt đầu bằng "số + chữ"; dòng nối tiếp của một
+    # chú thích dài thì không có số, nên quét ngược và chỉ nhận khi gặp dòng có số.
+    i = len(lines)
+    block: list[str] = []
+    while i > 0 and len(block) < 6:
+        line = lines[i - 1]
+        block.insert(0, line)
+        i -= 1
+        if _FOOTNOTE.match(line):
+            notes = block[:] + notes
+            lines = lines[:i]
+            block = []
+    # Số chú thích viết chỉ số trên thường rơi ra thành một dòng riêng giữa đoạn: gắn lại
+    # thành "[n]" vào cuối dòng trước, chỉ với số có chú thích tương ứng trên trang này.
+    marks = {n.split()[0] for n in notes if _FOOTNOTE.match(n)}
+    out: list[str] = []
+    for line in lines:
+        if line.strip() in marks and out:
+            out[-1] = f"{out[-1]} [{line.strip()}]"
+        else:
+            out.append(line)
+    return "\n".join(out).strip(), notes
 
 
 def _image_pages(data: bytes) -> list[PageText]:
@@ -229,4 +284,6 @@ def _char_count(text: str) -> int:
 
 def _normalize(text: str) -> str:
     text = unicodedata.normalize("NFC", text).replace("\r\n", "\n")
+    # pdfium trả U+FFFE cho dấu gạch nối ở cuối dòng và nuốt luôn chỗ xuống dòng
+    text = text.replace("￾", "-\n")
     return "\n".join(line.rstrip() for line in text.split("\n")).strip()

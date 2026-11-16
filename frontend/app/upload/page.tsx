@@ -37,6 +37,20 @@ export default function UploadPage() {
   const [busy, setBusy] = useState<string[]>([]);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
+  // toàn văn theo upload_id; danh sách chỉ có preview 2000 ký tự đầu
+  const [fullText, setFullText] = useState<Record<string, string>>({});
+
+  async function toggleText(id: string) {
+    setOpen((o) => (o === id ? null : id));
+    if (fullText[id] !== undefined) return;
+    try {
+      const r = await fetch(`${API_BASE}/api/uploads/${id}/text`);
+      if (r.ok) {
+        const d = await r.json();
+        setFullText((m) => ({ ...m, [id]: d.text || "" }));
+      }
+    } catch { /* giữ preview */ }
+  }
   const [over, setOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -154,7 +168,7 @@ export default function UploadPage() {
                   return [
                     <tr key={r.upload_id} className={`up-row${isOpen ? " open" : ""}`}
                       title={r.error || undefined}
-                      onClick={() => setOpen((o) => (o === r.upload_id ? null : r.upload_id))}>
+                      onClick={() => toggleText(r.upload_id)}>
                       <td className="up-name">
                         {r.filename}
                         {r.duplicate && <span className="up-dup"> · đã có</span>}
@@ -178,7 +192,12 @@ export default function UploadPage() {
                     isOpen && (
                       <tr key={`${r.upload_id}-preview`} className="up-preview-row">
                         <td colSpan={9}>
-                          <div className="up-preview">{r.preview || r.error || "Không có nội dung xem trước."}</div>
+                          {fullText[r.upload_id] !== undefined && (
+                            <div className="up-note">Toàn văn: {fullText[r.upload_id].length.toLocaleString("vi-VN")} ký tự</div>
+                          )}
+                          <div className="up-preview">
+                            {fullText[r.upload_id] ?? (r.preview || r.error || "Không có nội dung xem trước.")}
+                          </div>
                         </td>
                       </tr>
                     ),

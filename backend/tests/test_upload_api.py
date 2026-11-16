@@ -119,3 +119,19 @@ def test_delete_removes_nodes_and_file(client, uploads, db):
     ).scalar()
     assert left == 0
     assert not stored.exists()
+
+
+@pytest.mark.db
+def test_full_text_endpoint_returns_more_than_preview(client):
+    """Hồi quy: trang /upload chỉ hiện preview 2000 ký tự nên tài liệu dài trông như bị cắt."""
+    data = (SAMPLES / "ban-an-mau-nhieu-trang.pdf").read_bytes()
+    r = client.post("/api/uploads", files={"file": ("ban-an-mau-nhieu-trang.pdf", data, "application/pdf")})
+    assert r.status_code == 200, r.text
+    up = r.json()
+    try:
+        assert len(up["preview"]) <= 2000
+        t = client.get(f"/api/uploads/{up['upload_id']}/text").json()
+        assert t["chars"] == len(t["text"]) > 2000
+        assert "câu cuối cùng của bản án mẫu nằm ở trang ba." in " ".join(t["text"].split())
+    finally:
+        client.delete(f"/api/uploads/{up['upload_id']}")

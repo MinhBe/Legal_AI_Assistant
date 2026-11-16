@@ -477,6 +477,15 @@ def get_upload(upload_id: str, db: Session = Depends(get_db)):
     return service.to_dict(_upload_or_404(db, upload_id))
 
 
+@router.get("/api/uploads/{upload_id}/text")
+def get_upload_text(upload_id: str, db: Session = Depends(get_db)):
+    """Toàn văn đã trích (trường preview trong danh sách chỉ là 2000 ký tự đầu)."""
+    from app.upload import service
+
+    text = service.full_text(db, _upload_or_404(db, upload_id))
+    return {"upload_id": upload_id, "chars": len(text), "text": text}
+
+
 @router.patch("/api/uploads/{upload_id}")
 def review_upload(
     upload_id: str, req: UploadStatusRequest, db: Session = Depends(get_db)

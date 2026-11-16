@@ -13,7 +13,7 @@ from pathlib import Path
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
-from app.db.models import LegalDocument, UploadedFile
+from app.db.models import LegalDocument, LegalNode, UploadedFile
 from app.upload.extract import TooLarge, UnsupportedFile, extract
 from app.upload.ingest import delete_upload, ingest_upload, make_doc_id
 
@@ -23,6 +23,23 @@ PREVIEW_CHARS = 2000
 
 def _path(sha256_hex: str, filename: str) -> Path:
     return UPLOAD_DIR / f"{sha256_hex}{Path(filename).suffix.lower()}"
+
+
+def _text_path(sha256_hex: str) -> Path:
+    return UPLOAD_DIR / f"{sha256_hex}.txt"
+
+
+def full_text(db: Session, row: UploadedFile) -> str:
+    """Toàn văn đã trích. Tệp tải lên trước khi có file .txt thì ghép lại từ node."""
+    p = _text_path(row.sha256)
+    if p.exists():
+        return p.read_text(encoding="utf-8")
+    if not row.doc_id:
+        return row.preview or ""
+    texts = db.scalars(
+        select(LegalNode.text).where(LegalNode.doc_id == row.doc_id).order_by(LegalNode.seq)
+    ).all()
+    return "\n\n".join(t for t in texts if t)
 
 
 def save_upload(
@@ -49,6 +66,7 @@ def save_upload(
         e = extract(data, filename)
         UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
         _path(sha, filename).write_bytes(data)
+        _text_path(sha).write_text(e.text, encoding="utf-8")  # toàn văn; preview chỉ là đoạn đầu
         res = ingest_upload(
             db,
             doc_id=make_doc_id(sha),
@@ -116,6 +134,7 @@ def remove_upload(db: Session, upload_id: str) -> None:
     if doc_id:
         delete_upload(db, doc_id)
     _path(row.sha256, row.filename).unlink(missing_ok=True)
+    _text_path(row.sha256).unlink(missing_ok=True)
     db.commit()
 
 
