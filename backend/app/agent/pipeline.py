@@ -19,6 +19,7 @@ from app.gateway.classify import gate
 from app.gateway.pii import unmask
 from app.llm.context import data_class_scope, get_data_class
 from app.llm.router import LLMError, LocalModelUnavailable, get_router
+from app.obs import metrics
 
 LOCAL_UNAVAILABLE = (
     "Câu hỏi có thông tin cá nhân nên chỉ được xử lý bằng mô hình chạy trong máy, "
@@ -61,6 +62,11 @@ def run_chat(
     history = history or []
     g = gate(message, history)
     logger.info("Gateway: class={} counts={}", g.data_class, g.counts)
+    ctx = metrics.current()
+    if ctx is not None:  # nhật ký chỉ lưu câu đã che; mapping để che lại câu trả lời
+        ctx["question"] = g.message
+        ctx["data_class"] = g.data_class
+        ctx["_pii_mapping"] = g.mapping
     # Starlette chạy mỗi next() của generator trong một bản sao context mới, nên không
     # bọc cả vòng lặp bằng một scope (giữa các yield mức dữ liệu sẽ rơi về "C" và
     # reset báo lỗi "different Context"). Đặt mức quanh từng bước next() thay vào đó.

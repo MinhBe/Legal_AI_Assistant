@@ -111,6 +111,20 @@ def cost_ref(model: str, tin: int | None, tout: int | None) -> float | None:
     return round(tin / 1e6 * p["in"] + tout / 1e6 * p["out"], 6)
 
 
+def _scrub_pii(row: dict, mapping: dict[str, str]) -> None:
+    """Không ghi PII thô ra jsonl / Langfuse: trả giá trị gốc đã biết về placeholder
+    của gateway, rồi che thêm bằng mẫu cho phần gateway chưa thấy (caller ngoài chat)."""
+    from app.gateway.pii import mask
+
+    for key in ("question", "answer"):
+        text = row.get(key)
+        if not isinstance(text, str) or not text:
+            continue
+        for placeholder, value in sorted(mapping.items(), key=lambda kv: len(kv[1]), reverse=True):
+            text = text.replace(value, placeholder)
+        row[key] = mask(text, mapping=dict(mapping)).text
+
+
 def end_request(ctx: dict, **attrs: Any) -> dict:
     calls = ctx["llm"]
     ok = [c for c in calls if not c["error"]]
@@ -119,8 +133,10 @@ def end_request(ctx: dict, **attrs: Any) -> dict:
     def tok(cs):
         return sum((c["input_tokens"] or 0) + (c["output_tokens"] or 0) for c in cs)
 
-    row = {k: v for k, v in ctx.items() if k not in ("t0", "llm", "lock", "result")}
+    row = {k: v for k, v in ctx.items()
+           if k not in ("t0", "llm", "lock", "result") and not k.startswith("_")}
     row.update(attrs)
+    _scrub_pii(row, ctx.get("_pii_mapping") or {})
     row.update({
         "total_s": round(time.monotonic() - ctx["t0"], 3),
         "n_llm_calls": len(calls), "n_llm_errors": len(calls) - len(ok),
