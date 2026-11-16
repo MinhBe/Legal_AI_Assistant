@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { IconDash, IconGraph, IconPlus, IconSearch } from "@/components/chat/icons";
+import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { Conversation } from "@/lib/chat/types";
 import type { MODE_TEXT } from "@/lib/mode";
@@ -16,6 +18,24 @@ export default function Sidebar({ open, text, convos, activeId, onNew, onOpen, o
 }) {
   const { user, can, logout } = useAuth();
   const tag = user.role === "dev" ? "DEV" : user.username === "guest1" ? "VIP" : null;
+  const canReview = can("review");
+  // LI2b: số tin ảnh hưởng cao mới hơn mốc đã xem (mốc lưu ở máy khách lúc mở /tin-moi)
+  const [unseen, setUnseen] = useState(0);
+
+  useEffect(() => {
+    if (!canReview) return;
+    let alive = true;
+    apiFetch("/api/intel/alerts")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (!alive) return;
+        const seen = localStorage.getItem("intel_seen_at") ?? "";
+        const rows: { created_at: string | null }[] = Array.isArray(body?.items) ? body.items : [];
+        setUnseen(rows.filter((row) => !seen || (row.created_at ?? "") > seen).length);
+      })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [canReview]);
 
   return (
     <aside className={`sidebar ${open ? "" : "closed"}`}>
@@ -65,6 +85,11 @@ export default function Sidebar({ open, text, convos, activeId, onNew, onOpen, o
         {can("review") && (
           <Link href="/tin-moi" className="side-quick-btn">
             <IconSearch /> Tin pháp luật mới
+            {unseen > 0 && (
+              <span className="intel-badge" title={`${unseen} tin ảnh hưởng cao chưa xem`}>
+                {unseen}
+              </span>
+            )}
           </Link>
         )}
         <Link href="/tinh" className="side-quick-btn">

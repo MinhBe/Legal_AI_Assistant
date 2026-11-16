@@ -29,6 +29,7 @@ from app.db.base import SessionLocal, get_db
 from app.db.models import LegalDocument, LegalNode, ReviewCase, Thread
 from app.graph.builder import build_graph
 from app.intel import analyze as intel_analyze
+from app.intel import impact as intel_impact
 from app.intel import scheduler as intel_scheduler
 from app.intel import store as intel_store
 from app.intel import watchlist as intel_watchlist
@@ -200,6 +201,12 @@ def calc_route(
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
     result["timeframe_version"] = resolve(db, event, _date.today())["applicable"]
+    warns = intel_impact.active_calc_warnings(db).get(kind, [])
+    if warns:
+        result["warnings"] = [
+            f"Có văn bản mới có thể thay đổi kết quả — chờ luật sư duyệt: {w['title']}"
+            for w in warns
+        ]
     return result
 
 
@@ -1060,3 +1067,68 @@ def intel_analyse(item_id: str, db: Session = Depends(get_db), _=Depends(auth.re
     ok = intel_analyze.analyse(db, item)
     db.refresh(item)
     return {**intel_store.item_dict(db, item), "ok": ok}
+
+
+# ---------- Ảnh hưởng + bản tin (LI2b) ----------
+_IMPACT_RANK = {"cao": 0, "trung bình": 1, "thấp": 2}
+
+
+def _item_analysis(item) -> dict:
+    try:
+        return json.loads(item.analysis) if item.analysis else {}
+    except ValueError:
+        return {}
+
+
+def _intel_brief(db: Session, item, analysis: dict, numbers: set[str]) -> dict:
+    """Một tin trong bản tin: mức ảnh hưởng + chi tiết để giao diện vẽ bảng ảnh hưởng."""
+    row = intel_store.get_impact(db, item.id)
+    detail = intel_store.impact_dict(row) if row is not None else {}
+    return {
+        "id": item.id,
+        "title": item.title,
+        "impact": analysis.get("impact"),
+        "priority": intel_watchlist.priority(item, numbers),
+        "impact_summary": detail.get("summary") or analysis.get("impact_reason") or "",
+        "created_at": item.first_seen.isoformat() if item.first_seen else None,
+        "articles": detail.get("articles") or [],
+        "calculators": detail.get("calculators") or [],
+        "golden": detail.get("golden") or [],
+        "answers": detail.get("answers") or [],
+        "case_id": detail.get("case_id"),
+    }
+
+
+@router.get("/api/intel/alerts", dependencies=REVIEW)
+def intel_alerts(db: Session = Depends(get_db)):
+    """Tin ảnh hưởng cao chưa xử lý, kèm `created_at` để giao diện tự so mốc đã xem."""
+    numbers = intel_watchlist.corpus_numbers(db)
+    items = []
+    for item in intel_store.items(db, limit=200):
+        if item.status in ("approved", "ignored"):
+            continue
+        analysis = _item_analysis(item)
+        if analysis.get("impact") != "cao":
+            continue
+        brief = _intel_brief(db, item, analysis, numbers)
+        items.append({k: brief[k] for k in ("id", "title", "impact", "priority", "created_at")})
+    return {"unseen": len(items), "items": items}
+
+
+@router.get("/api/intel/digest", dependencies=REVIEW)
+def intel_digest(days: int = 7, db: Session = Depends(get_db)):
+    """Bản tin theo ngày (giờ Việt Nam), ngày mới nhất trước, ảnh hưởng cao trước trong ngày."""
+    from datetime import datetime, timedelta
+
+    since = datetime.now(intel_scheduler.TZ) - timedelta(days=max(1, min(days, 90)))
+    numbers = intel_watchlist.corpus_numbers(db)
+    by_day: dict[str, list[dict]] = {}
+    for item in intel_store.items(db, limit=500):
+        if item.first_seen is None or item.first_seen < since:
+            continue
+        analysis = _item_analysis(item)
+        day = item.first_seen.astimezone(intel_scheduler.TZ).date().isoformat()
+        by_day.setdefault(day, []).append(_intel_brief(db, item, analysis, numbers))
+    for rows in by_day.values():
+        rows.sort(key=lambda row: _IMPACT_RANK.get(str(row["impact"]), 3))
+    return [{"day": day, "items": by_day[day]} for day in sorted(by_day, reverse=True)]

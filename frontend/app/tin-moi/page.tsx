@@ -63,14 +63,50 @@ type Item = {
   reviewed_by: string | null;
 };
 type Auto = { interval_hours: number; next_run_at: string };
-type Tab = "queue" | "all" | "approved" | "ignored";
+// LI2b: ảnh hưởng ra ngoài văn bản, tính bằng code từ phân tích đã lưu
+type ImpactRef = { node_id: string; display: string };
+type ImpactCalc = { kind: string; reason: string };
+type ImpactGolden = { id: string; question: string };
+type ImpactAnswer = { id: string; created_at: string | null; question: string };
+type Impact = {
+  summary: string;
+  articles: ImpactRef[];
+  calculators: ImpactCalc[];
+  golden: ImpactGolden[];
+  answers: ImpactAnswer[];
+  case_id: string | null;
+};
+type DigestItem = {
+  id: string;
+  title: string;
+  impact: string | null;
+  priority: number;
+  impact_summary: string;
+  created_at: string | null;
+  articles: ImpactRef[];
+  calculators: ImpactCalc[];
+  golden: ImpactGolden[];
+  answers: ImpactAnswer[];
+  case_id: string | null;
+};
+type DigestDay = { day: string; items: DigestItem[] };
+type Tab = "queue" | "all" | "digest" | "approved" | "ignored";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "queue", label: "Cần xem" },
+  { key: "digest", label: "Bản tin theo ngày" },
   { key: "all", label: "Tất cả" },
   { key: "approved", label: "Đã duyệt" },
   { key: "ignored", label: "Bỏ qua" },
 ];
+const CALC_LABEL: Record<string, string> = {
+  notice: "Báo trước",
+  "service-years": "Thời gian làm việc",
+  severance: "Trợ cấp thôi việc",
+  "job-loss": "Trợ cấp mất việc",
+  "unlawful-dismissal": "Sa thải trái luật",
+  limitation: "Thời hiệu",
+};
 const SOURCE_STATUS: Record<string, string> = {
   ok: "OK", blocked: "Bị chặn", needs_browser: "Cần trình duyệt", error: "Lỗi",
   not_implemented: "Chưa hỗ trợ",
@@ -102,6 +138,92 @@ function priorityBadge(priority: number) {
 
 function hostOf(url: string): string {
   try { return new URL(url).host; } catch { return url; }
+}
+
+// LI2b: tin này chạm vào đâu — điều luật, máy tính, ca golden, hồ sơ đã tra cứu
+function ImpactPanel({ impact }: { impact: Impact }) {
+  const empty = impact.articles.length === 0 && impact.calculators.length === 0
+    && impact.golden.length === 0 && impact.answers.length === 0;
+  return (
+    <div className="intel-impact-panel">
+      <div className="intel-impact-head">
+        <b>Ảnh hưởng</b>
+        {impact.summary && <span className="intel-impact-summary">{impact.summary}</span>}
+        {impact.case_id && (
+          <Link href="/review" className="intel-chip intel-case-chip">Đã tạo ca luật sư</Link>
+        )}
+      </div>
+      {empty && <div className="intel-field">Chưa thấy chỗ nào trong kho bị ảnh hưởng.</div>}
+      {impact.articles.length > 0 && (
+        <div className="intel-chips">
+          {impact.articles.map((row) => (
+            <a
+              key={row.node_id}
+              className="intel-chip intel-node"
+              href={`${API_BASE}/api/law/${row.node_id}`}
+              target="_blank"
+              rel="noreferrer"
+              title={row.node_id}
+            >
+              {row.display || row.node_id}
+            </a>
+          ))}
+        </div>
+      )}
+      {impact.calculators.length > 0 && (
+        <div className="intel-chips">
+          {impact.calculators.map((row) => (
+            <Link
+              key={row.kind}
+              className="intel-chip intel-calc"
+              href={`/tinh?tab=${row.kind}`}
+              title={row.reason}
+            >
+              Máy tính: {CALC_LABEL[row.kind] ?? row.kind}
+            </Link>
+          ))}
+        </div>
+      )}
+      {impact.golden.length > 0 && (
+        <div className="intel-field">
+          <b>Ca golden:</b>{" "}
+          {impact.golden.map((row) => (
+            <span className="intel-chip" key={row.id} title={row.question}>{row.id}</span>
+          ))}
+        </div>
+      )}
+      {impact.answers.length > 0 && (
+        <div className="intel-field">
+          <b>Hồ sơ tra cứu:</b>
+          <div className="intel-chips">
+            {impact.answers.map((row) => (
+              <a
+                key={row.id}
+                className="intel-chip"
+                href={`${API_BASE}/api/answers/${row.id}`}
+                target="_blank"
+                rel="noreferrer"
+                title={row.created_at ?? ""}
+              >
+                {row.question}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function impactOf(item: DigestItem): Impact {
+  return {
+    summary: item.impact_summary,
+    articles: item.articles,
+    calculators: item.calculators,
+    golden: item.golden,
+    answers: item.answers,
+    case_id: item.case_id,
+  };
 }
 
 // Toàn văn công khai (LI2): đã vào luồng chờ duyệt, hoặc phải tự tải tay.
@@ -149,6 +271,7 @@ export default function TinMoiPage() {
 function TinMoiPageInner() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [items, setItems] = useState<Item[]>([]);
+  const [digest, setDigest] = useState<DigestDay[]>([]);
   const [auto, setAuto] = useState<Auto | null>(null);
   const [tab, setTab] = useState<Tab>("queue");
   const [busy, setBusy] = useState(false);
@@ -156,18 +279,25 @@ function TinMoiPageInner() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [r, i, s] = await Promise.all([
+    const [r, i, s, d] = await Promise.all([
       apiFetch("/api/intel/runs?limit=5").then((res) => res.json()).catch(() => []),
       apiFetch("/api/intel/items").then((res) => res.json()).catch(() => []),
       apiFetch("/api/intel/status").then((res) => res.json()).catch(() => null),
+      apiFetch("/api/intel/digest?days=7").then((res) => res.json()).catch(() => []),
     ]);
     setRuns(Array.isArray(r) ? r : []);
     setItems(Array.isArray(i) ? i : []);
+    setDigest(Array.isArray(d) ? d : []);
     setAuto(s && typeof s.interval_hours === "number" ? s : null);
     setLoading(false);
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Xem trang này = đã xem hết báo động; sidebar so mốc này với `created_at` của tin.
+  useEffect(() => {
+    try { localStorage.setItem("intel_seen_at", new Date().toISOString()); } catch { /* storage bị chặn */ }
+  }, []);
 
   // Đang quét thì hỏi lại mỗi 5 giây để thanh trạng thái tự cập nhật.
   const running = Boolean(runs[0] && !runs[0].finished_at);
@@ -199,6 +329,10 @@ function TinMoiPageInner() {
   }
 
   const last = runs[0];
+  const impactById = new Map<string, Impact>();
+  for (const block of digest) {
+    for (const row of block.items) impactById.set(row.id, impactOf(row));
+  }
   const shown = items.filter((i) => {
     if (tab === "queue") return i.status === "analysed" && i.labor_hint;
     if (tab === "approved") return i.status === "approved";
@@ -247,9 +381,39 @@ function TinMoiPageInner() {
       </div>
 
       <div className="intel-body">
-        {loading && <div className="intel-empty">Đang tải…</div>}
-        {!loading && shown.length === 0 && <div className="intel-empty">Không có tin nào ở mục này.</div>}
-        {shown.map((item) => (
+        {tab === "digest" && (
+          loading
+            ? <div className="intel-empty">Đang tải…</div>
+            : digest.length === 0
+              ? <div className="intel-empty">Chưa có tin nào trong 7 ngày qua.</div>
+              : digest.map((block) => (
+                <section className="intel-digest-day" key={block.day}>
+                  <h2 className="intel-digest-date">
+                    {new Date(`${block.day}T00:00:00`).toLocaleDateString("vi-VN", {
+                      weekday: "long", day: "2-digit", month: "2-digit", year: "numeric",
+                    })}
+                    <span className="intel-count">{block.items.length} tin</span>
+                  </h2>
+                  {block.items.map((row) => (
+                    <article className="intel-card" key={row.id}>
+                      <div className="intel-card-top">
+                        <span className="intel-item-title">{row.title}</span>
+                        {row.impact && (
+                          <span className={`intel-impact ${IMPACT_CLASS[row.impact] ?? ""}`}>
+                            Ảnh hưởng: {row.impact}
+                          </span>
+                        )}
+                        {priorityBadge(row.priority)}
+                      </div>
+                      <ImpactPanel impact={impactOf(row)} />
+                    </article>
+                  ))}
+                </section>
+              ))
+        )}
+        {tab !== "digest" && loading && <div className="intel-empty">Đang tải…</div>}
+        {tab !== "digest" && !loading && shown.length === 0 && <div className="intel-empty">Không có tin nào ở mục này.</div>}
+        {tab !== "digest" && shown.map((item) => (
           <article className="intel-card" key={item.id}>
             <div className="intel-card-top">
               <a className="intel-item-title" href={item.url} target="_blank" rel="noreferrer">
@@ -313,6 +477,10 @@ function TinMoiPageInner() {
             )}
 
             {fulltextLine(item)}
+
+            {impactById.get(item.id) && (
+              <ImpactPanel impact={impactById.get(item.id) as Impact} />
+            )}
 
             {item.status === "approved" && (
               <div className="intel-upload-hint">

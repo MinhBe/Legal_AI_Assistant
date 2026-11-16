@@ -3,7 +3,7 @@
 /* Trang /tinh: sáu máy tính lao động, chọn phiên bản luật theo ngày sự kiện.
    Backend: POST /api/calc/{kind}. Kết quả luôn kèm căn cứ và nhãn cần luật sư. */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "@/lib/api";
@@ -31,6 +31,7 @@ type CalcResult = {
   note: string;
   deadline?: string;
   timeframe_version?: TimeframeDoc[];
+  warnings?: string[];  // LI2b: tin mới chờ duyệt có thể làm kết quả sai đi
 };
 
 const EVENT: Field = { name: "event_date", label: "Ngày sự kiện", type: "date", hint: "Bỏ trống = hôm nay" };
@@ -207,6 +208,13 @@ export default function CalcPage() {
   const [busy, setBusy] = useState(false);
   const tab = TABS[tabIndex];
 
+  // /tinh?tab=<kind>: mở thẳng máy tính từ bảng ảnh hưởng ở /tin-moi
+  useEffect(() => {
+    const kind = new URLSearchParams(window.location.search).get("tab");
+    const index = TABS.findIndex((item) => item.kind === kind);
+    if (index > 0) setTabIndex(index);
+  }, []);
+
   const visibleFields = tab.fields.filter((f) =>
     !(tab.kind === "notice" && f.name === "term_months" && values.contract_type !== "fixed"),
   );
@@ -294,6 +302,16 @@ export default function CalcPage() {
             {error && <span className="calc-error">{error}</span>}
           </div>
         </form>
+
+        {result && result.warnings && result.warnings.length > 0 && (
+          <div className="calc-warn-banner" role="status">
+            {result.warnings.map((text) => (
+              <p key={text}>
+                {text} · <Link href="/tin-moi">Xem tin mới</Link>
+              </p>
+            ))}
+          </div>
+        )}
 
         {result && <ResultCard result={result} />}
       </main>

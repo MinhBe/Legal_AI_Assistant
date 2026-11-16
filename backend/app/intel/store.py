@@ -16,7 +16,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import IntelDoc, IntelItem, IntelRun, LegalDocument
+from app.db.models import IntelDoc, IntelImpact, IntelItem, IntelRun, LegalDocument
 from app.intel import sources, watchlist
 
 STATUSES = ("new", "analysed", "skipped", "approved", "ignored", "blocked")
@@ -136,6 +136,43 @@ def set_status(db: Session, item: IntelItem, status: str, reviewer: str | None =
     db.commit()
     db.refresh(item)
     return item
+
+
+# ---- ảnh hưởng của tin (LI2b) ----
+IMPACT_FIELDS = ("articles", "calculators", "golden", "answers", "summary")
+
+
+def get_impact(db: Session, item_id: str) -> IntelImpact | None:
+    return db.get(IntelImpact, item_id)
+
+
+def save_impact(db: Session, item_id: str, data: dict[str, Any]) -> IntelImpact:
+    """Ghi (hoặc ghi lại) ảnh hưởng của một tin.
+
+    Chỉ các trường có trong `data` được ghi, nên phân tích lại không xoá `case_id`.
+    """
+    row = db.get(IntelImpact, item_id) or IntelImpact(item_id=item_id)
+    for field in IMPACT_FIELDS:
+        if field in data:
+            value = data[field]
+            setattr(row, field, value if field == "summary" else json.dumps(value, ensure_ascii=False))
+    row.computed_at = datetime.now().astimezone()
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def impact_dict(row: IntelImpact) -> dict[str, Any]:
+    out: dict[str, Any] = {
+        "item_id": row.item_id,
+        "computed_at": row.computed_at.isoformat() if row.computed_at else None,
+        "case_id": row.case_id,
+    }
+    for field in IMPACT_FIELDS:
+        raw = row.summary if field == "summary" else json.loads(getattr(row, field) or "[]")
+        out[field] = raw or ("" if field == "summary" else [])
+    return out
 
 
 def items(

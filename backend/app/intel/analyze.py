@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import IntelItem, LegalDocument
-from app.intel import fulltext, store, watchlist
+from app.intel import alerts, fulltext, impact, store, watchlist
 from app.llm.context import cloud_first_scope, data_class_scope
 from app.llm.router import get_router
 from app.rag.search import search_nodes
@@ -194,6 +194,10 @@ def analyse(db: Session, item: IntelItem) -> bool:
             data["affected_nodes"] = [n for n in data["affected_nodes"] if n in allowed]
             data["priority"] = watchlist.priority(item, watchlist.corpus_numbers(db))
             store.save_analysis(db, item, data)
+            try:  # ảnh hưởng + ca luật sư: lỗi ở đây không làm hỏng phân tích
+                alerts.raise_for(db, item, data, impact.compute(db, item, data))
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Không tính được ảnh hưởng của tin {}: {}", item.id, exc)
             return True
     store.set_error(db, item, error)
     return False

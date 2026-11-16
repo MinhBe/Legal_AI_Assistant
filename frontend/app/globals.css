@@ -1532,3 +1532,35 @@ a.calc-chip:hover { color: var(--foreground); background: var(--muted); }
 .intel-btn-ok { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
 .intel-empty, .intel-err { font-size: 13px; color: var(--muted-foreground); padding: 6px 0; }
 .intel-err { color: var(--destructive); }
+
+/* ---------- LI2b: ảnh hưởng của tin mới, bản tin theo ngày, huy hiệu ---------- */
+.intel-badge {
+  margin-left: auto; min-width: 18px; padding: 0 5px; border-radius: 999px;
+  background: var(--destructive); color: white; font-size: 11px; font-weight: 700;
+  text-align: center; line-height: 18px;
+}
+.intel-digest-day { display: flex; flex-direction: column; gap: 10px; }
+.intel-digest-date {
+  display: flex; align-items: center; gap: 10px; margin: 6px 0 0;
+  font-size: 13px; font-weight: 600; color: var(--muted-foreground);
+  text-transform: capitalize;
+}
+.intel-digest-date .intel-count { margin-left: 0; font-weight: 400; }
+.intel-impact-panel {
+  display: flex; flex-direction: column; gap: 6px; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--muted);
+}
+.intel-impact-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 13px; }
+.intel-impact-summary { font-size: 12.5px; color: var(--muted-foreground); }
+.intel-case-chip { text-decoration: none; color: var(--foreground); border-color: var(--primary); }
+.intel-calc { text-decoration: none; color: var(--foreground); }
+.intel-impact-panel .intel-chip { text-decoration: none; }
+
+/* Cảnh báo vàng ở /tinh khi có tin mới chờ luật sư duyệt */
+.calc-warn-banner {
+  display: flex; flex-direction: column; gap: 4px; padding: 9px 12px;
+  border-radius: var(--radius); border: 1px solid oklch(0.75 0.15 85);
+  background: oklch(0.96 0.06 90); color: oklch(0.42 0.09 70); font-size: 13px;
+}
+.calc-warn-banner p { margin: 0; }
+.calc-warn-banner a { color: inherit; text-decoration: underline; }
