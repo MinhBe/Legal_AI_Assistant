@@ -17,6 +17,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -205,3 +206,60 @@ class UploadedFile(Base):
     preview: Mapped[str | None] = mapped_column(Text)  # 2000 ký tự đầu
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ProvisionVersion(Base):
+    """Phiên bản của một điều khoản theo thời gian (T1, design §5.1).
+
+    `valid_to` là mốc độc quyền: node còn hiệu lực khi valid_from <= ngày < valid_to.
+    `known_from`/`known_to` là khoảng thời gian hệ thống *biết* phiên bản này.
+    """
+
+    __tablename__ = "provision_version"
+    __table_args__ = (UniqueConstraint("provision_key", "valid_from"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    provision_key: Mapped[str] = mapped_column(
+        String(96), ForeignKey("legal_node.node_id", ondelete="CASCADE"), index=True
+    )
+    doc_id: Mapped[str] = mapped_column(String(64), index=True)
+    text_hash: Mapped[str | None] = mapped_column(String(64))
+    source_url: Mapped[str | None] = mapped_column(Text)
+    valid_from: Mapped[date | None] = mapped_column(Date)
+    valid_to: Mapped[date | None] = mapped_column(Date)
+    # in_force|partly_in_force|pending_amendment|not_yet_in_force|repealed
+    status: Mapped[str] = mapped_column(String(24))
+    adopted_on: Mapped[date | None] = mapped_column(Date)
+    amended_by: Mapped[str | None] = mapped_column(String(64))  # doc_id văn bản sửa đổi
+    known_from: Mapped[date] = mapped_column(Date)
+    known_to: Mapped[date | None] = mapped_column(Date)
+
+
+class TransitionRule(Base):
+    """Quy tắc chuyển tiếp — điều khoản chuyển tiếp của văn bản mới (T1)."""
+
+    __tablename__ = "transition_rule"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    doc_key: Mapped[str] = mapped_column(String(64))  # văn bản chứa quy tắc
+    condition: Mapped[str] = mapped_column(Text)
+    outcome: Mapped[str] = mapped_column(String(16))  # old_law|new_law|mixed
+    provision_ref: Mapped[str | None] = mapped_column(String(96))
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class LegalLink(Base):
+    """Cạnh liên kết điều khoản/văn bản kèm hiệu lực — gộp 3 bảng quan hệ cũ (T1)."""
+
+    __tablename__ = "legal_link"
+    __table_args__ = (UniqueConstraint("from_key", "to_key", "link_type"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    from_key: Mapped[str] = mapped_column(String(96))
+    to_key: Mapped[str] = mapped_column(String(96))  # node_id hoặc doc_id
+    # guides|amends|replaces|cites|based_on
+    link_type: Mapped[str] = mapped_column(String(16))
+    valid_from: Mapped[date | None] = mapped_column(Date)
+    valid_to: Mapped[date | None] = mapped_column(Date)
+    # node_reference|node_supersession|document_relation|seed
+    source: Mapped[str] = mapped_column(String(32))
