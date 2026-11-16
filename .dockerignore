@@ -10,3 +10,4 @@ data/processed
 models
 *.npz
 .env
+keys
