@@ -770,25 +770,40 @@ def create_upload(
     response: Response,
     file: UploadFile = File(...),
     title: str | None = Form(None),
+    consent: bool = Form(False),
     db: Session = Depends(get_db),
 ):
-    """Tải tệp lên: ghi row `processing` rồi trích chữ/nạp node ở nền."""
+    """Tải tệp lên: ghi row `processing` rồi xử lý ở nền.
+
+    Tệp ghi âm/ghi hình đi đường khác: tạo job chép lời trong máy (AU1), bắt buộc
+    `consent=true` — người tải lên xác nhận người được ghi âm đã đồng ý.
+    """
+    from app.audio import ConsentRequired
+    from app.audio import job as audio_job
     from app.upload import extract, service
 
     filename = file.filename or "tep"
-    data = file.file.read(extract.MAX_BYTES + 1)
+    audio = service.is_audio(filename)
+    limit = get_settings().audio_max_bytes if audio else extract.MAX_BYTES
+    data = file.file.read(limit + 1)
     if not data:
         raise HTTPException(status_code=422, detail="Tệp rỗng")
     try:
-        service.precheck(data, filename)
+        service.precheck(data, filename, consent=consent)
         row, is_new = service.register_upload(db, data, filename, title=title)
+    except ConsentRequired as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except extract.TooLarge as exc:
         raise HTTPException(status_code=413, detail=f"Tệp quá lớn: {exc}") from exc
     except extract.UnsupportedFile as exc:
         raise HTTPException(status_code=415, detail=f"Định dạng không hỗ trợ: {exc}") from exc
     if not is_new:  # tệp trùng: trả ngay bản cũ
         return service.to_dict(row)
-    background.add_task(service.process_upload, row.upload_id, data, filename, title)
+    if audio:
+        audio_job.create(db, row.upload_id, consent=consent)
+        background.add_task(audio_job.process_audio, row.upload_id, data)
+    else:
+        background.add_task(service.process_upload, row.upload_id, data, filename, title)
     response.status_code = 202
     return service.to_dict(row)
 
@@ -818,6 +833,18 @@ def get_upload_text(upload_id: str, db: Session = Depends(get_db)):
 
     text = service.full_text(db, _upload_or_404(db, upload_id))
     return {"upload_id": upload_id, "chars": len(text), "text": text}
+
+
+@router.get("/api/uploads/{upload_id}/job", dependencies=UPLOAD)
+def get_upload_job(upload_id: str, db: Session = Depends(get_db)):
+    """Tiến trình chép lời của tệp ghi âm/ghi hình (AU1); 404 khi tệp không có job."""
+    from app.audio import job as audio_job
+
+    _upload_or_404(db, upload_id)
+    row = audio_job.get(db, upload_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Tệp này không có tiến trình chép lời")
+    return audio_job.to_dict(row)
 
 
 @router.get("/api/uploads/{upload_id}/nodes", dependencies=UPLOAD)

@@ -36,3 +36,9 @@ ghi các mục được hoãn hoặc làm tắt, để quay lại dọn sau.
 - ML1: che PII chỉ bắt tên kiểu Việt; tên tiếng Anh/Nhật/Trung không bị che (SĐT, email, số tiền vẫn che), nên
   câu nước ngoài có tên riêng có thể bị coi là mức C. Lớp chống chèn lệnh chưa có mẫu tiếng Nhật/Trung.
 - Chạy mức C mặc định qua mô hình 7B trong máy trước; 7B từng trích sai điều luật. Cân nhắc `CLOUD_FIRST_FOR_C=true`.
+- AU1: chép lời chạy CPU (container api chưa được cấp GPU; GPU 6 GB đang dùng cho Ollama), model `medium`
+  int8: đoạn thử 19 s mất khoảng 10 s, ước 3 giờ ghi âm mất 1–1,5 giờ. Chưa tách người nói (diarization).
+  Bản ghi tiếng Anh vẫn chép được nhưng tên riêng nước ngoài không bị che (như ML1). faster-whisper 1.1.1 không
+  đọc được tệp bằng PyAV 19, nên app đưa thẳng mảng PCM từ WAV 16 kHz do ffmpeg tạo.
+- LI1: anle.toaan.gov.vn không kết nối được từ trong container (từ máy thì được) và là ứng dụng ADF cần trình duyệt
+  headless; trang chi tiết văn bản thuvienphapluat trả 403 với bot, nên phân tích hiện chỉ dựa trên tiêu đề.

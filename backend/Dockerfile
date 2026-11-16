@@ -15,6 +15,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# AU1: chép lời ghi âm/video trong máy (Minh đồng ý cài 16/11/2026). Lớp riêng, đặt sau
+# requirements để lớp torch đã cache không phải cài lại. Model whisper tải lúc dùng lần đầu
+# vào /root/.cache (volume modelcache), không đóng vào image.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir "faster-whisper==1.1.1"
+
 COPY . /app
 
 EXPOSE 8000

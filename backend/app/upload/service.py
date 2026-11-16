@@ -13,6 +13,9 @@ from pathlib import Path
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
+from app.audio import CONSENT_MSG, ConsentRequired
+from app.audio import SUFFIXES as AUDIO_SUFFIXES
+from app.config import get_settings
 from app.db.base import SessionLocal
 from app.db.models import LegalDocument, LegalNode, UploadedFile
 from app.upload.extract import IMAGE_MIMES, MAX_BYTES, TooLarge, UnsupportedFile, extract
@@ -20,22 +23,27 @@ from app.upload.ingest import delete_upload, ingest_upload, make_doc_id
 
 UPLOAD_DIR = Path("/app/data/uploads")
 PREVIEW_CHARS = 2000
-#: đuôi tệp được nhận; ảnh lấy từ bảng mime của extract
+#: đuôi tệp được nhận; ảnh lấy từ bảng mime của extract, ghi âm/ghi hình từ app.audio
 SUPPORTED_SUFFIXES = {".pdf", ".docx", ".txt", ".md", *IMAGE_MIMES}
 _MAGIC = {".pdf": b"%PDF"}
 
 
-def _path(sha256_hex: str, filename: str) -> Path:
+def stored_path(sha256_hex: str, filename: str) -> Path:
     return UPLOAD_DIR / f"{sha256_hex}{Path(filename).suffix.lower()}"
 
 
-def _text_path(sha256_hex: str) -> Path:
+def text_path(sha256_hex: str) -> Path:
     return UPLOAD_DIR / f"{sha256_hex}.txt"
+
+
+def is_audio(filename: str) -> bool:
+    """Tệp ghi âm/ghi hình đi đường chép lời (AU1) chứ không phải OCR."""
+    return Path(filename).suffix.lower() in AUDIO_SUFFIXES
 
 
 def full_text(db: Session, row: UploadedFile) -> str:
     """Toàn văn đã trích. Tệp tải lên trước khi có file .txt thì ghép lại từ node."""
-    p = _text_path(row.sha256)
+    p = text_path(row.sha256)
     if p.exists():
         return p.read_text(encoding="utf-8")
     if not row.doc_id:
@@ -46,11 +54,18 @@ def full_text(db: Session, row: UploadedFile) -> str:
     return "\n\n".join(t for t in texts if t)
 
 
-def precheck(data: bytes, filename: str) -> None:
-    """Từ chối sớm (trước khi ghi row): quá lớn, sai đuôi tệp, sai magic."""
+def precheck(data: bytes, filename: str, *, consent: bool = True) -> None:
+    """Từ chối sớm (trước khi ghi row): quá lớn, sai đuôi tệp, sai magic, thiếu đồng ý."""
+    suffix = Path(filename).suffix.lower()
+    if suffix in AUDIO_SUFFIXES:
+        limit = get_settings().audio_max_bytes
+        if len(data) > limit:
+            raise TooLarge(f"tệp lớn hơn {limit} byte")
+        if not consent:
+            raise ConsentRequired(CONSENT_MSG)
+        return
     if len(data) > MAX_BYTES:
         raise TooLarge(f"tệp lớn hơn {MAX_BYTES} byte")
-    suffix = Path(filename).suffix.lower()
     if suffix not in SUPPORTED_SUFFIXES:
         raise UnsupportedFile(f"không hỗ trợ định dạng {suffix or filename!r}")
     magic = _MAGIC.get(suffix)
@@ -102,8 +117,9 @@ def _process(
     try:
         e = extract(data, filename)
         UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-        _path(sha, filename).write_bytes(data)
-        _text_path(sha).write_text(e.text, encoding="utf-8")  # toàn văn; preview chỉ là đoạn đầu
+        stored_path(sha, filename).write_bytes(data)
+        # toàn văn; preview chỉ là đoạn đầu
+        text_path(sha).write_text(e.text, encoding="utf-8")
         res = ingest_upload(
             db,
             doc_id=make_doc_id(sha),
@@ -181,8 +197,14 @@ def remove_upload(db: Session, upload_id: str) -> None:
     db.execute(delete(UploadedFile).where(UploadedFile.upload_id == upload_id))
     if doc_id:
         delete_upload(db, doc_id)
-    _path(row.sha256, row.filename).unlink(missing_ok=True)
-    _text_path(row.sha256).unlink(missing_ok=True)
+    stored_path(row.sha256, row.filename).unlink(missing_ok=True)
+    text_path(row.sha256).unlink(missing_ok=True)
+    # AU1: bản chép lời thô (còn dữ liệu cá nhân, mức A) và tệp WAV tạm phải đi cùng tệp gốc
+    (UPLOAD_DIR / f"{row.sha256}.raw.txt").unlink(missing_ok=True)
+    (UPLOAD_DIR / f"{row.sha256}-16k.wav").unlink(missing_ok=True)
+    from app.db.models import UploadJob
+
+    db.execute(delete(UploadJob).where(UploadJob.upload_id == upload_id))
     db.commit()
 
 

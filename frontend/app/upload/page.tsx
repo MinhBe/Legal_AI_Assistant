@@ -8,7 +8,12 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { RequirePerm } from "@/lib/auth";
 
-const ACCEPT = ".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp,.docx,.txt,.md";
+const ACCEPT =
+  ".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp,.docx,.txt,.md,.mp3,.m4a,.wav,.ogg,.webm,.mp4,.mov,.mkv";
+//: tệp ghi âm/ghi hình: đi đường chép lời (AU1), cần xác nhận đồng ý trước khi gửi
+const AUDIO_RE = /\.(mp3|m4a|wav|ogg|webm|mp4|mov|mkv)$/i;
+const isAudio = (name: string) => AUDIO_RE.test(name);
+const CONSENT = "Người được ghi âm đã đồng ý cho dùng bản ghi này";
 
 type UploadRow = {
   upload_id: string; doc_id: string | null; filename: string; mime: string;
@@ -30,6 +35,20 @@ const statusOf = (s: string) => STATUS[s] ?? { label: s, cls: "" };
 
 const parseMode = (m: string | null) =>
   m === "articles" ? "Điều/Khoản" : m === "sections" ? "Đoạn" : "—";
+
+type UploadJob = {
+  upload_id: string; kind: string; stage: string; progress: number;
+  message: string | null; duration_s: number | null; consent: boolean;
+};
+
+const STAGE: Record<string, string> = {
+  converting: "Đang chuyển định dạng",
+  transcribing: "Đang chép lời",
+  masking: "Đang che dữ liệu cá nhân",
+  extracting: "Đang rút ca tư vấn",
+  done: "Xong",
+  failed: "Lỗi",
+};
 
 type DocNode = {
   node_id: string; level: string; heading: string; preview: string; refs: string[];
@@ -57,6 +76,9 @@ function UploadPageInner() {
   // node theo upload_id, tải khi bấm "Xem node"
   const [nodes, setNodes] = useState<Record<string, DocNode[]>>({});
   const [openNodes, setOpenNodes] = useState<string | null>(null);
+  // tiến trình chép lời theo upload_id (chỉ tệp ghi âm/ghi hình mới có)
+  const [jobs, setJobs] = useState<Record<string, UploadJob>>({});
+  const [consent, setConsent] = useState(false);
 
   async function toggleNodes(id: string) {
     setOpenNodes((o) => (o === id ? null : id));
@@ -100,13 +122,41 @@ function UploadPageInner() {
     return () => clearInterval(id);
   }, [rows, refresh]);
 
+  // tệp đang chép lời -> hỏi tiến trình mỗi 3 giây (giai đoạn + thanh tiến trình)
+  useEffect(() => {
+    const ids = rows
+      .filter((r) => isAudio(r.filename) && r.status === "processing")
+      .map((r) => r.upload_id);
+    if (ids.length === 0) return;
+    let alive = true;
+    const tick = async () => {
+      for (const id of ids) {
+        try {
+          const r = await apiFetch(`/api/uploads/${id}/job`);
+          if (!r.ok) continue;
+          const job: UploadJob = await r.json();
+          if (alive) setJobs((m) => ({ ...m, [id]: job }));
+        } catch { /* lần sau hỏi lại */ }
+      }
+    };
+    tick();
+    const h = setInterval(tick, 3000);
+    return () => { alive = false; clearInterval(h); };
+  }, [rows]);
+
   /* tải lần lượt từng tệp: "Đang xử lý…" rồi kết quả hoặc lỗi detail */
   async function send(files: File[]) {
     for (const f of files) {
+      if (isAudio(f.name) && !consent) {
+        // chưa xác nhận đồng ý thì không gửi: bản ghi có tiếng người khác
+        setErrs((e) => ({ ...e, [f.name]: CONSENT }));
+        continue;
+      }
       setBusy((b) => [...b, f.name]);
       setErrs((e) => { const n = { ...e }; delete n[f.name]; return n; });
       const fd = new FormData();
       fd.append("file", f);
+      if (isAudio(f.name)) fd.append("consent", "true");
       let detail = "";
       try {
         const r = await apiFetch(`/api/uploads`, { method: "POST", body: fd });
@@ -167,6 +217,7 @@ function UploadPageInner() {
           }}>
           <b>Kéo tệp vào đây hoặc bấm để chọn</b>
           <span>PDF, ảnh scan (PNG/JPG/TIFF/BMP/WebP), DOCX, TXT, MD · tối đa 20 MB · 50 trang</span>
+          <span>Ghi âm/ghi hình buổi tư vấn: MP3, M4A, WAV, OGG, WEBM, MP4, MOV, MKV · tối đa 600 MB</span>
           <input ref={inputRef} type="file" multiple accept={ACCEPT} hidden
             onChange={(e) => {
               const files = Array.from(e.target.files || []);
@@ -186,6 +237,12 @@ function UploadPageInner() {
           </div>
         )}
 
+        <label className="au-consent">
+          <input type="checkbox" checked={consent}
+            onChange={(e) => setConsent(e.target.checked)} />
+          {CONSENT} (bắt buộc với tệp ghi âm/ghi hình)
+        </label>
+
         <div className="dash-card">
           <div className="dash-card-title">Tài liệu đã tải lên ({rows.length})</div>
           {rows.length === 0 ? (
@@ -202,6 +259,7 @@ function UploadPageInner() {
                 {rows.map((r) => {
                   const st = statusOf(r.status);
                   const isOpen = open === r.upload_id;
+                  const job = jobs[r.upload_id];
                   return [
                     <tr key={r.upload_id} className={`up-row${isOpen ? " open" : ""}`}
                       title={r.error || undefined}
@@ -210,7 +268,17 @@ function UploadPageInner() {
                         {r.filename}
                         {r.duplicate && <span className="up-dup"> · đã có</span>}
                       </td>
-                      <td><span className={`badge ${st.cls}`}>{st.label}</span></td>
+                      <td><span className={`badge ${st.cls}`}>{st.label}</span>
+                        {job && (
+                          <div className="au-stage" title={job.message || undefined}>
+                            <span>{STAGE[job.stage] ?? job.stage}</span>
+                            <div className="au-bar">
+                              <div className="au-fill"
+                                style={{ width: `${Math.round((job.progress || 0) * 100)}%` }} />
+                            </div>
+                          </div>
+                        )}
+                      </td>
                       <td>{r.pages ?? "—"}</td>
                       <td>{r.ocr_pages ?? "—"}</td>
                       <td>{confPct(r.mean_ocr_conf)}</td>

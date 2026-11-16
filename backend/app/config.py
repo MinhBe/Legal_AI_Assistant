@@ -123,6 +123,14 @@ class Settings(BaseSettings):
     rrf_k: int = 60
     rerank_top_n: int = 20               # số ứng viên đưa vào reranker
 
+    # Chép lời tệp ghi âm/ghi hình trong máy (AU1, design §7B.3). Mức A: không ra đám mây.
+    audio_model: str = "medium"          # tên model faster-whisper (đã có trong modelcache)
+    audio_device: str = "auto"           # auto | cpu | cuda
+    audio_compute: str = "int8"          # kiểu tính của faster-whisper
+    audio_language: str = "vi"
+    audio_max_bytes: int = 600_000_000   # 600 MB; bản ghi 3 giờ thường dưới 200 MB
+    audio_chunk_minutes: int = 5         # độ dài mỗi đoạn đưa vào node
+
     # Đăng nhập demo (AUTH1). Tắt khi chạy test; bật trên máy chạy thật.
     auth_required: bool = True
     auth_secret: str | None = None  # để trống = tạo ngẫu nhiên một lần ở data/.auth_secret

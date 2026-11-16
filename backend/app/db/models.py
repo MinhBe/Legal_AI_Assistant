@@ -412,3 +412,27 @@ class IntelRun(Base):
     trigger: Mapped[str] = mapped_column(String(16))  # schedule | manual
     per_source: Mapped[str | None] = mapped_column(Text)
     error: Mapped[str | None] = mapped_column(Text)
+
+
+class UploadJob(Base):
+    """Tiến trình chép lời một tệp ghi âm/ghi hình (AU1, design §7B.3).
+
+    Một dòng cho mỗi tệp; `consent` là lời xác nhận của người tải lên rằng người được
+    ghi âm đã đồng ý. Xoá tệp thì job xoá theo (khoá ngoại CASCADE).
+    """
+
+    __tablename__ = "upload_job"
+
+    upload_id: Mapped[str] = mapped_column(
+        ForeignKey("uploaded_file.upload_id", ondelete="CASCADE"), primary_key=True
+    )
+    kind: Mapped[str] = mapped_column(String(16), default="audio")
+    # converting | transcribing | masking | extracting | done | failed
+    stage: Mapped[str] = mapped_column(String(16), default="converting")
+    progress: Mapped[float] = mapped_column(Float, default=0.0)  # 0..1
+    message: Mapped[str | None] = mapped_column(Text)
+    duration_s: Mapped[float | None] = mapped_column(Float)
+    consent: Mapped[bool] = mapped_column(default=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
