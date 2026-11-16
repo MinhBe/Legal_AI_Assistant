@@ -104,3 +104,24 @@ def test_clean_pdf_page_keeps_numbered_clauses():
     text, notes = ex._clean_pdf_page("5\nĐiều 3. Hình thức\n1. Khiển trách;\n2. Sa thải.")
     assert notes == []
     assert text == "Điều 3. Hình thức\n1. Khiển trách;\n2. Sa thải."
+
+
+def test_docx_with_backslash_zip_names_is_read():
+    """DOCX của Công báo ghi tên mục zip bằng "\\" (word\document.xml); vẫn phải đọc được."""
+    import io
+    import zipfile
+
+    import docx
+
+    from app.upload.extract import extract
+
+    buf = io.BytesIO()
+    d = docx.Document()
+    d.add_paragraph("Điều 3. Mức lương tối thiểu")
+    d.save(buf)
+    bad = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(buf.getvalue())) as src, zipfile.ZipFile(bad, "w") as dst:
+        for info in src.infolist():
+            dst.writestr(info.filename.replace("/", "\\"), src.read(info.filename))
+    out = extract(bad.getvalue(), "nd.docx")
+    assert "Mức lương tối thiểu" in out.text

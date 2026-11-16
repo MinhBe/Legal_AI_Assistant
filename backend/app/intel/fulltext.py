@@ -93,6 +93,16 @@ def fetch_one(
             status="failed",
             error=f"{exc.__class__.__name__}: {exc}",
         )
+    if upload.status == "failed":  # save_upload không ném lỗi mà ghi row failed (vd. tệp không đọc được)
+        return store.save_doc(
+            db,
+            item.id,
+            source_url=url,
+            data=data,
+            status="failed",
+            error=f"nạp lỗi: {upload.error or 'không rõ'}",
+            upload_id=upload.upload_id,
+        )
     return store.save_doc(
         db,
         item.id,

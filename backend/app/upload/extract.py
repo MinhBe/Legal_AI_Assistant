@@ -254,12 +254,28 @@ def _image_pages(data: bytes) -> list[PageText]:
 def _docx_pages(data: bytes) -> list[PageText]:
     import docx  # python-docx; chỉ cần khi gặp .docx
 
-    document = docx.Document(io.BytesIO(data))
+    try:
+        document = docx.Document(io.BytesIO(data))
+    except KeyError:
+        # DOCX của Công báo ghi tên tệp trong zip bằng dấu "\" (word\document.xml) nên
+        # python-docx không tìm thấy phần nào; đóng gói lại với dấu "/" rồi đọc như thường.
+        document = docx.Document(io.BytesIO(_fix_zip_names(data)))
     blocks = [p.text for p in document.paragraphs]
     for table in document.tables:
         for row in table.rows:
             blocks.append(" | ".join(cell.text for cell in row.cells))
     return [PageText(1, _normalize("\n".join(blocks)), "docx")]
+
+
+def _fix_zip_names(data: bytes) -> bytes:
+    """Chép lại zip, đổi "\\" trong tên mục thành "/" (thư viện chuẩn)."""
+    import zipfile
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as src, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as dst:
+        for info in src.infolist():
+            dst.writestr(info.filename.replace("\\", "/"), src.read(info.filename))
+    return out.getvalue()
 
 
 def _plain_pages(data: bytes) -> list[PageText]:
