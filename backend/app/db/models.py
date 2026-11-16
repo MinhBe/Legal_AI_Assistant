@@ -172,3 +172,36 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text)
     meta: Mapped[str | None] = mapped_column(Text)  # JSON (citations, tool calls)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class UploadedFile(Base):
+    """Tệp người dùng tải lên (upload-ocr-kg-plan, U4). Mức A: không ra ngoài.
+
+    `doc_id` trỏ tới `legal_document` (`doc_type='upload'`); node và dẫn chiếu của tệp
+    do U3 sinh ra. Duyệt ở đây là duyệt luôn văn bản đã nạp.
+    """
+
+    __tablename__ = "uploaded_file"
+
+    upload_id: Mapped[str] = mapped_column(String(32), primary_key=True)  # uuid4 hex
+    doc_id: Mapped[str | None] = mapped_column(
+        ForeignKey("legal_document.doc_id", ondelete="CASCADE")
+    )
+    filename: Mapped[str] = mapped_column(Text)
+    mime: Mapped[str | None] = mapped_column(String(128))
+    sha256: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    pages: Mapped[int | None] = mapped_column(Integer)
+    ocr_pages: Mapped[int | None] = mapped_column(Integer)
+    chars: Mapped[int | None] = mapped_column(Integer)
+    mean_ocr_conf: Mapped[float | None] = mapped_column(Float)
+    parse_mode: Mapped[str | None] = mapped_column(String(16))  # articles | sections
+    n_nodes: Mapped[int | None] = mapped_column(Integer)
+    n_refs: Mapped[int | None] = mapped_column(Integer)
+    data_class: Mapped[str] = mapped_column(String(1), default="A")
+    # pending_review | approved | rejected | failed
+    status: Mapped[str] = mapped_column(String(16), default="pending_review")
+    error: Mapped[str | None] = mapped_column(Text)
+    preview: Mapped[str | None] = mapped_column(Text)  # 2000 ký tự đầu
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

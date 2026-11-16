@@ -9,7 +9,7 @@ from datetime import datetime, UTC
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -416,3 +416,76 @@ def update_escalation(esc_id: str, req: EscalateUpdate):
             raise HTTPException(status_code=404, detail="Không tìm thấy escalation")
         _save_esc(rows)
     return r
+
+
+# ---------- Tải tài liệu lên (upload → OCR → KG) ----------
+class UploadStatusRequest(BaseModel):
+    status: Literal["approved", "rejected"]
+
+
+def _upload_or_404(db: Session, upload_id: str):
+    from app.db.models import UploadedFile
+
+    row = db.get(UploadedFile, upload_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tệp tải lên")
+    return row
+
+
+@router.post("/api/uploads")
+def create_upload(
+    file: UploadFile = File(...),
+    title: str | None = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Tải tệp lên, trích chữ (OCR nếu scan) và nạp thành node đồ thị."""
+    from app.upload import extract, service
+
+    data = file.file.read(extract.MAX_BYTES + 1)
+    if not data:
+        raise HTTPException(status_code=422, detail="Tệp rỗng")
+    try:
+        row = service.save_upload(db, data, file.filename or "tep", title=title)
+    except extract.TooLarge as exc:
+        raise HTTPException(status_code=413, detail=f"Tệp quá lớn: {exc}") from exc
+    except extract.UnsupportedFile as exc:
+        raise HTTPException(status_code=415, detail=f"Định dạng không hỗ trợ: {exc}") from exc
+    return service.to_dict(row)
+
+
+@router.get("/api/uploads")
+def list_uploads(db: Session = Depends(get_db)):
+    from app.db.models import UploadedFile
+    from app.upload import service
+
+    rows = db.scalars(
+        select(UploadedFile).order_by(UploadedFile.created_at.desc())
+    ).all()
+    return [service.to_dict(r) for r in rows]
+
+
+@router.get("/api/uploads/{upload_id}")
+def get_upload(upload_id: str, db: Session = Depends(get_db)):
+    from app.upload import service
+
+    return service.to_dict(_upload_or_404(db, upload_id))
+
+
+@router.patch("/api/uploads/{upload_id}")
+def review_upload(
+    upload_id: str, req: UploadStatusRequest, db: Session = Depends(get_db)
+):
+    """Duyệt hoặc từ chối tệp; văn bản đã nạp đổi trạng thái theo."""
+    from app.upload import service
+
+    _upload_or_404(db, upload_id)
+    return service.to_dict(service.set_status(db, upload_id, req.status))
+
+
+@router.delete("/api/uploads/{upload_id}", status_code=204)
+def delete_upload_route(upload_id: str, db: Session = Depends(get_db)):
+    """Xoá tệp: node, dẫn chiếu, tệp trên đĩa và row."""
+    from app.upload import service
+
+    _upload_or_404(db, upload_id)
+    service.remove_upload(db, upload_id)
