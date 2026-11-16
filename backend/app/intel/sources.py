@@ -18,8 +18,10 @@ Sự thật đo được ngày 2026-11-16 (fixture trong `data/fixtures/legal-in
 - vanban.chinhphu.vn: robots `Allow: /`; trang chủ có bảng văn bản mới (số hiệu, ngày,
   trích yếu) kèm PDF công khai trên datafiles.chinhphu.vn. Phân trang không đổi nội dung nên
   chỉ đọc trang 1; nhịp quét 6 giờ đủ bắt văn bản mới khi còn ở trang 1.
-- congbao.chinhphu.vn: chưa tìm được trang liệt kê có tệp công khai trong một lần render —
-  giữ chỗ, không quét mù.
+- congbao.chinhphu.vn: trang chủ liệt kê văn bản mới nhưng chỉ tra theo số hiệu chứ không
+  quét danh sách — phần đó nằm ở `intel/official.py` (LI3).
+- vbpl.vn: robots cấm `/api/` và `/Pages/`, ô tìm kiếm chuyển thẳng về trang chủ — không
+  triển khai (LI3 chỉ giữ chỗ đánh dấu `robots_disallow`).
 """
 
 from __future__ import annotations
@@ -120,6 +122,25 @@ def _anchors(html: str) -> list[tuple[str, str]]:
     except Exception:  # noqa: BLE001 — HTML rác: giữ những gì đã đọc được
         pass
     return parser.links
+
+
+def plain_text(html: str) -> str:
+    """Chữ của trang (bỏ thẻ), khoảng trắng đã gộp — đủ để đọc câu trạng thái."""
+    class _Text(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__(convert_charrefs=True)
+            self.parts: list[str] = []
+
+        def handle_data(self, data: str) -> None:
+            self.parts.append(data)
+
+    parser = _Text()
+    try:
+        parser.feed(html or "")
+        parser.close()
+    except Exception:  # noqa: BLE001 — HTML rác: giữ những gì đã đọc được
+        pass
+    return " ".join("".join(parser.parts).split())
 
 
 def _path_parts(url: str) -> list[str]:
@@ -408,12 +429,23 @@ class VanBanChinhPhu:
 
 
 class CongBao:
-    """congbao.chinhphu.vn — robots `Allow: /` nhưng chưa tìm được trang liệt kê có tệp
-    công khai trong một lần render; trả rỗng, không quét mù."""
+    """congbao.chinhphu.vn — trang chủ liệt kê văn bản mới nhưng LI3 tra theo số hiệu
+    (`intel/official.py`) chứ không quét danh sách; trả rỗng."""
 
     name = "congbao"
     listing_urls: tuple[str, ...] = ()
     last_status = "not_implemented"
+
+    def parse(self, html: str, base_url: str) -> list[dict[str, Any]]:
+        return []
+
+
+class Vbpl:
+    """vbpl.vn — robots cấm `/api/` và `/Pages/`, tìm kiếm chuyển về trang chủ: không quét."""
+
+    name = "vbpl"
+    listing_urls: tuple[str, ...] = ()
+    last_status = "robots_disallow"
 
     def parse(self, html: str, base_url: str) -> list[dict[str, Any]]:
         return []

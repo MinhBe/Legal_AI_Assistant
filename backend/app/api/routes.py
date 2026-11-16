@@ -30,6 +30,7 @@ from app.db.models import LegalDocument, LegalNode, ReviewCase, Thread
 from app.graph.builder import build_graph
 from app.intel import analyze as intel_analyze
 from app.intel import impact as intel_impact
+from app.intel import precedents as intel_precedents
 from app.intel import scheduler as intel_scheduler
 from app.intel import store as intel_store
 from app.intel import watchlist as intel_watchlist
@@ -1132,3 +1133,22 @@ def intel_digest(days: int = 7, db: Session = Depends(get_db)):
     for rows in by_day.values():
         rows.sort(key=lambda row: _IMPACT_RANK.get(str(row["impact"]), 3))
     return [{"day": day, "items": by_day[day]} for day in sorted(by_day, reverse=True)]
+
+
+# ---------- Danh mục án lệ (LI3) ----------
+@router.get("/api/intel/precedents", dependencies=REVIEW)
+def intel_precedents_list(limit: int = 500, db: Session = Depends(get_db)):
+    """Danh mục án lệ công khai của anle.toaan.gov.vn, kèm trạng thái và tệp toàn văn."""
+    return [
+        intel_precedents.catalog_dict(row)
+        for row in intel_precedents.rows(db, max(1, min(limit, 1000)))
+    ]
+
+
+@router.post("/api/intel/precedents/crawl", status_code=202, dependencies=REVIEW)
+def intel_precedents_crawl(background: BackgroundTasks):
+    """Quét lại danh mục án lệ ở luồng nền; 409 nếu đang có lượt khác."""
+    if intel_scheduler.is_running():
+        raise HTTPException(status_code=409, detail="Đang có vòng quét chạy")
+    background.add_task(intel_scheduler.run_catalog, "catalog-manual")
+    return {"started": True}

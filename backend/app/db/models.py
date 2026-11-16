@@ -460,6 +460,31 @@ class IntelImpact(Base):
     case_id: Mapped[str | None] = mapped_column(String(16))
 
 
+class PrecedentCatalog(Base):
+    """Danh mục án lệ công khai của anle.toaan.gov.vn (LI3).
+
+    `doc_key` = `dDocName` — khoá tự nhiên dùng chung cho link số hiệu và link tiêu đề.
+    `status`: `dang_ap_dung` | `bi_huy_bo` | `chua_ro`; `upload_id` là tệp toàn văn đã nạp
+    vào luồng chờ duyệt (null = chưa lấy được).
+    """
+
+    __tablename__ = "precedent_catalog"
+
+    doc_key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    number: Mapped[str] = mapped_column(String(32), default="")
+    title: Mapped[str] = mapped_column(Text, default="")
+    url: Mapped[str] = mapped_column(Text, default="")
+    file_url: Mapped[str] = mapped_column(Text, default="")
+    # dang_ap_dung | bi_huy_bo | chua_ro
+    status: Mapped[str] = mapped_column(String(16), default="chua_ro")
+    status_note: Mapped[str | None] = mapped_column(Text)
+    first_seen: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    last_checked: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    upload_id: Mapped[str | None] = mapped_column(String(32))
+
+
 class UploadJob(Base):
     """Tiến trình chép lời một tệp ghi âm/ghi hình (AU1, design §7B.3).
 

@@ -158,6 +158,12 @@ class Settings(BaseSettings):
     intel_user_agent: str = "Mozilla/5.0 (compatible; LegalNewsBot/0.1)"
     intel_fulltext: bool = True          # tải toàn văn công khai cho tin ưu tiên ≥ 1
     intel_fulltext_max_mb: int = 30      # trần kích thước một tệp toàn văn
+    intel_catalog_interval_days: float = 7  # chu kỳ quét lại danh mục án lệ (LI3)
+    # Chỗ cắm API dữ liệu luật trả phí (LI3): để trống = tắt. Khoá đọc từ biến môi trường
+    # có tên `licensed_api_key_env`, không bao giờ ghi log.
+    licensed_api_provider: str = ""
+    licensed_api_base_url: str = ""
+    licensed_api_key_env: str = "LEGAL_DATA_API_KEY"
 
     @property
     def gemini_keys(self) -> list[str]:

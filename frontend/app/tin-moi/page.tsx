@@ -90,11 +90,26 @@ type DigestItem = {
   case_id: string | null;
 };
 type DigestDay = { day: string; items: DigestItem[] };
-type Tab = "queue" | "all" | "digest" | "approved" | "ignored";
+// LI3: danh mục án lệ công khai của anle.toaan.gov.vn
+type Precedent = {
+  doc_key: string;
+  number: string;
+  title: string;
+  url: string;
+  file_url: string;
+  status: "dang_ap_dung" | "bi_huy_bo" | "chua_ro";
+  status_note: string | null;
+  first_seen: string | null;
+  last_checked: string | null;
+  upload_id: string | null;
+  upload_url: string;
+};
+type Tab = "queue" | "all" | "digest" | "precedents" | "approved" | "ignored";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "queue", label: "Cần xem" },
   { key: "digest", label: "Bản tin theo ngày" },
+  { key: "precedents", label: "Án lệ (anle.toaan.gov.vn)" },
   { key: "all", label: "Tất cả" },
   { key: "approved", label: "Đã duyệt" },
   { key: "ignored", label: "Bỏ qua" },
@@ -109,7 +124,7 @@ const CALC_LABEL: Record<string, string> = {
 };
 const SOURCE_STATUS: Record<string, string> = {
   ok: "OK", blocked: "Bị chặn", needs_browser: "Cần trình duyệt", error: "Lỗi",
-  not_implemented: "Chưa hỗ trợ",
+  not_implemented: "Chưa hỗ trợ", robots_disallow: "Robots cấm",
 };
 const ITEM_STATUS: Record<string, string> = {
   new: "Chờ phân tích", analysed: "Đã phân tích", skipped: "Không liên quan",
@@ -118,6 +133,15 @@ const ITEM_STATUS: Record<string, string> = {
 const IMPACT_CLASS: Record<string, string> = {
   cao: "intel-impact-cao", "trung bình": "intel-impact-tb", "thấp": "intel-impact-thap",
 };
+const PRECEDENT_STATUS: Record<string, string> = {
+  dang_ap_dung: "Đang áp dụng", bi_huy_bo: "Bị hủy bỏ", chua_ro: "Chưa rõ",
+};
+const FULLTEXT_SOURCE: { host: string; label: string }[] = [
+  { host: "congbao.chinhphu.vn", label: "Công báo" },
+  { host: "cdnchinhphu.vn", label: "Công báo" },
+  { host: "anle.toaan.gov.vn", label: "Án lệ" },
+  { host: "datafiles.chinhphu.vn", label: "vanban.chinhphu" },
+];
 
 function day(iso: string | null): string {
   if (!iso) return "chưa rõ";
@@ -226,22 +250,29 @@ function impactOf(item: DigestItem): Impact {
   };
 }
 
-// Toàn văn công khai (LI2): đã vào luồng chờ duyệt, hoặc phải tự tải tay.
+// Toàn văn công khai (LI2, LI3): nguồn đã lấy được, hoặc phải tự tải tay.
+function sourceLabel(url: string): string {
+  const host = hostOf(url);
+  return FULLTEXT_SOURCE.find((row) => host.endsWith(row.host))?.label ?? host;
+}
+
 function fulltextLine(item: Item) {
   const ft = item.fulltext;
   if (ft?.status === "ingested") {
     return (
       <div className="intel-field intel-fulltext">
-        Toàn văn: đã lấy từ {hostOf(ft.source_url)} — chờ duyệt ·{" "}
-        <a href={ft.upload_url}>Xem toàn văn</a>
+        Toàn văn: {sourceLabel(ft.source_url)} — chờ duyệt ·{" "}
+        <a href={ft.upload_url}>Xem toàn văn</a> ·{" "}
+        <a href={ft.source_url} target="_blank" rel="noreferrer">nguồn</a>
       </div>
     );
   }
   if (item.priority >= 1) {
     const link = ft?.source_url || item.url;
+    const missing = ft?.status === "not_found";
     return (
       <div className="intel-field intel-fulltext intel-fulltext-manual">
-        Cần lấy tay:{" "}
+        {missing ? "Không tìm thấy ở nguồn công khai — cần lấy tay" : "Cần lấy tay"}:{" "}
         <a href={link} target="_blank" rel="noreferrer">
           {hostOf(link)}
         </a>
@@ -249,6 +280,14 @@ function fulltextLine(item: Item) {
     );
   }
   return null;
+}
+
+function precedentBadge(status: Precedent["status"]) {
+  return (
+    <span className={`intel-chip intel-precedent-${status}`} title={status}>
+      {PRECEDENT_STATUS[status] ?? status}
+    </span>
+  );
 }
 
 function sourceChip(name: string, info: SourceStatus) {
@@ -272,6 +311,7 @@ function TinMoiPageInner() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [digest, setDigest] = useState<DigestDay[]>([]);
+  const [precedents, setPrecedents] = useState<Precedent[]>([]);
   const [auto, setAuto] = useState<Auto | null>(null);
   const [tab, setTab] = useState<Tab>("queue");
   const [busy, setBusy] = useState(false);
@@ -279,15 +319,17 @@ function TinMoiPageInner() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [r, i, s, d] = await Promise.all([
+    const [r, i, s, d, p] = await Promise.all([
       apiFetch("/api/intel/runs?limit=5").then((res) => res.json()).catch(() => []),
       apiFetch("/api/intel/items").then((res) => res.json()).catch(() => []),
       apiFetch("/api/intel/status").then((res) => res.json()).catch(() => null),
       apiFetch("/api/intel/digest?days=7").then((res) => res.json()).catch(() => []),
+      apiFetch("/api/intel/precedents").then((res) => res.json()).catch(() => []),
     ]);
     setRuns(Array.isArray(r) ? r : []);
     setItems(Array.isArray(i) ? i : []);
     setDigest(Array.isArray(d) ? d : []);
+    setPrecedents(Array.isArray(p) ? p : []);
     setAuto(s && typeof s.interval_hours === "number" ? s : null);
     setLoading(false);
   }, []);
@@ -328,12 +370,23 @@ function TinMoiPageInner() {
     finally { setBusy(false); }
   }
 
+  async function scanPrecedents() {
+    setBusy(true); setErr("");
+    try {
+      const res = await apiFetch("/api/intel/precedents/crawl", { method: "POST" });
+      if (!res.ok) throw new Error(res.status === 409 ? "Đang có vòng quét chạy" : String(res.status));
+      await load();
+    } catch (e) { setErr(e instanceof Error ? e.message : "Không quét được"); }
+    finally { setBusy(false); }
+  }
+
   const last = runs[0];
   const impactById = new Map<string, Impact>();
   for (const block of digest) {
     for (const row of block.items) impactById.set(row.id, impactOf(row));
   }
   const shown = items.filter((i) => {
+    if (tab === "precedents") return false;
     if (tab === "queue") return i.status === "analysed" && i.labor_hint;
     if (tab === "approved") return i.status === "approved";
     if (tab === "ignored") return i.status === "ignored";
@@ -377,7 +430,9 @@ function TinMoiPageInner() {
             {t.label}
           </button>
         ))}
-        <span className="intel-count">{shown.length} tin</span>
+        <span className="intel-count">
+          {tab === "precedents" ? `${precedents.length} án lệ` : `${shown.length} tin`}
+        </span>
       </div>
 
       <div className="intel-body">
@@ -411,8 +466,59 @@ function TinMoiPageInner() {
                 </section>
               ))
         )}
-        {tab !== "digest" && loading && <div className="intel-empty">Đang tải…</div>}
-        {tab !== "digest" && !loading && shown.length === 0 && <div className="intel-empty">Không có tin nào ở mục này.</div>}
+        {tab === "precedents" && (
+          <section className="intel-precedents">
+            <div className="intel-precedent-head">
+              <span className="intel-field">
+                Danh mục công khai của anle.toaan.gov.vn, quét lại mỗi lần danh mục đổi.
+              </span>
+              <button className="intel-scan" onClick={scanPrecedents} disabled={busy || running}>
+                {running ? "Đang quét…" : "Quét danh mục án lệ"}
+              </button>
+            </div>
+            {loading && <div className="intel-empty">Đang tải…</div>}
+            {!loading && precedents.length === 0 && (
+              <div className="intel-empty">Chưa quét danh mục án lệ lần nào.</div>
+            )}
+            {precedents.length > 0 && (
+              <table className="intel-precedent-table">
+                <thead>
+                  <tr>
+                    <th>Số hiệu</th>
+                    <th>Tiêu đề</th>
+                    <th>Trạng thái</th>
+                    <th>Toàn văn</th>
+                    <th>Kiểm tra lúc</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {precedents.map((row) => (
+                    <tr key={row.doc_key}>
+                      <td className="intel-precedent-number">{row.number}</td>
+                      <td>
+                        <a href={row.url} target="_blank" rel="noreferrer">{row.title}</a>
+                        {row.status_note && (
+                          <div className="intel-precedent-note" title={row.status_note}>
+                            {row.status_note}
+                          </div>
+                        )}
+                      </td>
+                      <td>{precedentBadge(row.status)}</td>
+                      <td>
+                        {row.upload_id
+                          ? <Link href={row.upload_url}>chờ duyệt</Link>
+                          : <a href={row.file_url} target="_blank" rel="noreferrer">lấy tệp</a>}
+                      </td>
+                      <td>{day(row.last_checked)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        )}
+        {tab !== "digest" && tab !== "precedents" && loading && <div className="intel-empty">Đang tải…</div>}
+        {tab !== "digest" && tab !== "precedents" && !loading && shown.length === 0 && <div className="intel-empty">Không có tin nào ở mục này.</div>}
         {tab !== "digest" && shown.map((item) => (
           <article className="intel-card" key={item.id}>
             <div className="intel-card-top">

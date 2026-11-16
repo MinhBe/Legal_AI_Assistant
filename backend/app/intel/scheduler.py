@@ -4,8 +4,11 @@ Luồng nền (daemon) 15 phút kiểm tra một lần: nếu lượt quét theo
 `intel_interval_hours` (mặc định 6 giờ) thì chạy một lượt. Khoá `_LOCK` bảo đảm không bao
 giờ có hai lượt chạy cùng lúc; `run_scan` không bao giờ raise (chỉ ghi log và `intel_run.error`).
 
-Trang nào cần JavaScript (anle, vanban.chinhphu) thì mở một Chromium headless cho cả lượt
-quét, đóng ở cuối lượt. Fetcher có client tiêm vào (test/offline) thì không mở trình duyệt.
+Trang nào cần JavaScript (anle, vanban.chinhphu, công báo) thì mở một Chromium headless cho
+cả lượt quét, đóng ở cuối lượt. Fetcher có client tiêm vào (test/offline) thì không mở trình duyệt.
+
+Danh mục án lệ (LI3) quét theo nhịp riêng `intel_catalog_interval_days` (mặc định 7 ngày),
+trong cùng khoá với lượt quét tin để không có hai trình duyệt chạy cùng lúc.
 """
 
 from __future__ import annotations
@@ -21,7 +24,7 @@ from sqlalchemy import select
 from app.config import get_settings
 from app.db.base import SessionLocal
 from app.db.models import IntelRun
-from app.intel import analyze, fetch, fulltext, sources, store
+from app.intel import analyze, fetch, fulltext, precedents, sources, store
 from app.intel.fetch import BLOCKED_STATUS, Fetcher
 
 TZ = ZoneInfo("Asia/Ho_Chi_Minh")
@@ -101,17 +104,27 @@ def run_scan(trigger: str = "schedule") -> int | None:
         run = store.start_run(db, trigger)
         fetcher = _fetcher(settings)
         counts_fulltext: dict[str, int] = {}
+        counts_catalog: dict[str, int] = {}
         with fetch.Renderer(fetcher) as renderer:
             per_source, pdf_urls = _scan_sources(db, settings, fetcher, renderer)
-        if settings.intel_fulltext:
-            counts_fulltext = fulltext.scan(db, settings, fetcher, pdf_urls)
+            if settings.intel_fulltext:
+                render = renderer.render if fetcher.can_render else None
+                counts_fulltext = fulltext.scan(db, settings, fetcher, pdf_urls, render=render)
+            if fetcher.can_render and catalog_due():
+                counts_catalog = precedents.crawl(precedents.list_render(renderer), fetcher, db)
+                per_source["anle-danh-muc"] = {
+                    "status": "ok",
+                    "found": counts_catalog["found"],
+                    "new": counts_catalog["new"],
+                }
         counts = analyze.analyse_pending(db)
         store.finish_run(db, run, per_source)
         logger.info(
-            "Quét tin mới ({}): {} · toàn văn {} · phân tích {}",
+            "Quét tin mới ({}): {} · toàn văn {} · án lệ {} · phân tích {}",
             trigger,
             {name: (v["status"], v["new"]) for name, v in per_source.items()},
             counts_fulltext,
+            counts_catalog,
             counts,
         )
         return run.id
@@ -130,13 +143,13 @@ def run_scan(trigger: str = "schedule") -> int | None:
         _LOCK.release()
 
 
-def _last_scheduled() -> datetime | None:
-    """Mốc bắt đầu lượt quét theo lịch gần nhất."""
+def _last_run(trigger: str) -> datetime | None:
+    """Mốc bắt đầu lượt quét gần nhất của một loại (`schedule`, hoặc `catalog%`)."""
     db = SessionLocal()
     try:
         return db.scalar(
             select(IntelRun.started_at)
-            .where(IntelRun.trigger == "schedule")
+            .where(IntelRun.trigger.like(trigger))
             .order_by(IntelRun.started_at.desc())
             .limit(1)
         )
@@ -144,10 +157,56 @@ def _last_scheduled() -> datetime | None:
         db.close()
 
 
+def catalog_due(now: datetime | None = None) -> bool:
+    """Đã đến lượt quét lại danh mục án lệ chưa?"""
+    last = _last_run("catalog%")
+    if last is None:
+        return True
+    current = now or datetime.now(TZ)
+    if last.tzinfo is None:  # cột timestamptz nhưng driver có thể trả naive
+        last = last.replace(tzinfo=current.tzinfo)
+    return last + timedelta(days=get_settings().intel_catalog_interval_days) <= current
+
+
+def run_catalog(trigger: str = "catalog") -> int | None:
+    """Một lượt quét danh mục án lệ (LI3). None = đang có lượt khác chạy."""
+    if not _LOCK.acquire(blocking=False):
+        logger.info("Đang có lượt quét khác — bỏ lượt danh mục án lệ")
+        return None
+    settings = get_settings()
+    db = SessionLocal()
+    run = None
+    try:
+        run = store.start_run(db, trigger)
+        fetcher = _fetcher(settings)
+        with fetch.Renderer(fetcher) as renderer:
+            counts = precedents.crawl(precedents.list_render(renderer), fetcher, db)
+        store.finish_run(
+            db,
+            run,
+            {"anle-danh-muc": {"status": "ok", "found": counts["found"], "new": counts["new"]}},
+        )
+        logger.info("Quét danh mục án lệ ({}): {}", trigger, counts)
+        return run.id
+    except Exception as exc:  # noqa: BLE001 — vòng nền không được chết vì một lỗi
+        logger.warning("Lượt quét danh mục án lệ lỗi: {}", exc)
+        try:
+            if run is not None:
+                store.finish_run(db, run, {}, f"{exc.__class__.__name__}: {exc}")
+            else:
+                db.rollback()
+        except Exception:  # noqa: BLE001 — không ghi được thì thôi, log ở trên đã đủ
+            pass
+        return run.id if run is not None else None
+    finally:
+        db.close()
+        _LOCK.release()
+
+
 def next_run_at(now: datetime | None = None) -> datetime | None:
     """Lượt quét tự động kế tiếp; None = chưa quét theo lịch lần nào."""
     current = now or datetime.now(TZ)
-    last = _last_scheduled()
+    last = _last_run("schedule")
     if last is None:
         return None
     if last.tzinfo is None:  # cột timestamptz nhưng driver có thể trả naive
