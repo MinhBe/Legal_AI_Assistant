@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { genId, loadConvos, saveConvos } from "@/lib/chat/storage";
-import type { Conversation, Msg, Risk, Section, TimeFrame, Verifier } from "@/lib/chat/types";
+import type { Calc, Conversation, Facts, Msg, Risk, Section, TimeFrame, Verifier } from "@/lib/chat/types";
 import type { Mode } from "@/lib/mode";
 import { streamChat } from "@/lib/sse";
 
@@ -202,6 +202,10 @@ export function useChat(mode: Mode = "law") {
           update((ai) => ({ ...ai, verifier: data as Verifier }));
         else if (event === "record")
           update((ai) => ({ ...ai, record_id: data.id }));
+        else if (event === "facts")
+          update((ai) => ({ ...ai, facts: data as Facts }));
+        else if (event === "calc")
+          update((ai) => ({ ...ai, calc: data as Calc }));
         else if (event === "risk")
           update((ai) => ({ ...ai, risk: data as Risk }));
         else if (event === "suggest_rewrite")

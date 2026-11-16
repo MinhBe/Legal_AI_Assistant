@@ -5,7 +5,7 @@
 import { useState } from "react";
 
 import { IconCheck, IconChevron, IconLock, IconRefresh, IconSearch } from "@/components/chat/icons";
-import type { Citation, EscalateStatus, Section, TimeFrame, Verifier } from "@/lib/chat/types";
+import type { Calc, FactValue, Facts, Citation, EscalateStatus, Section, TimeFrame, Verifier } from "@/lib/chat/types";
 
 export function ApprovalCard({
   question,
@@ -320,6 +320,142 @@ export function TimeFrameBox({ tf }: { tf: TimeFrame }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* hộp "Bảng tình tiết" (I1): trường đã biết kèm nguồn và độ chắc, trường quyết định
+   còn thiếu thì ghi "chưa rõ", kèm chip câu hỏi lại bấm được */
+const FACT_ROWS: { key: string; label: string }[] = [
+  { key: "contract_type", label: "Loại hợp đồng" },
+  { key: "term_months", label: "Thời hạn hợp đồng" },
+  { key: "start_date", label: "Bắt đầu làm việc" },
+  { key: "end_date", label: "Ngày chấm dứt" },
+  { key: "event_date", label: "Ngày sự kiện" },
+  { key: "act", label: "Hành vi, sự kiện" },
+  { key: "monthly_salary", label: "Lương tháng" },
+  { key: "notice_given_days", label: "Ngày đã báo trước" },
+  { key: "unemployment_insured_months", label: "Tháng đóng BHTN" },
+  { key: "procedure", label: "Thủ tục đã làm" },
+  { key: "documents", label: "Hồ sơ hiện có" },
+];
+/* trường quyết định kết quả: thiếu thì hiện "chưa rõ" thay vì ẩn */
+const DECISIVE = ["contract_type", "term_months", "start_date", "monthly_salary"];
+const CONTRACT_LABEL: Record<string, string> = {
+  khong_xac_dinh_thoi_han: "không xác định thời hạn",
+  xac_dinh_thoi_han: "xác định thời hạn",
+  thu_viec: "thử việc",
+  khong_ro: "chưa rõ",
+};
+const ACT_LABEL: Record<string, string> = {
+  sa_thai: "sa thải",
+  don_phuong_cham_dut_nld: "người lao động đơn phương chấm dứt",
+  don_phuong_cham_dut_nsdld: "người sử dụng lao động đơn phương chấm dứt",
+  ky_luat: "kỷ luật",
+  no_luong: "chưa trả lương",
+  khac: "khác",
+};
+const vnd = (n: number) => `${new Intl.NumberFormat("vi-VN").format(n)} đồng`;
+
+function factText(key: string, f: FactValue): string {
+  const v = f.value;
+  if (key === "contract_type") return CONTRACT_LABEL[String(v)] ?? String(v);
+  if (key === "act") return ACT_LABEL[String(v)] ?? String(v);
+  if (key === "monthly_salary") return typeof v === "number" ? vnd(v) : String(v);
+  if (key === "term_months") return `${v} tháng`;
+  if (key === "notice_given_days") return `${v} ngày`;
+  if (key === "unemployment_insured_months") return `${v} tháng`;
+  if (key === "start_date" || key === "end_date" || key === "event_date") return dmy(String(v));
+  return Array.isArray(v) ? v.join("; ") : String(v);
+}
+
+export function FactsBox({
+  facts,
+  followUps,
+  onAsk,
+}: {
+  facts: Facts;
+  followUps: string[];
+  onAsk: (q: string) => void;
+}) {
+  const rows = FACT_ROWS.flatMap(({ key, label }) => {
+    const f = facts.facts?.[key];
+    if (f) {
+      return [
+        {
+          key,
+          label,
+          value: factText(key, f),
+          meta: `${f.source} · ${Math.round(f.confidence * 100)}%`,
+          unknown: false,
+        },
+      ];
+    }
+    return DECISIVE.includes(key)
+      ? [{ key, label, value: "chưa rõ", meta: "", unknown: true }]
+      : [];
+  });
+  if (rows.length === 0 && followUps.length === 0) return null;
+  return (
+    <div className="facts">
+      <div className="facts-title">Bảng tình tiết</div>
+      {rows.map((r) => (
+        <div className="facts-row" key={r.key}>
+          <span className="facts-label">{r.label}</span>
+          <span className={`facts-val ${r.unknown ? "facts-unknown" : ""}`}>{r.value}</span>
+          {r.meta && <span className="facts-meta">{r.meta}</span>}
+        </div>
+      ))}
+      {followUps.length > 0 && (
+        <div className="facts-follow-ups">
+          <span className="facts-label">Cần biết thêm</span>
+          <div className="facts-chips">
+            {followUps.map((q) => (
+              <button key={q} className="facts-chip" onClick={() => onAsk(q)}>
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* hộp "Kết quả tính" (I2): từng khoản do code tính, kèm bước tính và căn cứ */
+export function CalcBox({ calc }: { calc: Calc }) {
+  if (!calc.items || calc.items.length === 0) return null;
+  return (
+    <div className="calc-res">
+      <div className="calc-res-title">Kết quả tính</div>
+      {calc.items.map((item) => (
+        <div className="calc-res-card" key={`${item.kind}-${item.value}`}>
+          <div className="calc-res-head">
+            <span className="calc-res-name">{item.title}</span>
+            <span className="calc-res-value">
+              {item.unit === "đồng" ? vnd(item.value) : `${item.value} ${item.unit}`}
+            </span>
+          </div>
+          {item.steps?.length > 0 && (
+            <ol className="calc-res-steps">
+              {item.steps.map((s, i) => (
+                <li key={i}>{s}</li>
+              ))}
+            </ol>
+          )}
+          <div className="calc-res-basis">
+            {(item.basis ?? []).map((b, i) => (
+              <span className="calc-res-basis-item" key={i} title={b.doc_id}>
+                {b.label}
+              </span>
+            ))}
+            {item.version && <span className="calc-res-version">{item.version}</span>}
+          </div>
+          <div className="calc-res-warning">
+            {item.note || "Kết quả tính tự động — cần luật sư đối chiếu"}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -9,6 +9,12 @@ ghi các mục được hoãn hoặc làm tắt, để quay lại dọn sau.
 | G6 bố cục prompt cố định đầu + chi phí theo ca/bậc | Chủ yếu là đo lường, người xem demo không thấy | Khi cần giảm chi phí chạy Dahl hoặc báo cáo chi phí |
 | G7 tìm web cho mức C | Cần Minh chọn nhà cung cấp tìm kiếm | Sau khi Minh chọn nhà cung cấp |
 | VL2 đo lại e2e trên golden set | Tốn lượt chat; số đo chưa phục vụ demo | Sau demo, chạy qua Dahl |
+| R5 Verifier bằng model | Tốn lượt AI mỗi ca rủi ro cao khi chạy thật | Khi có ngân sách chạy |
+| R6 mở khóa khẩn ca mức A | Đụng quy tắc riêng tư (mức A không ra ngoài); cần luồng duyệt từng lần chắc chắn | Khi có luật sư thật và đăng nhập |
+| I3 thẻ án lệ hàng loạt | Cần ngân sách AI chạy batch + luật sư kiểm mẫu | Khi Minh duyệt ngân sách |
+| T4 nạp văn bản mới, T6 nhóm bẫy thời gian, T8 phiếu xác minh | Cần Minh/luật sư cung cấp văn bản và duyệt | Khi có văn bản gốc |
+| Bàn duyệt chưa có đăng nhập | Demo; ai mở /review cũng duyệt được | Trước khi cho người ngoài dùng |
+| Công thức máy tính /tinh chưa được luật sư kiểm | Cần ví dụ do luật sư xác nhận | Trước khi dùng thật |
 
 ## Làm tắt cần dọn
 - Ollama: ngữ cảnh 8192 đang được gắn thẳng vào tag `qwen2.5:7b` (Modelfile `PARAMETER num_ctx 8192`), vì app

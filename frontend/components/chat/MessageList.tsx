@@ -5,7 +5,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import {
-  ApprovalCard, CitationList, SectionAccordion, StepTimeline, SuggestRewrite, TimeFrameBox, VerifierBadge,
+  ApprovalCard, CalcBox, CitationList, FactsBox, SectionAccordion, StepTimeline, SuggestRewrite,
+  TimeFrameBox, VerifierBadge,
 } from "@/components/chat/AnswerParts";
 import { IconGraph } from "@/components/chat/icons";
 import type { Msg, Risk } from "@/lib/chat/types";
@@ -84,6 +85,12 @@ export default function MessageList({
                 ) : (
                   m.content
                 )}
+
+                {m.role === "ai" && m.facts && (
+                  <FactsBox facts={m.facts} followUps={m.facts.follow_ups ?? []} onAsk={onAsk} />
+                )}
+
+                {m.role === "ai" && m.calc && <CalcBox calc={m.calc} />}
 
                 {m.role === "ai" && m.timeframe && <TimeFrameBox tf={m.timeframe} />}
 

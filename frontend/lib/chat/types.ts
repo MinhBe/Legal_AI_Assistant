@@ -57,6 +57,24 @@ export type EscalateStatus = "pending" | "denied" | "waiting" | "approved" | "an
 export type RiskReason = { code: string; weight: number | "inf"; message: string };
 export type Risk = { score: number | "inf"; queue: boolean; reasons: RiskReason[]; case_id?: string };
 
+/* Bảng tình tiết do backend trích từ câu hỏi (I1): nguồn và độ chắc của từng trường. */
+export type FactValue = { value: string | number | string[]; source: string; confidence: number };
+export type Facts = { facts: Record<string, FactValue>; follow_ups: string[] };
+
+/* Kết quả máy tính lao động (I2): code tính, LLM không tham gia. */
+export type CalcBasis = { doc_id: string; label: string; node_id?: string };
+export type CalcItem = {
+  kind: string;
+  title: string;
+  value: number;
+  unit: string;
+  steps: string[];
+  basis: CalcBasis[];
+  version: string;
+  note?: string;
+};
+export type Calc = { items: CalcItem[] };
+
 export type Msg = {
   role: "user" | "ai";
   content: string;
@@ -75,6 +93,8 @@ export type Msg = {
   verifier?: Verifier;
   record_id?: string;
   risk?: Risk;
+  facts?: Facts;
+  calc?: Calc;
 };
 
 export type Conversation = { id: string; title: string; messages: Msg[] };

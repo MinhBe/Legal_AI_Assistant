@@ -16,7 +16,7 @@ from datetime import date
 from loguru import logger
 from sqlalchemy import text
 
-from app.agent import guard
+from app.agent import facts, guard
 from app.amend import timeframe
 from app.obs import metrics
 from app.agent.followup import history_block, history_budget, search_with_history
@@ -260,6 +260,15 @@ def _retry_answer(router, messages: list[dict], hits: list[dict], v: dict, as_of
     return (result, v2) if len(v2["problems"]) < len(v["problems"]) else None
 
 
+def _facts_result(future) -> dict:
+    """Bảng tình tiết đã trích; hỏng thì bỏ qua, không chặn câu trả lời."""
+    try:
+        return future.result() or {}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Không lấy được bảng tình tiết: {}", exc)
+        return {}
+
+
 def _timeframe(db, event: date | None, today: date, message: str) -> dict:
     """Khung thời gian; kho hỏng thì vẫn trả lời, chỉ thiếu hộp thời gian."""
     try:
@@ -277,6 +286,8 @@ def answer_with_citations(
     # Phân loại chạy song song với truy hồi và soạn trả lời, nên câu hỏi luật không
     # phải chờ thêm; câu bị loại thì bỏ câu trả lời đang soạn.
     verdict = metrics.submit(_POOL, guard.classify, router, message, convo)
+    # Bảng tình tiết (I1) trích song song, cùng quy tắc che PII; lỗi thì bỏ qua.
+    facts_future = metrics.submit(_POOL, facts.extract, router, message, convo)
     long_case = len(message.split()) >= LONG_CASE_WORDS
     issues = metrics.submit(_POOL, _split_issues, router, message) if long_case else None
     today = date.today()
@@ -339,6 +350,12 @@ def answer_with_citations(
 
     result = answer.result()
     as_of = event or today
+    # Tình tiết và kết quả máy tính do code lo; prompt không chứa số liệu này.
+    fx = _facts_result(facts_future)
+    yield ("facts", {"facts": fx, "follow_ups": facts.follow_ups(fx, message)})
+    calcs = facts.calculations(fx, message, as_of)
+    if calcs:
+        yield ("calc", {"items": calcs})
     v = _run_verify(result, hits, as_of)
     if not v["ok"] and get_data_class() == "C":
         yield ("step", {"name": "verify", "label": "Đang kiểm tra lại căn cứ và hiệu lực"})
