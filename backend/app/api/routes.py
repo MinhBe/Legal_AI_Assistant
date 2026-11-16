@@ -17,12 +17,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import prompts
-from app.agent import record
+from app.agent import record, risk
 from app.agent.pipeline import run_chat
 from app.config import get_settings
 from app.obs import metrics
 from app.db.base import SessionLocal, get_db
-from app.db.models import LegalDocument, LegalNode, Thread
+from app.db.models import LegalDocument, LegalNode, ReviewCase, Thread
 from app.graph.builder import build_graph
 from app.llm.router import get_router
 from app.pv.library import LAYERS, load_library
@@ -293,6 +293,7 @@ def chat(req: ChatRequest):
         # Hồ sơ câu trả lời (T7): ghi sau khi luồng xong, hỏng thì bỏ qua, không làm gãy chat.
         if ctx is None or failed:
             return
+        rec_id = None
         try:
             rec = record.build(ctx, events, thread_id)
             if rec:
@@ -304,6 +305,26 @@ def chat(req: ChatRequest):
                 yield sse("record", {"id": rec_id})
         except Exception as exc:  # noqa: BLE001
             logger.warning("Không ghi được hồ sơ câu trả lời: {}", exc)
+        # Rủi ro (R1): chấm bằng quy tắc; vào hàng đợi thì tạo ca cho luật sư.
+        # Chỉ chấm câu trả lời pháp lý (có timeframe) và câu ngoài kho; chặn chèn lệnh /
+        # lạc đề thì không có gì để luật sư duyệt.
+        kinds = {e for e, _ in events}
+        out_of_corpus = any(e == "done" and isinstance(d, dict) and d.get("category") == "out_of_corpus"
+                            for e, d in events)
+        if "timeframe" not in kinds and not out_of_corpus:
+            return
+        try:
+            r = risk.score(req.message, events)
+            if r["queue"]:
+                try:
+                    r["case_id"] = _open_review_case(
+                        rec_id, ctx.get("question") or req.message, r, thread_id
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Không tạo được ca duyệt: {}", exc)
+            yield sse("risk", r)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Không chấm được điểm rủi ro: {}", exc)
 
     return StreamingResponse(
         gen(),
@@ -324,6 +345,50 @@ def get_answer_route(rec_id: str, db: Session = Depends(get_db)):
 @router.get("/api/answers")
 def list_answers_route(limit: int = 50, db: Session = Depends(get_db)):
     return record.list_recent(db, limit)
+
+
+# ---------- Hàng đợi duyệt theo rủi ro (R1) ----------
+def _review_case_row(c: ReviewCase) -> dict:
+    return {
+        "id": c.id, "created_at": c.created_at, "answer_id": c.answer_id,
+        "question": c.question, "risk_score": c.risk_score,
+        "reasons": json.loads(c.reasons or "[]"), "status": c.status,
+        "source": c.source, "thread_id": c.thread_id, "case_type": c.case_type,
+    }
+
+
+def _open_review_case(answer_id, question, r, thread_id) -> str:
+    db = SessionLocal()
+    try:
+        case_id = uuid.uuid4().hex[:16]
+        db.add(ReviewCase(
+            id=case_id, answer_id=answer_id, question=question,
+            risk_score=str(r["score"]), reasons=json.dumps(r["reasons"], ensure_ascii=False),
+            status="pending", source="auto", thread_id=thread_id,
+        ))
+        db.commit()
+        return case_id
+    finally:
+        db.close()
+
+
+@router.get("/api/review/cases")
+def list_review_cases(status: str = "pending", db: Session = Depends(get_db)):
+    rows = db.scalars(
+        select(ReviewCase)
+        .where(ReviewCase.status == status)
+        .order_by(ReviewCase.created_at.desc())
+    ).all()
+    return [_review_case_row(c) for c in rows]
+
+
+@router.get("/api/review/cases/{case_id}")
+def get_review_case(case_id: str, db: Session = Depends(get_db)):
+    case = db.get(ReviewCase, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy ca {case_id}")
+    answer = record.get(db, case.answer_id) if case.answer_id else None
+    return {**_review_case_row(case), "answer": answer}
 
 
 # ---------- Threads (tối giản) ----------

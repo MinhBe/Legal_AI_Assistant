@@ -291,3 +291,31 @@ class AnswerRecord(Base):
     provider: Mapped[str | None] = mapped_column(String(32))
     model: Mapped[str | None] = mapped_column(String(128))
     category: Mapped[str | None] = mapped_column(String(32))
+
+
+class ReviewCase(Base):
+    """Ca chuyển luật sư xem lại (R1, design §9.1): điểm rủi ro và lý do vào hàng đợi.
+    Câu hỏi đã che PII; các cột hành động của luật sư để R2 dùng."""
+
+    __tablename__ = "review_case"
+
+    id: Mapped[str] = mapped_column(String(16), primary_key=True)  # uuid4 hex[:16]
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    answer_id: Mapped[str | None] = mapped_column(
+        String(16), ForeignKey("answer_record.id", ondelete="SET NULL")
+    )
+    question: Mapped[str] = mapped_column(Text)  # đã che PII
+    risk_score: Mapped[str] = mapped_column(String(8))
+    reasons: Mapped[str] = mapped_column(Text)  # JSON list
+    # pending|approved|light_edit|heavy_edit|rejected
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    source: Mapped[str] = mapped_column(String(16))  # auto|user
+    reviewer_text: Mapped[str | None] = mapped_column(Text)
+    diff: Mapped[str | None] = mapped_column(Text)
+    error_labels: Mapped[str | None] = mapped_column(Text)  # JSON list
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reply: Mapped[str | None] = mapped_column(Text)
+    thread_id: Mapped[str | None] = mapped_column(String(64))
+    case_type: Mapped[str | None] = mapped_column(String(32))

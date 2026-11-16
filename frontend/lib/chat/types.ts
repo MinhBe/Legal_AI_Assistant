@@ -53,6 +53,10 @@ export type Verifier = {
    rejected -> chuyên gia từ chối (escalate_reply là lý do) */
 export type EscalateStatus = "pending" | "denied" | "waiting" | "approved" | "answered" | "rejected" | null;
 
+/* Điểm rủi ro do backend chấm bằng quy tắc (R1): ca rủi ro cao vào hàng đợi luật sư. */
+export type RiskReason = { code: string; weight: number | "inf"; message: string };
+export type Risk = { score: number | "inf"; queue: boolean; reasons: RiskReason[]; case_id?: string };
+
 export type Msg = {
   role: "user" | "ai";
   content: string;
@@ -70,6 +74,7 @@ export type Msg = {
   timeframe?: TimeFrame;
   verifier?: Verifier;
   record_id?: string;
+  risk?: Risk;
 };
 
 export type Conversation = { id: string; title: string; messages: Msg[] };

@@ -8,10 +8,28 @@ import {
   ApprovalCard, CitationList, SectionAccordion, StepTimeline, SuggestRewrite, TimeFrameBox, VerifierBadge,
 } from "@/components/chat/AnswerParts";
 import { IconGraph } from "@/components/chat/icons";
-import type { Msg } from "@/lib/chat/types";
+import type { Msg, Risk } from "@/lib/chat/types";
 import type { MODE_TEXT } from "@/lib/mode";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
+/* Chip điểm rủi ro (R1): ca vào hàng đợi luật sư thì mở ra được lý do. */
+function RiskBadge({ risk }: { risk: Risk }) {
+  if (risk.queue) {
+    return (
+      <details className="risk risk-queued">
+        <summary>Đã chuyển luật sư xem lại (điểm rủi ro {risk.score})</summary>
+        <ul className="risk-reasons">
+          {risk.reasons.map((r) => (
+            <li key={r.code}>{r.message}</li>
+          ))}
+        </ul>
+      </details>
+    );
+  }
+  if (typeof risk.score !== "number" || risk.score <= 0) return null;
+  return <span className="risk risk-low">Rủi ro thấp ({risk.score})</span>;
+}
 
 export default function MessageList({
   messages, threadId, listRef, text, onAsk, onUseSuggestion, onIgnoreSuggestion, onEscalate, onDeny,
@@ -74,6 +92,8 @@ export default function MessageList({
                 )}
 
                 {m.role === "ai" && m.verifier && <VerifierBadge v={m.verifier} />}
+
+                {m.role === "ai" && m.risk && <RiskBadge risk={m.risk} />}
 
                 {m.suggested_query && m.role === "ai" && (
                   <SuggestRewrite
