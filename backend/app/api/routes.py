@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import json
-import threading
 import uuid
-from datetime import datetime, UTC
 from pathlib import Path
 from typing import Literal
 
@@ -19,6 +17,7 @@ from sqlalchemy.orm import Session
 from app import prompts
 from app.agent import record, risk
 from app.agent.pipeline import run_chat
+from app.gateway.pii import mask
 from app.config import get_settings
 from app.obs import metrics
 from app.db.base import SessionLocal, get_db
@@ -28,6 +27,7 @@ from app.llm.router import get_router
 from app.pv.library import LAYERS, load_library
 from app.pv.chat import run_pv_chat
 from app.pv.graph import build_pv_graph
+from app.review import service as review
 from app.sse import sse
 
 router = APIRouter()
@@ -349,12 +349,7 @@ def list_answers_route(limit: int = 50, db: Session = Depends(get_db)):
 
 # ---------- Hàng đợi duyệt theo rủi ro (R1) ----------
 def _review_case_row(c: ReviewCase) -> dict:
-    return {
-        "id": c.id, "created_at": c.created_at, "answer_id": c.answer_id,
-        "question": c.question, "risk_score": c.risk_score,
-        "reasons": json.loads(c.reasons or "[]"), "status": c.status,
-        "source": c.source, "thread_id": c.thread_id, "case_type": c.case_type,
-    }
+    return review.case_row(c)
 
 
 def _open_review_case(answer_id, question, r, thread_id) -> str:
@@ -374,12 +369,11 @@ def _open_review_case(answer_id, question, r, thread_id) -> str:
 
 @router.get("/api/review/cases")
 def list_review_cases(status: str = "pending", db: Session = Depends(get_db)):
-    rows = db.scalars(
-        select(ReviewCase)
-        .where(ReviewCase.status == status)
-        .order_by(ReviewCase.created_at.desc())
-    ).all()
-    return [_review_case_row(c) for c in rows]
+    """`status="all"` trả mọi ca; mặc định chỉ ca chờ duyệt."""
+    query = select(ReviewCase).order_by(ReviewCase.created_at.desc())
+    if status != "all":
+        query = query.where(ReviewCase.status == status)
+    return [_review_case_row(c) for c in db.scalars(query).all()]
 
 
 @router.get("/api/review/cases/{case_id}")
@@ -389,6 +383,48 @@ def get_review_case(case_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Không tìm thấy ca {case_id}")
     answer = record.get(db, case.answer_id) if case.answer_id else None
     return {**_review_case_row(case), "answer": answer}
+
+
+# ---------- Bàn duyệt luật sư: gói ca + bốn hành động (R2, design §9.2–9.3) ----------
+class ReviewActRequest(BaseModel):
+    action: Literal["approve", "light_edit", "heavy_edit", "reject"]
+    text: str = ""
+    labels: list[str] = []
+    reason: str = ""
+
+
+def _review_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, review.BadInput):
+        return HTTPException(status_code=422, detail=str(exc))
+    if isinstance(exc, LookupError):
+        return HTTPException(status_code=404, detail=str(exc))
+    return HTTPException(status_code=409, detail=str(exc))
+
+
+@router.get("/api/review/labels")
+def review_labels():
+    return review.ERROR_LABELS
+
+
+@router.get("/api/review/stats")
+def review_stats(db: Session = Depends(get_db)):
+    return review.stats(db)
+
+
+@router.get("/api/review/cases/{case_id}/package")
+def review_package(case_id: str, db: Session = Depends(get_db)):
+    try:
+        return review.package(db, case_id)
+    except LookupError as exc:
+        raise _review_error(exc) from exc
+
+
+@router.post("/api/review/cases/{case_id}/act")
+def review_act(case_id: str, req: ReviewActRequest, db: Session = Depends(get_db)):
+    try:
+        return review.act(db, case_id, req.action, req.text, req.labels, req.reason)
+    except (review.BadInput, LookupError, ValueError) as exc:
+        raise _review_error(exc) from exc
 
 
 # ---------- Threads (tối giản) ----------
@@ -461,25 +497,26 @@ def pv_chat(req: PvChatRequest):
 
 
 # ---------- Human-in-loop: Escalation (câu hỏi không đủ căn cứ) ----------
-# Vòng đầy đủ: người dùng gửi (pending) -> chuyên gia duyệt trên /dashboard, viết câu
-# trả lời hoặc lý do từ chối (approved / denied) -> thẻ trong chat hỏi lại theo id và
-# hiện kết quả.
+# Vòng đầy đủ: người dùng gửi (pending) -> chuyên gia duyệt trên /dashboard hoặc
+# /review, viết câu trả lời hoặc lý do từ chối (approved / denied) -> thẻ trong chat
+# hỏi lại theo id và hiện kết quả. Từ R2, escalation nằm trong bảng `review_case`;
+# tệp `data/escalations.json` cũ được nhập một lần ở lần dùng đầu tiên.
 _ESC_FILE = Path("/app/data/escalations.json")
-_esc_lock = threading.Lock()
+_esc_imported = False
 
 
-def _load_esc() -> list[dict]:
+def _import_escalations_once(db: Session) -> None:
+    """Nhập escalations.json một lần cho mỗi tiến trình (idempotent theo id)."""
+    global _esc_imported
+    if _esc_imported:
+        return
+    _esc_imported = True
     try:
-        if _ESC_FILE.exists():
-            return json.loads(_ESC_FILE.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
-        pass
-    return []
-
-
-def _save_esc(rows: list[dict]) -> None:
-    _ESC_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _ESC_FILE.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
+        n = review.import_json_escalations(db, _ESC_FILE)
+        if n:
+            logger.info("Đã nhập {} escalation cũ vào review_case", n)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Không nhập được escalations.json: {}", exc)
 
 
 class EscalateRequest(BaseModel):
@@ -492,58 +529,67 @@ class EscalateUpdate(BaseModel):
     reply: str = ""  # câu trả lời của chuyên gia, hoặc lý do từ chối
 
 
+def _esc_case(db: Session, esc_id: str):
+    """Thẻ phê duyệt cũ trong trình duyệt giữ id 32 ký tự; khi nhập vào review_case id bị cắt
+    còn 16 ký tự (cột String(16)), nên tra cả hai dạng."""
+    return db.get(ReviewCase, esc_id) or (db.get(ReviewCase, esc_id[:16]) if len(esc_id) > 16 else None)
+
+
 @router.post("/api/escalate")
-def escalate(req: EscalateRequest):
+def escalate(req: EscalateRequest, db: Session = Depends(get_db)):
     """Ghi nhận câu hỏi không đủ căn cứ để nhà phát hành xem xét."""
-    row = {
-        "id": uuid.uuid4().hex,
-        "question": req.question,
-        "thread_id": req.thread_id,
-        "status": "pending",
-        "created_at": datetime.now(UTC).isoformat(),
-    }
-    with _esc_lock:
-        rows = _load_esc()
-        rows.insert(0, row)
-        _save_esc(rows)
-    return {"id": row["id"], "status": "pending"}
+    _import_escalations_once(db)
+    case = ReviewCase(
+        id=uuid.uuid4().hex[:16], question=mask(req.question).text, thread_id=req.thread_id,
+        status="pending", source="user", risk_score="", reasons="[]",
+    )
+    db.add(case)
+    db.commit()
+    return {"id": case.id, "status": "pending"}
 
 
 @router.get("/api/escalations")
-def list_escalations():
+def list_escalations(db: Session = Depends(get_db)):
     """Lấy danh sách câu hỏi chờ phê duyệt."""
-    with _esc_lock:
-        return _load_esc()
+    _import_escalations_once(db)
+    rows = db.scalars(
+        select(ReviewCase).where(ReviewCase.source == "user")
+        .order_by(ReviewCase.created_at.desc())
+    ).all()
+    return [review.esc_row(c) for c in rows]
 
 
 @router.get("/api/escalations/{esc_id}")
-def get_escalation(esc_id: str):
+def get_escalation(esc_id: str, db: Session = Depends(get_db)):
     """Một yêu cầu: thẻ trong chat hỏi lại để biết chuyên gia đã xử lý chưa."""
-    with _esc_lock:
-        for r in _load_esc():
-            if r["id"] == esc_id:
-                return r
-    raise HTTPException(status_code=404, detail="Không tìm thấy escalation")
+    case = _esc_case(db, esc_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy escalation")
+    return review.esc_row(case)
 
 
 @router.patch("/api/escalations/{esc_id}")
-def update_escalation(esc_id: str, req: EscalateUpdate):
+def update_escalation(esc_id: str, req: EscalateUpdate, db: Session = Depends(get_db)):
     """Chuyên gia duyệt (kèm câu trả lời) hoặc từ chối (kèm lý do)."""
     reply = req.reply.strip()
     if req.status == "approved" and not reply:
         raise HTTPException(status_code=422, detail="Duyệt thì phải có câu trả lời của chuyên gia")
-    with _esc_lock:
-        rows = _load_esc()
-        for r in rows:
-            if r["id"] == esc_id:
-                r["status"] = req.status
-                r["reply"] = reply
-                r["resolved_at"] = datetime.now(UTC).isoformat()
-                break
+    case = _esc_case(db, esc_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy escalation")
+    try:
+        if req.status == "approved":
+            draft = review.package(db, esc_id)["draft"]
+            if draft is None:
+                review.act(db, esc_id, "approve", text=reply)
+            else:
+                action = "light_edit" if reply != draft.strip() else "approve"
+                review.act(db, esc_id, action, text=reply)
         else:
-            raise HTTPException(status_code=404, detail="Không tìm thấy escalation")
-        _save_esc(rows)
-    return r
+            review.act(db, esc_id, "reject", reason=reply or "Chuyên gia từ chối")
+    except (review.BadInput, LookupError, ValueError) as exc:
+        raise _review_error(exc) from exc
+    return review.esc_row(case)
 
 
 # ---------- Tải tài liệu lên (upload → OCR → KG) ----------

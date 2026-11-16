@@ -94,6 +94,7 @@ export default function DashboardPage() {
       <div className="dash-header">
         <Link href="/" className="dash-back">← Chat</Link>
         <span className="dash-title">Dashboard</span>
+        <Link href="/review" className="dash-graph-btn">Bàn duyệt luật sư →</Link>
         <Link href="/graph" className="dash-graph-btn">Knowledge Graph</Link>
       </div>
 
