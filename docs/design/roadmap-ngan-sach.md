@@ -28,12 +28,15 @@ Căn cứ giá và số đo: bench pi-dev B1–B3b (bench/results trong repo pi-
 | — Minh tester | 17/11 | Kịch bản 5 bước trong kế hoạch, ghi lỗi | Minh | $0 |
 | B0. Sửa lỗi từ buổi tester | 17/11 | Các lỗi Minh ghi | Claude | $0 |
 | B1. Hiệu chỉnh Pi trên repo thật | 17/11 | Giao Pi 1 mục nhỏ (G5) để đo chi phí thật trên repo RAG, rồi chỉnh lại ước lượng | Pi | $0.03–0.08 (lấy từ $1 thử nghiệm) |
-| C. Giai đoạn 1: Gateway, golden set, cổng eval | 18–19/11 | G3, G1, G4, G2 (+ G5 nếu B1 chưa xong) | Pi + Claude review | $0.35–0.70 |
-| D. Giai đoạn 2: mô hình thời gian | 19–21/11 | T1, T2, T3, T5; T4 phần code nạp (văn bản gốc do Minh cung cấp) | Pi + Claude review | $0.45–0.90 |
-| E. Giai đoạn 3: bàn duyệt luật sư | 21–22/11 | R1, R2, R3, R4 | Pi + Claude review | $0.30–0.60 |
+| C. Giai đoạn 1: Gateway, golden set, cổng eval | 18–19/11 | G3, G1, G4, G2, G6 (+ G5 nếu B1 chưa xong); G7 tìm web để sau cùng | Pi + Claude review | $0.41–0.86 (G7 thêm $0.03–0.08) |
+| D. Giai đoạn 2: mô hình thời gian | 19–21/11 | T1, T2, T3, T5, T7, T8; T4 phần code nạp (văn bản gốc do Minh cung cấp) | Pi + Claude review | $0.51–1.06 |
+| E. Giai đoạn 3: bàn duyệt luật sư | 21–22/11 | R1, R2, R3, R4, R6, R7; R5 Verifier bằng model để sau cùng | Pi + Claude review | $0.32–0.66 (R5 thêm $0.03–0.08) |
 | F. Giai đoạn 4: intake, máy tính, án lệ | 23–25/11 | I1, I2, I4; I3 chỉ phần code (chưa chạy batch LLM) | Pi + Claude review | $0.35–0.70 |
+| V. Việc còn sót từ kế hoạch V1–V5 | xen kẽ | VL3 (gộp vào G5), VL4 bật/tắt phòng thủ, VL5 streaming; VL1 và VL6 do Minh, VL2 là lượt đo e2e (chi phí LLM chạy, xem mục 4) | Pi | $0.04–0.11 |
 | G. Dự phòng sửa lỗi, làm lại | suốt quá trình | Mục nào trượt cổng thì làm lại một lần | Pi | $0.40–0.80 |
-| **Tổng coding** | | | | **$1.85–3.70 (trần $4)** |
+| **Tổng coding** | | | | **$2.03–4.19 (trần $4); nếu hoãn G7 và R5: $1.97–4.03** |
+
+Nếu chạm trần $3.20 thì hoãn theo thứ tự: G7 (tìm web), R5 (Verifier bằng model), VL5 (streaming). Số thật sau B1 sẽ quyết định có cần hoãn hay không.
 
 Giai đoạn 5 (thang tự chủ, các agent vận hành) chưa làm vì cần log thật, ít nhất 60–150 ca cho mỗi loại ca. Đây là việc của bản sau.
 
@@ -49,6 +52,8 @@ Nếu E2 cho thấy `medium` vẫn qua gate thì chuyển `pic` sang `medium`. �
 ## 4. Những việc không dùng $4 (cần quyết riêng)
 - **Chi phí chạy sản phẩm:** chat đang dùng router Dahl (đã đóng băng); mục G2 sẽ chuyển sang leo thang theo danh sách nhà cung cấp mà Minh chọn.
 - **I3 tạo thẻ án lệ hàng loạt** bằng model mạnh: đây là chi phí dữ liệu, cần ngân sách riêng sau khi có code.
+- **VL2, đo lại e2e trên gold 50 câu × 3 lần:** khoảng 150 lượt chat. Dahl đã đóng băng; nếu dùng deepseek-flash thì ước khoảng $0.4–0.6. Cần Minh duyệt riêng.
+- **R5, Verifier bằng model khi sản phẩm chạy:** mỗi ca rủi ro cao tốn thêm 1 lượt model trung hoặc mạnh.
 - **Việc của người:**
   - Luật sư gán nhãn golden set (G3, T6) và duyệt văn bản luật mới (T4).
   - Minh cung cấp văn bản gốc và chọn danh sách nhà cung cấp LLM (G2).
