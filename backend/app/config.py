@@ -159,6 +159,9 @@ class Settings(BaseSettings):
     intel_fulltext: bool = True          # tải toàn văn công khai cho tin ưu tiên ≥ 1
     intel_fulltext_max_mb: int = 30      # trần kích thước một tệp toàn văn
     intel_catalog_interval_days: float = 7  # chu kỳ quét lại danh mục án lệ (LI3)
+    # Thư mục inbox (LI4): luật sư tự tải toàn văn về rồi thả vào đây (docker-compose mount ./inbox)
+    inbox_dir: str = "/inbox"
+    inbox_poll_s: int = 60               # nhịp hỏi lại thư mục inbox
     # Chỗ cắm API dữ liệu luật trả phí (LI3): để trống = tắt. Khoá đọc từ biến môi trường
     # có tên `licensed_api_key_env`, không bao giờ ghi log.
     licensed_api_provider: str = ""

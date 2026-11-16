@@ -30,6 +30,7 @@ from app.db.models import LegalDocument, LegalNode, ReviewCase, Thread
 from app.graph.builder import build_graph
 from app.intel import analyze as intel_analyze
 from app.intel import impact as intel_impact
+from app.intel import inbox as intel_inbox
 from app.intel import precedents as intel_precedents
 from app.intel import scheduler as intel_scheduler
 from app.intel import store as intel_store
@@ -1011,6 +1012,19 @@ def intel_scan(background: BackgroundTasks):
 def intel_status():
     """Chu kỳ quét tự động và mốc quét kế tiếp."""
     return intel_scheduler.status()
+
+
+@router.get("/api/intel/inbox", dependencies=REVIEW)
+def intel_inbox_status():
+    """Thư mục inbox (LI4): tệp đang chờ, lượt quét gần nhất và 50 kết quả cuối."""
+    return intel_inbox.status(get_settings().inbox_dir)
+
+
+@router.post("/api/intel/inbox/scan", dependencies=REVIEW)
+def intel_inbox_scan(db: Session = Depends(get_db)):
+    """Quét thư mục inbox ngay (đồng bộ; mỗi lượt chỉ vài tệp)."""
+    counts = intel_inbox.scan_inbox(db, get_settings().inbox_dir)
+    return {**intel_inbox.status(get_settings().inbox_dir), "counts": counts}
 
 
 @router.get("/api/intel/runs", dependencies=REVIEW)

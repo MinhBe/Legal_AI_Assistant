@@ -1579,6 +1579,17 @@ a.calc-chip:hover { color: var(--foreground); background: var(--muted); }
 .intel-precedent-bi_huy_bo { color: var(--destructive); border-color: var(--destructive); }
 .intel-precedent-chua_ro { color: var(--muted-foreground); }
 
+/* ---------- LI4: thư mục inbox (luật sư tự tải toàn văn về) ---------- */
+.intel-inbox {
+  margin: 14px 20px 0; padding: 12px 16px; display: flex; flex-direction: column; gap: 6px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
+  max-width: 940px;
+}
+.intel-inbox-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.intel-inbox-head .intel-field { flex: 1; }
+.intel-inbox-title { font-size: 13px; font-weight: 600; }
+.intel-inbox-row { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
 /* Cảnh báo vàng ở /tinh khi có tin mới chờ luật sư duyệt */
 .calc-warn-banner {
   display: flex; flex-direction: column; gap: 4px; padding: 9px 12px;

@@ -35,6 +35,8 @@ services:
     volumes:
       - ./backend:/app
       - ./data:/app/data
+      # thư mục inbox (LI4): luật sư tự tải toàn văn về rồi thả vào đây, đọc-ghi để chuyển tệp sang done/
+      - ./inbox:/inbox
       - modelcache:/root/.cache
       # key mô hình đám mây (CLOUD_LLM_KEYS_DIR), chỉ đọc; keys/ nằm trong .gitignore và .dockerignore
       - ./keys:/keys:ro

@@ -105,6 +105,22 @@ type Precedent = {
   upload_url: string;
 };
 type Tab = "queue" | "all" | "digest" | "precedents" | "approved" | "ignored";
+// LI4: thư mục inbox nơi luật sư tự thả tệp toàn văn đã tải về
+type InboxFile = {
+  filename: string;
+  number: string;
+  upload_id: string | null;
+  matched_item_ids: string[];
+  moved_to: string;
+  at: string;
+};
+type InboxStatus = {
+  dir: string;
+  pending_files: number;
+  last_scan_at: string | null;
+  last_counts: Record<string, number>;
+  recent: InboxFile[];
+};
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "queue", label: "Cần xem" },
@@ -152,6 +168,11 @@ function day(iso: string | null): string {
 
 function clock(iso: string): string {
   return new Date(iso).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+}
+
+// Đường dẫn trong container (/inbox) hiển thị như trên máy Windows (RAG\inbox)
+function windowsPath(dir: string): string {
+  return `RAG${dir}`.replace(/\//g, "\\");
 }
 
 function priorityBadge(priority: number) {
@@ -313,24 +334,27 @@ function TinMoiPageInner() {
   const [digest, setDigest] = useState<DigestDay[]>([]);
   const [precedents, setPrecedents] = useState<Precedent[]>([]);
   const [auto, setAuto] = useState<Auto | null>(null);
+  const [inboxStatus, setInboxStatus] = useState<InboxStatus | null>(null);
   const [tab, setTab] = useState<Tab>("queue");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [r, i, s, d, p] = await Promise.all([
+    const [r, i, s, d, p, b] = await Promise.all([
       apiFetch("/api/intel/runs?limit=5").then((res) => res.json()).catch(() => []),
       apiFetch("/api/intel/items").then((res) => res.json()).catch(() => []),
       apiFetch("/api/intel/status").then((res) => res.json()).catch(() => null),
       apiFetch("/api/intel/digest?days=7").then((res) => res.json()).catch(() => []),
       apiFetch("/api/intel/precedents").then((res) => res.json()).catch(() => []),
+      apiFetch("/api/intel/inbox").then((res) => res.json()).catch(() => null),
     ]);
     setRuns(Array.isArray(r) ? r : []);
     setItems(Array.isArray(i) ? i : []);
     setDigest(Array.isArray(d) ? d : []);
     setPrecedents(Array.isArray(p) ? p : []);
     setAuto(s && typeof s.interval_hours === "number" ? s : null);
+    setInboxStatus(b && typeof b.pending_files === "number" ? b : null);
     setLoading(false);
   }, []);
 
@@ -367,6 +391,16 @@ function TinMoiPageInner() {
       if (!res.ok) throw new Error(String(res.status));
       await load();
     } catch (e) { setErr(e instanceof Error ? e.message : "Không gửi được"); }
+    finally { setBusy(false); }
+  }
+
+  async function scanInbox() {
+    setBusy(true); setErr("");
+    try {
+      const res = await apiFetch("/api/intel/inbox/scan", { method: "POST" });
+      if (!res.ok) throw new Error(String(res.status));
+      await load();
+    } catch (e) { setErr(e instanceof Error ? e.message : "Không quét được inbox"); }
     finally { setBusy(false); }
   }
 
@@ -423,6 +457,29 @@ function TinMoiPageInner() {
         {last?.error && <span className="intel-err">{last.error}</span>}
         {err && <span className="intel-err">{err}</span>}
       </div>
+
+      <section className="intel-inbox">
+        <div className="intel-inbox-head">
+          <b className="intel-inbox-title">Thư mục inbox</b>
+          <span className="intel-field">
+            {windowsPath(inboxStatus?.dir || "/inbox")} · {inboxStatus?.pending_files ?? 0} tệp chờ quét
+            {inboxStatus?.last_scan_at && ` · quét lúc ${day(inboxStatus.last_scan_at)}`}
+          </span>
+          <button className="intel-scan" onClick={scanInbox} disabled={busy || running}>
+            Quét inbox ngay
+          </button>
+        </div>
+        {inboxStatus && inboxStatus.recent.length === 0 && (
+          <div className="intel-empty">Chưa có tệp nào được nạp từ inbox.</div>
+        )}
+        {(inboxStatus?.recent ?? []).slice(0, 5).map((row) => (
+          <div className="intel-field intel-inbox-row" key={`${row.filename}-${row.at}`}>
+            <b>{row.filename}</b> · {row.number || "không rõ số hiệu"} · khớp {row.matched_item_ids.length} tin
+            {row.upload_id ? " · chờ duyệt" : " · lỗi"}
+            {row.moved_to && ` · ${row.moved_to}`}
+          </div>
+        ))}
+      </section>
 
       <div className="intel-tabs">
         {TABS.map((t) => (

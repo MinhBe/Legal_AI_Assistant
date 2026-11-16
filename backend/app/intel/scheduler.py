@@ -9,11 +9,14 @@ cả lượt quét, đóng ở cuối lượt. Fetcher có client tiêm vào (te
 
 Danh mục án lệ (LI3) quét theo nhịp riêng `intel_catalog_interval_days` (mặc định 7 ngày),
 trong cùng khoá với lượt quét tin để không có hai trình duyệt chạy cùng lúc.
+
+Thư mục inbox (LI4) được hỏi lại mỗi `inbox_poll_s` giây (mặc định 60), cũng trong cùng khoá.
 """
 
 from __future__ import annotations
 
 import threading
+import time
 from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -24,7 +27,7 @@ from sqlalchemy import select
 from app.config import get_settings
 from app.db.base import SessionLocal
 from app.db.models import IntelRun
-from app.intel import analyze, fetch, fulltext, precedents, sources, store
+from app.intel import analyze, fetch, fulltext, inbox, precedents, sources, store
 from app.intel.fetch import BLOCKED_STATUS, Fetcher
 
 TZ = ZoneInfo("Asia/Ho_Chi_Minh")
@@ -203,6 +206,24 @@ def run_catalog(trigger: str = "catalog") -> int | None:
         _LOCK.release()
 
 
+def run_inbox(trigger: str = "schedule") -> dict[str, int] | None:
+    """Một lượt quét thư mục inbox (LI4). None = đang có lượt quét khác chạy."""
+    if not _LOCK.acquire(blocking=False):
+        logger.info("Đang có lượt quét khác — bỏ lượt quét inbox ({})", trigger)
+        return None
+    db = SessionLocal()
+    try:
+        counts = inbox.scan_inbox(db, get_settings().inbox_dir)
+        logger.info("Quét inbox ({}): {}", trigger, counts)
+        return counts
+    except Exception as exc:  # noqa: BLE001 — vòng nền không được chết vì một lỗi
+        logger.warning("Lượt quét inbox lỗi: {}", exc)
+        return None
+    finally:
+        db.close()
+        _LOCK.release()
+
+
 def next_run_at(now: datetime | None = None) -> datetime | None:
     """Lượt quét tự động kế tiếp; None = chưa quét theo lịch lần nào."""
     current = now or datetime.now(TZ)
@@ -232,10 +253,23 @@ def status() -> dict[str, Any]:
 
 
 def run_forever(interval: float = CHECK_EVERY_S) -> None:
-    """Chờ `interval` giây rồi mới kiểm tra — không quét ngay khi API vừa khởi động."""
-    while not _STOP.wait(interval):
+    """Chờ một nhịp rồi mới kiểm tra — không quét ngay khi API vừa khởi động.
+
+    Nhịp là `inbox_poll_s` (LI4), ngắn hơn `interval` của lượt quét tin; mỗi nhịp chỉ chạy
+    phần nào đã đến hạn.
+    """
+    tick = max(1.0, min(interval, get_settings().inbox_poll_s))
+    last_inbox = time.monotonic()
+    while not _STOP.wait(tick):
         try:
-            if get_settings().intel_enabled and due_now():
+            settings = get_settings()
+            if not settings.intel_enabled:
+                continue
+            now = time.monotonic()
+            if now - last_inbox >= settings.inbox_poll_s:
+                last_inbox = now
+                run_inbox("schedule")
+            if due_now():
                 run_scan("schedule")
         except Exception as exc:  # noqa: BLE001 — luồng nền phải sống tiếp
             logger.warning("Vòng kiểm tra tin mới lỗi: {}", exc)

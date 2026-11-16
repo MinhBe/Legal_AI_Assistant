@@ -28,6 +28,9 @@ data/processed/
 # Models
 models/
 
+# Inbox của luật sư (LI4): tệp toàn văn tự tải về, nội dung không vào git
+inbox/
+
 # OS / editors
 .DS_Store
 Thumbs.db
