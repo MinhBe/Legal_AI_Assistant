@@ -34,6 +34,9 @@ export default function Sidebar({ open, text, convos, activeId, onNew, onOpen, o
         <Link href="/dashboard" className="side-quick-btn">
           <IconDash /> Dashboard
         </Link>
+        <Link href="/tinh" className="side-quick-btn">
+          Máy tính
+        </Link>
       </div>
 
       <div className="side-label">Gần đây</div>

@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 import uuid
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel
@@ -106,6 +106,81 @@ def search(req: SearchRequest, db: Session = Depends(get_db)):
 
     hits = search_nodes(db, req.query, top_k=req.top_k)
     return {"query": req.query, "hits": hits}
+
+
+# ---------- Máy tính theo phiên bản luật (I2) ----------
+_CALC_SPECS = {
+    "notice": ("notice_days", ("contract_type", "employer_side", "term_months"), ()),
+    "service-years": ("service_years", ("start", "end", "unemployment_insured_months"), ("start", "end")),
+    "severance": ("severance", ("avg_salary_6m", "years"), ()),
+    "job-loss": ("job_loss", ("avg_salary_6m", "years"), ()),
+    "unlawful-dismissal": (
+        "unlawful_dismissal",
+        ("monthly_salary", "days_not_working", "notice_days_missing", "daily_salary"),
+        (),
+    ),
+    "limitation": ("limitation", ("discovered_on", "dispute"), ("discovered_on",)),
+}
+_CALC_REQUIRED = {
+    "notice": ("contract_type", "employer_side"),
+    "service-years": ("start", "end"),
+    "severance": ("avg_salary_6m", "years"),
+    "job-loss": ("avg_salary_6m", "years"),
+    "unlawful-dismissal": ("monthly_salary", "days_not_working"),
+    "limitation": ("discovered_on",),
+}
+
+
+@router.post("/api/calc/{kind}")
+def calc_route(
+    kind: str,
+    body: dict[str, Any] = Body(default_factory=dict),
+    db: Session = Depends(get_db),
+):
+    from datetime import date as _date
+
+    from app.amend.timeframe import resolve
+    from app.calc import labor
+
+    spec = _CALC_SPECS.get(kind)
+    if spec is None:
+        raise HTTPException(status_code=404, detail=f"Không có máy tính {kind}")
+    fn_name, names, date_fields = spec
+
+    payload = dict(body or {})
+    raw_event = payload.pop("event_date", None)
+    try:
+        event = _date.fromisoformat(raw_event) if raw_event else _date.today()
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=422, detail="event_date không hợp lệ (cần YYYY-MM-DD)"
+        ) from None
+
+    missing = [n for n in _CALC_REQUIRED[kind] if payload.get(n) is None]
+    if missing:
+        raise HTTPException(status_code=422, detail=f"thiếu {', '.join(missing)}")
+
+    kwargs: dict[str, Any] = {}
+    for name in names:
+        if name not in payload or payload[name] is None:
+            continue
+        value = payload[name]
+        if name in date_fields:
+            try:
+                value = _date.fromisoformat(str(value))
+            except ValueError:
+                raise HTTPException(
+                    status_code=422, detail=f"{name} không hợp lệ (cần YYYY-MM-DD)"
+                ) from None
+        kwargs[name] = value
+
+    try:
+        result = getattr(labor, fn_name)(**kwargs, event_date=event, db=db)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+    result["timeframe_version"] = resolve(db, event, _date.today())["applicable"]
+    return result
 
 
 # ---------- Hiệu lực theo thời gian + sửa đổi (M4) ----------
