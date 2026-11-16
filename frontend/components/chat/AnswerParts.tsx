@@ -5,7 +5,7 @@
 import { useState } from "react";
 
 import { IconCheck, IconChevron, IconLock, IconRefresh, IconSearch } from "@/components/chat/icons";
-import type { Citation, EscalateStatus, Section, TimeFrame } from "@/lib/chat/types";
+import type { Citation, EscalateStatus, Section, TimeFrame, Verifier } from "@/lib/chat/types";
 
 export function ApprovalCard({
   question,
@@ -319,6 +319,32 @@ export function TimeFrameBox({ tf }: { tf: TimeFrame }) {
             <span className="timeframe-flag" key={i}>⚠ {f}</span>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+/* nhãn kết quả Verifier (T5): căn cứ hợp lệ, hoặc danh sách căn cứ bị loại */
+export function VerifierBadge({ v }: { v: Verifier }) {
+  const [open, setOpen] = useState(false);
+  const dropped = v.dropped?.length ?? 0;
+  if (v.ok) {
+    const valid = Math.max(0, v.checked - dropped);
+    return (
+      <div className="verifier verifier-ok">✓ Đã kiểm tra căn cứ: {valid} trích dẫn hợp lệ</div>
+    );
+  }
+  return (
+    <div className="verifier verifier-warn">
+      <button className="verifier-toggle" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        ⚠ Đã loại {dropped} căn cứ không hợp lệ
+      </button>
+      {open && (v.problems?.length ?? 0) > 0 && (
+        <ul className="verifier-problems">
+          {v.problems.map((p, i) => (
+            <li className="verifier-problem" key={i}>{p.message}</li>
+          ))}
+        </ul>
       )}
     </div>
   );

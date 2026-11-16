@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import {
-  ApprovalCard, CitationList, SectionAccordion, StepTimeline, SuggestRewrite, TimeFrameBox,
+  ApprovalCard, CitationList, SectionAccordion, StepTimeline, SuggestRewrite, TimeFrameBox, VerifierBadge,
 } from "@/components/chat/AnswerParts";
 import { IconGraph } from "@/components/chat/icons";
 import type { Msg } from "@/lib/chat/types";
@@ -70,6 +70,8 @@ export default function MessageList({
                 {m.role === "ai" && (m.sections?.length ?? 0) > 0 && (
                   <SectionAccordion sections={m.sections!} />
                 )}
+
+                {m.role === "ai" && m.verifier && <VerifierBadge v={m.verifier} />}
 
                 {m.suggested_query && m.role === "ai" && (
                   <SuggestRewrite

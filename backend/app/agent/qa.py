@@ -19,9 +19,11 @@ from app.agent import guard
 from app.amend import timeframe
 from app.obs import metrics
 from app.agent.followup import history_block, history_budget, search_with_history
+from app.agent.verifier import verify
 from app.db.base import SessionLocal
 from app import prompts
 from app.config import get_settings
+from app.llm.context import get_data_class
 from app.llm.router import LLMError, get_router, parse_json
 from app.rag.search import search_nodes
 
@@ -197,6 +199,35 @@ def _issue_hits(db, issues: list[str], whole: list[dict]) -> list[dict]:
     return out
 
 
+_RETRY_LINE = (
+    "Bản trả lời trước sai căn cứ: {why}. Chỉ trích các điều có trong danh sách "
+    "và còn hiệu lực tại ngày sự kiện."
+)
+
+
+def _run_verify(result: dict, hits: list[dict], as_of: date) -> dict:
+    """Verifier (T5) chạy trên một phiên DB riêng; kho hỏng thì không chặn câu trả lời."""
+    db = SessionLocal()
+    try:
+        return verify(db, result, hits, as_of)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Verifier không chạy được: {}", exc)
+        return {"ok": True, "checked": 0, "problems": [], "dropped": []}
+    finally:
+        db.close()
+
+
+def _retry_answer(router, messages: list[dict], hits: list[dict], v: dict, as_of: date):
+    """Sinh lại một lần cho ca rủi ro cao (mức C) khi Verifier báo lỗi; giữ bản ít lỗi hơn."""
+    why = "; ".join(p["message"] for p in v["problems"][:4]) or "trích dẫn không hợp lệ"
+    msgs = [*messages, {"role": "user", "content": _RETRY_LINE.format(why=why)}]
+    result = _generate(router, msgs, hits)
+    if not result:
+        return None
+    v2 = _run_verify(result, hits, as_of)
+    return (result, v2) if len(v2["problems"]) < len(v["problems"]) else None
+
+
 def _timeframe(db, event: date | None, today: date, message: str) -> dict:
     """Khung thời gian; kho hỏng thì vẫn trả lời, chỉ thiếu hộp thời gian."""
     try:
@@ -232,11 +263,11 @@ def answer_with_citations(message: str, history: list[dict] | None = None) -> It
     if get_settings().inj_filter_chunks:  # D1: lọc đoạn nghi chèn lệnh ngay sau truy hồi
         hits, _dropped = guard.filter_chunks(hits)
     answer = None
+    answer_messages = _answer_messages(
+        hits, convo, message, timeframe_lines=timeframe.summary_lines(tf)
+    ) if hits else []
     if hits:
-        answer = metrics.submit(
-            _POOL, _generate, router,
-            _answer_messages(hits, convo, message, timeframe_lines=timeframe.summary_lines(tf)), hits,
-        )
+        answer = metrics.submit(_POOL, _generate, router, answer_messages, hits)
         yield ("step", {"name": "generate", "label": "Đang soạn câu trả lời có trích dẫn"})
 
     v = verdict.result()
@@ -258,6 +289,13 @@ def answer_with_citations(message: str, history: list[dict] | None = None) -> It
         return
 
     result = answer.result()
+    as_of = event or today
+    v = _run_verify(result, hits, as_of)
+    if not v["ok"] and get_data_class() == "C":
+        yield ("step", {"name": "verify", "label": "Đang kiểm tra lại căn cứ và hiệu lực"})
+        better = _retry_answer(router, answer_messages, hits, v, as_of)
+        if better:
+            result, v = better
 
     # Hỗ trợ cả schema cũ (answer) lẫn schema mới (summary + sections)
     summary = (result.get("summary") or result.get("answer") or "").strip()
@@ -265,9 +303,10 @@ def answer_with_citations(message: str, history: list[dict] | None = None) -> It
     cited_ids: list[str] = result.get("citation_node_ids") or []
     confidence = result.get("confidence")
 
-    # Kiểm tra lại: chỉ giữ node_id thật sự có trong kết quả truy hồi.
+    # Chỉ giữ node_id có trong kết quả truy hồi và qua Verifier (có thật, còn hiệu lực).
     by_id = {h["node_id"]: h for h in hits}
-    valid_global = [cid for cid in cited_ids if cid in by_id]
+    dropped = set(v.get("dropped") or [])
+    valid_global = [cid for cid in cited_ids if cid in by_id and cid not in dropped]
 
     has_content = bool(summary) or bool(sections_raw)
     if not has_content or not valid_global:
@@ -289,7 +328,9 @@ def answer_with_citations(message: str, history: list[dict] | None = None) -> It
 
     # Emit từng section (accordion) với trích dẫn riêng
     for s in sections_raw:
-        sec_ids = [cid for cid in (s.get("citation_node_ids") or []) if cid in by_id]
+        sec_ids = [
+            cid for cid in (s.get("citation_node_ids") or []) if cid in by_id and cid not in dropped
+        ]
         yield ("section", {
             "title": s.get("title", ""),
             "detail": s.get("detail", ""),
@@ -304,6 +345,7 @@ def answer_with_citations(message: str, history: list[dict] | None = None) -> It
         h = by_id[cid]
         yield ("citation", {"n": i, "node_id": cid, "display": h["display"], "text": h["text"]})
 
+    yield ("verifier", v)
     yield ("timeframe", tf)
     yield ("done", {"confidence": confidence})
 

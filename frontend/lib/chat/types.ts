@@ -32,6 +32,19 @@ export type TimeFrame = {
   verify: TimeFrameVerify[];
   flags: string[];
 };
+/* Verifier bằng code (T5): căn cứ có thật, còn hiệu lực tại ngày sự kiện, trích nguyên văn. */
+export type VerifierProblem = {
+  check: "exists" | "in_force" | "quotes";
+  node_id?: string;
+  quote?: string;
+  message: string;
+};
+export type Verifier = {
+  ok: boolean;
+  checked: number;
+  problems: VerifierProblem[];
+  dropped: string[];
+};
 /* Vòng phê duyệt có người thật:
    pending  -> người dùng chưa quyết gửi hay không
    denied   -> người dùng chọn không gửi
@@ -55,6 +68,7 @@ export type Msg = {
   suggest_used?: boolean;
   sections?: Section[];
   timeframe?: TimeFrame;
+  verifier?: Verifier;
 };
 
 export type Conversation = { id: string; title: string; messages: Msg[] };
