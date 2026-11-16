@@ -49,3 +49,4 @@ backend/eval/candidates.md
 # Dữ liệu đo lường và cache chỉ mục (V2–V3)
 data/cache/
 data/metrics/
+data/uploads/

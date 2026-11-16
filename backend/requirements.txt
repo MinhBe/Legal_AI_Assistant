@@ -20,3 +20,8 @@ sentence-transformers>=3.0
 
 underthesea>=6.8
 langfuse>=2.50,<3
+
+# Tải tài liệu lên + OCR (upload-ocr-kg-plan, U1)
+python-multipart>=0.0.20
+pypdfium2>=5.0
+pillow>=11.0

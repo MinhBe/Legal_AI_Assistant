@@ -6,9 +6,10 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app
 
-# Thư viện hệ thống tối thiểu cho psycopg và build nhẹ.
+# Thư viện hệ thống tối thiểu cho psycopg và build nhẹ; tesseract (vie) cho OCR tài liệu tải lên.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential libpq-dev curl \
+        tesseract-ocr tesseract-ocr-vie \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
