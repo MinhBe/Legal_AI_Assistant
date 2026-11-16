@@ -297,6 +297,10 @@ export function TimeFrameBox({ tf }: { tf: TimeFrame }) {
         (r) => `${r.doc_key}: ${r.condition} → ${OUTCOME[r.outcome] ?? r.outcome}`,
       ),
     },
+    {
+      label: "Cần xác minh (văn bản dựa trên luật đã bị thay)",
+      items: (tf.verify ?? []).map((v) => v.reason),
+    },
   ];
   return (
     <div className="timeframe">

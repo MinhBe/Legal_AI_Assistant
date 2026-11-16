@@ -16,6 +16,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.amend.cascade import corpus_freshness, needs_verification
 from app.db.models import (
     DocumentRelation,
     LegalDocument,
@@ -268,6 +269,9 @@ def resolve(
     hint = (topic_hint or "").casefold()
     if any(h in hint for h in _PENALTY_HINTS):
         flags.append(_PENALTY_FLAG)
+    freshness = corpus_freshness(db, advice_date, topic_hint)
+    if freshness["stale"]:
+        flags.append(freshness["message"])
 
     return {
         "event_date": _iso(event_date),
@@ -278,6 +282,7 @@ def resolve(
         "changes_after": changes_after,
         "upcoming": upcoming,
         "transition_rules": transition_rules,
+        "verify": needs_verification(db, as_of, [d["doc_id"] for d in applicable]),
         "flags": flags,
     }
 

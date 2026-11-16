@@ -12,6 +12,14 @@ export type TransitionRule = {
   provision_ref?: string | null;
   note?: string | null;
 };
+export type TimeFrameVerify = {
+  doc_id: string;
+  title?: string | null;
+  base_doc_id: string;
+  base_title: string;
+  since?: string | null;
+  reason: string;
+};
 export type TimeFrame = {
   event_date: string | null;
   event_date_source: string;
@@ -21,6 +29,7 @@ export type TimeFrame = {
   changes_after: TimeFrameChange[];
   upcoming: TimeFrameUpcoming[];
   transition_rules: TransitionRule[];
+  verify: TimeFrameVerify[];
   flags: string[];
 };
 /* Vòng phê duyệt có người thật:

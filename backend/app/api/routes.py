@@ -52,6 +52,21 @@ def health(db: Session = Depends(get_db)):
 
 
 # ---------- Tra cứu điều luật ----------
+@router.get("/api/law/verify")
+def law_verify_route(as_of: str | None = None, db: Session = Depends(get_db)):
+    from datetime import date as _date
+
+    from app.amend.cascade import corpus_freshness, needs_verification
+
+    day = _date.fromisoformat(as_of) if as_of else _date.today()
+    return {
+        "as_of": day.isoformat(),
+        "items": needs_verification(db, day),
+        "freshness": corpus_freshness(db, day),
+    }
+
+
+# đặt sau /api/law/verify để "verify" không bị nuốt bởi tham số đường dẫn
 @router.get("/api/law/{node_id}")
 def get_law(node_id: str, db: Session = Depends(get_db)):
     node = db.get(LegalNode, node_id)
