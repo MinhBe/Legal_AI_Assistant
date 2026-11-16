@@ -19,4 +19,9 @@ ghi các mục được hoãn hoặc làm tắt, để quay lại dọn sau.
 - Trạng thái nghỉ của key đám mây chỉ nằm trong bộ nhớ, mất khi khởi động lại api.
 - `data/metrics/requests.jsonl`: 3 dòng thử có tên/SĐT giả (Trần Văn Bình) từ trước khi che PII, cùng 3 trace
   Langfuse. Xóa khi Minh đồng ý.
+- U8: công tắc "Dùng tài liệu đã duyệt" truyền qua biến module trong `useChat.ts` thay vì props
+  (`components/Chat.tsx` ngoài phạm vi contract); chip "có dùng tài liệu tải lên" nằm ở ô soạn câu hỏi, không gắn
+  theo từng tin nhắn. Gộp vào props + `Msg.uses_uploads`.
+- U8: bộ phân loại câu hỏi chỉ biết 3 văn bản cố định; khi có đoạn khớp từ tài liệu đã duyệt thì bỏ qua kết luận
+  "ngoài kho". Gọn hơn: đưa danh sách tài liệu đã duyệt vào prompt phân loại.
 - Chạy mức C mặc định qua mô hình 7B trong máy trước; 7B từng trích sai điều luật. Cân nhắc `CLOUD_FIRST_FOR_C=true`.

@@ -66,6 +66,7 @@ def _unmask_data(data: object, mapping: dict[str, str]) -> object:
 
 def run_chat(
     message: str, history: list[dict[str, str]] | None = None, mode: str = "law",
+    use_uploads: bool = False,
 ) -> Iterator[tuple[str, object]]:
     """mode="pv": chế độ ẩn, trả lời từ bộ câu hỏi phỏng vấn thay vì kho luật."""
     history = history or []
@@ -83,7 +84,10 @@ def run_chat(
     # Starlette chạy mỗi next() của generator trong một bản sao context mới, nên không
     # bọc cả vòng lặp bằng một scope (giữa các yield mức dữ liệu sẽ rơi về "C" và
     # reset báo lỗi "different Context"). Đặt mức quanh từng bước next() thay vào đó.
-    it = _chat(g.message, g.history, mode, original=message)
+    it = _chat(
+        g.message, g.history, mode, original=message,
+        **{"use_uploads": True} if use_uploads else {},
+    )
     while True:
         with data_class_scope(g.data_class):
             try:
@@ -105,6 +109,7 @@ def _chat(
     mode: str,
     *,
     original: str | None = None,
+    use_uploads: bool = False,
 ) -> Iterator[tuple[str, object]]:
     """Phần còn lại của pipeline; `original` chỉ dùng cho kiểm tra chèn lệnh (chạy
     tại chỗ, không gọi LLM) nên phải là câu gốc chưa che."""
@@ -146,7 +151,7 @@ def _chat(
     if _data_loaded():
         from app.agent.qa import answer_with_citations
 
-        yield from answer_with_citations(message, history)
+        yield from answer_with_citations(message, history, use_uploads=use_uploads)
         return
 
     # M0: LLM thuần.

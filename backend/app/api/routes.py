@@ -260,6 +260,7 @@ class ChatRequest(BaseModel):
     thread_id: str | None = None
     history: list[ChatMessage] = []
     mode: Literal["law", "pv"] = "law"  # "pv": chế độ ẩn, nguồn là bộ câu hỏi phỏng vấn
+    use_uploads: bool = False  # dùng văn bản đã duyệt; chạy mức A, chỉ trong máy
 
 
 @router.post("/api/chat")
@@ -277,7 +278,13 @@ def chat(req: ChatRequest):
                 "chat", mode=req.mode, prompt_version=prompts.active_version("qa_answer"),
                 search_mode=get_settings().search_mode, question=req.message,
             )
-            for event, data in metrics.traced(run_chat(req.message, history, req.mode), ctx):
+            for event, data in metrics.traced(
+                run_chat(
+                    req.message, history, req.mode,
+                    **{"use_uploads": True} if req.use_uploads else {},
+                ),
+                ctx,
+            ):
                 events.append((event, data))
                 yield sse(event, data)
         except Exception as exc:  # noqa: BLE001
@@ -534,6 +541,44 @@ def get_upload_text(upload_id: str, db: Session = Depends(get_db)):
 
     text = service.full_text(db, _upload_or_404(db, upload_id))
     return {"upload_id": upload_id, "chars": len(text), "text": text}
+
+
+@router.get("/api/uploads/{upload_id}/nodes")
+def get_upload_nodes(upload_id: str, db: Session = Depends(get_db)):
+    """Danh sách node của một tệp đã nạp (trang /upload xem nhanh cấu trúc)."""
+    from app.db.models import NodeReference
+
+    row = _upload_or_404(db, upload_id)
+    nodes = []
+    refs: dict[str, list[str]] = {}
+    if row.doc_id:
+        nodes = db.scalars(
+            select(LegalNode)
+            .where(LegalNode.doc_id == row.doc_id)
+            .order_by(LegalNode.seq, LegalNode.node_id)
+        ).all()
+        if nodes:
+            ids = [n.node_id for n in nodes]
+            for from_id, to_id in db.execute(
+                select(NodeReference.from_id, NodeReference.to_id).where(
+                    NodeReference.from_id.in_(ids)
+                )
+            ).all():
+                refs.setdefault(from_id, []).append(to_id)
+    return {
+        "upload_id": upload_id,
+        "doc_id": row.doc_id,
+        "nodes": [
+            {
+                "node_id": n.node_id,
+                "level": n.level,
+                "heading": n.heading or "",
+                "preview": (n.text or "")[:200],
+                "refs": refs.get(n.node_id, []),
+            }
+            for n in nodes
+        ],
+    }
 
 
 @router.patch("/api/uploads/{upload_id}")

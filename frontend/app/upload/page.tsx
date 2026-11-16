@@ -28,6 +28,10 @@ const statusOf = (s: string) => STATUS[s] ?? { label: s, cls: "" };
 const parseMode = (m: string | null) =>
   m === "articles" ? "Điều/Khoản" : m === "sections" ? "Đoạn" : "—";
 
+type DocNode = {
+  node_id: string; level: string; heading: string; preview: string; refs: string[];
+};
+
 // mean_ocr_conf là 0..1; lưu cũ có thể là phần trăm
 const confPct = (c: number | null) =>
   c == null ? "—" : `${Math.round((c <= 1 ? c : c / 100) * 100)}%`;
@@ -39,6 +43,21 @@ export default function UploadPage() {
   const [open, setOpen] = useState<string | null>(null);
   // toàn văn theo upload_id; danh sách chỉ có preview 2000 ký tự đầu
   const [fullText, setFullText] = useState<Record<string, string>>({});
+  // node theo upload_id, tải khi bấm "Xem node"
+  const [nodes, setNodes] = useState<Record<string, DocNode[]>>({});
+  const [openNodes, setOpenNodes] = useState<string | null>(null);
+
+  async function toggleNodes(id: string) {
+    setOpenNodes((o) => (o === id ? null : id));
+    if (nodes[id] !== undefined) return;
+    try {
+      const r = await fetch(`${API_BASE}/api/uploads/${id}/nodes`);
+      if (r.ok) {
+        const d = await r.json();
+        setNodes((m) => ({ ...m, [id]: d.nodes || [] }));
+      }
+    } catch { /* bỏ trống */ }
+  }
 
   async function toggleText(id: string) {
     setOpen((o) => (o === id ? null : id));
@@ -182,6 +201,7 @@ export default function UploadPage() {
                       <td>{r.n_refs ?? "—"}</td>
                       <td className="up-actions" onClick={(e) => e.stopPropagation()}>
                         <Link href={`/graph?doc_id=${encodeURIComponent(r.doc_id)}`} className="up-btn">Xem trên graph</Link>
+                        <button className="up-btn" onClick={() => toggleNodes(r.upload_id)}>Xem node</button>
                         <button className="up-btn" disabled={r.status !== "pending_review"}
                           onClick={() => review(r.upload_id, "approved")}>Duyệt</button>
                         <button className="up-btn" disabled={r.status === "rejected"}
@@ -198,6 +218,34 @@ export default function UploadPage() {
                           <div className="up-preview">
                             {fullText[r.upload_id] ?? (r.preview || r.error || "Không có nội dung xem trước.")}
                           </div>
+                        </td>
+                      </tr>
+                    ),
+                    openNodes === r.upload_id && (
+                      <tr key={`${r.upload_id}-nodes`} className="up-preview-row">
+                        <td colSpan={9}>
+                          {nodes[r.upload_id] === undefined ? (
+                            <div className="up-note">Đang tải node…</div>
+                          ) : nodes[r.upload_id].length === 0 ? (
+                            <div className="up-note">Tệp chưa có node nào.</div>
+                          ) : (
+                            <div className="up-nodes">
+                              {nodes[r.upload_id].map((n) => (
+                                <div className="up-nodes-item" key={n.node_id}>
+                                  <div className="up-nodes-head">
+                                    <span className="up-nodes-level">{n.level}</span>
+                                    {n.heading || n.node_id}
+                                  </div>
+                                  <div className="up-nodes-preview">{n.preview}</div>
+                                  {n.refs.length > 0 && (
+                                    <div className="up-nodes-refs">
+                                      {n.refs.map((t) => <span className="up-nodes-ref" key={t}>{t}</span>)}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ),

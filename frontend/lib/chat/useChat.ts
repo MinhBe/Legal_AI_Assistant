@@ -14,6 +14,20 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 const REFUSAL = "Không đủ căn cứ trong kho văn bản để trả lời chắc chắn câu này.";
 const ESCALATION_POLL_MS = 10_000;
 
+/* Composer giữ công tắc "dùng tài liệu đã duyệt" trong state của nó; useChat đọc cờ
+   ở đây lúc gửi. shortcut: biến module thay cho props vì components/Chat.tsx nằm
+   ngoài phạm vi contract U8 — gộp vào props khi được sửa tệp đó. */
+let useUploads = false;
+let lastUsesUploads = false;
+
+export function setUseUploads(on: boolean) {
+  useUploads = on;
+}
+
+export function lastAnswerUsedUploads() {
+  return lastUsesUploads;
+}
+
 // deferred: replaceState during render makes the Next router warn
 function setUrl(id: string | null) {
   const url = id ? `/?t=${id}` : "/";
@@ -152,6 +166,7 @@ export function useChat(mode: Mode = "law") {
 
   async function run(q: string) {
     setBusy(true);
+    lastUsesUploads = false;
 
     const history = messages.map((m) => ({ role: m.role === "ai" ? "assistant" : "user", content: m.content }));
     // append to the latest state, not this render's snapshot: a patch made just
@@ -168,7 +183,7 @@ export function useChat(mode: Mode = "law") {
       setMessages((m) => m.map((x, i) => (i === m.length - 1 && x.role === "ai" ? fn(x) : x)));
 
     try {
-      await streamChat(API_BASE, { message: q, thread_id: threadId.current, history, mode }, (event, data) => {
+      await streamChat(API_BASE, { message: q, thread_id: threadId.current, history, mode, use_uploads: useUploads }, (event, data) => {
         if (event === "start") threadId.current = threadId.current || data.thread_id;
         else if (event === "step")
           update((ai) => ({
@@ -191,6 +206,7 @@ export function useChat(mode: Mode = "law") {
           update((ai) => ({ ...ai, suggested_query: data.suggested, suggest_reason: data.reason }));
         else if (event === "error") update((ai) => ({ ...ai, content: ai.content + `\n\n⚠️ ${data.message}` }));
         else if (event === "done") {
+          lastUsesUploads = !!data?.uses_uploads;
           update((ai) => {
             // escalate: backend asks for the expert-approval card (questions outside the corpus)
             const isRefusal = ai.content.trim().startsWith(REFUSAL.slice(0, 20)) || !!data?.escalate;

@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
 from loguru import logger
+from sqlalchemy import text
 
 from app.agent import guard
 from app.amend import timeframe
@@ -23,8 +24,8 @@ from app.agent.verifier import verify
 from app.db.base import SessionLocal
 from app import prompts
 from app.config import get_settings
-from app.llm.context import get_data_class
-from app.llm.router import LLMError, get_router, parse_json
+from app.llm.context import data_class_scope, get_data_class
+from app.llm.router import LLMError, LocalModelUnavailable, get_router, parse_json
 from app.rag.search import search_nodes
 
 REFUSAL = "Không đủ căn cứ trong kho văn bản để trả lời chắc chắn câu này."
@@ -76,6 +77,30 @@ def _context(hits: list[dict]) -> str:
         return "\n\n".join(
             f'<dieu_luat id="{h["node_id"]}">\n{h["display"]}\n{h["text"]}\n</dieu_luat>' for h in hits)
     return "\n\n".join(f"[{h['node_id']}] {h['display']}\n{h['text']}" for h in hits)
+
+
+def _upload_hits(db, hits: list[dict]) -> dict[str, str]:
+    """Đánh dấu hit thuộc văn bản tải lên và đổi display thành "Tài liệu tải lên: …".
+    search_nodes không trả doc_type nên tra một lần theo doc_id. Trả về {doc_id: title}."""
+    missing = {h["doc_id"] for h in hits if "doc_type" not in h}
+    if missing:
+        rows = db.execute(
+            text("SELECT doc_id, doc_type, title FROM legal_document WHERE doc_id = ANY(:ids)"),
+            {"ids": list(missing)},
+        ).all()
+        meta = {r[0]: (r[1], r[2]) for r in rows}
+        for h in hits:
+            if "doc_type" not in h:
+                h["doc_type"], h["title"] = meta.get(h["doc_id"], (None, None))
+    titles: dict[str, str] = {}
+    for h in hits:
+        if h.get("doc_type") == "upload":
+            title = h.get("title") or h["doc_id"]
+            titles[h["doc_id"]] = title
+            h["display"] = f"Tài liệu tải lên: {title}"
+            if h.get("heading"):
+                h["display"] += f" — {h['heading']}"
+    return titles
 
 
 def _not_legal(message: str, verdict: dict) -> Iterator[tuple[str, object]]:
@@ -151,6 +176,8 @@ def _generate(router, messages: list[dict[str, str]], hits: list[dict]) -> dict:
 
     try:
         return router.chat(messages, task="answer", temperature=0.0, parse=parse).data
+    except LocalModelUnavailable:
+        raise  # mức A: không có mô hình trong máy thì pipeline báo cho người dùng
     except LLMError as exc:
         logger.info("Không model nào trả lời có căn cứ: {}", exc)
         return {}
@@ -184,11 +211,16 @@ def _split_issues(router, message: str) -> list[str]:
     return [str(q).strip() for q in issues if str(q).strip()][:4]
 
 
-def _issue_hits(db, issues: list[str], whole: list[dict]) -> list[dict]:
+def _issue_hits(
+    db, issues: list[str], whole: list[dict], *, include_uploads: bool = False,
+) -> list[dict]:
     """Mỗi vấn đề góp vài kết quả đầu, rồi tới kết quả của cả đoạn; bỏ trùng."""
     out: list[dict] = []
     seen: set[str] = set()
-    groups = [search_nodes(db, q, top_k=_HITS_PER_ISSUE) for q in issues] + [whole]
+    extra = {"include_uploads": True} if include_uploads else {}
+    groups = [
+        search_nodes(db, q, top_k=_HITS_PER_ISSUE, **extra) for q in issues
+    ] + [whole]
     for group in groups:
         for h in group:
             if h["node_id"] not in seen and len(out) < _MAX_HITS:
@@ -237,7 +269,9 @@ def _timeframe(db, event: date | None, today: date, message: str) -> dict:
         return timeframe.blank(event, today)
 
 
-def answer_with_citations(message: str, history: list[dict] | None = None) -> Iterator[tuple[str, object]]:
+def answer_with_citations(
+    message: str, history: list[dict] | None = None, use_uploads: bool = False,
+) -> Iterator[tuple[str, object]]:
     router = get_router()
     convo = history_block(history, max_tokens=history_budget(message))
     # Phân loại chạy song song với truy hồi và soạn trả lời, nên câu hỏi luật không
@@ -252,13 +286,25 @@ def answer_with_citations(message: str, history: list[dict] | None = None) -> It
         yield ("step", {"name": "retrieve", "label": "Đang tra cứu văn bản"})
         tf = _timeframe(db, event, today, message)
         # sự kiện trong quá khứ: truy hồi đúng bản luật còn hiệu lực ngày đó
-        search = functools.partial(search_nodes, as_of=event) if event else search_nodes
+        search = functools.partial(search_nodes, as_of=event, include_uploads=use_uploads)
         hits = search_with_history(db, message, history, top_k=8, search=search)
         if issues is not None:
             yield ("step", {"name": "split", "label": "Đang tách các vấn đề pháp lý trong tình huống"})
-            hits = _issue_hits(db, issues.result(), hits)
+            hits = _issue_hits(db, issues.result(), hits, include_uploads=use_uploads)
+        upload_titles = _upload_hits(db, hits) if use_uploads else {}
     finally:
         db.close()
+
+    if upload_titles:
+        n_upload = sum(1 for h in hits if h["doc_id"] in upload_titles)
+        logger.info("Dùng tài liệu tải lên: {} đoạn, mức A", n_upload)
+
+    def call(fn, *args):
+        """Văn bản tải lên là mức A: mọi lời gọi LLM sau truy hồi chỉ chạy trong máy."""
+        if not upload_titles:
+            return fn(*args)
+        with data_class_scope("A"):
+            return fn(*args)
 
     if get_settings().inj_filter_chunks:  # D1: lọc đoạn nghi chèn lệnh ngay sau truy hồi
         hits, _dropped = guard.filter_chunks(hits)
@@ -267,10 +313,13 @@ def answer_with_citations(message: str, history: list[dict] | None = None) -> It
         hits, convo, message, timeframe_lines=timeframe.summary_lines(tf)
     ) if hits else []
     if hits:
-        answer = metrics.submit(_POOL, _generate, router, answer_messages, hits)
+        answer = metrics.submit(_POOL, call, _generate, router, answer_messages, hits)
         yield ("step", {"name": "generate", "label": "Đang soạn câu trả lời có trích dẫn"})
 
     v = verdict.result()
+    if v["category"] == guard.OUT_OF_CORPUS and upload_titles:
+        # bộ phân loại chỉ biết kho luật cố định; tài liệu đã duyệt có đoạn khớp thì trả lời được
+        v = {**v, "category": guard.LEGAL}
     if v["category"] != guard.LEGAL:
         logger.info("Câu hỏi nhóm {}: {!r}", v["category"], message[:120])
         yield from _not_legal(message, v)
@@ -279,13 +328,13 @@ def answer_with_citations(message: str, history: list[dict] | None = None) -> It
     if not hits:
         # Thử viết lại câu hỏi bằng thuật ngữ pháp lý chuẩn
         yield ("step", {"name": "rewrite", "label": "Phân tích và đề xuất câu hỏi pháp lý chuẩn hơn"})
-        rewrite = _suggest_rewrite(router, message)
+        rewrite = call(_suggest_rewrite, router, message)
         if rewrite:
             suggested, reason = rewrite
             yield ("suggest_rewrite", {"original": message, "suggested": suggested, "reason": reason})
         else:
             yield ("token", {"text": REFUSAL})
-        yield ("done", {})
+        yield ("done", {"uses_uploads": bool(upload_titles)})
         return
 
     result = answer.result()
@@ -293,7 +342,7 @@ def answer_with_citations(message: str, history: list[dict] | None = None) -> It
     v = _run_verify(result, hits, as_of)
     if not v["ok"] and get_data_class() == "C":
         yield ("step", {"name": "verify", "label": "Đang kiểm tra lại căn cứ và hiệu lực"})
-        better = _retry_answer(router, answer_messages, hits, v, as_of)
+        better = call(_retry_answer, router, answer_messages, hits, v, as_of)
         if better:
             result, v = better
 
@@ -312,13 +361,13 @@ def answer_with_citations(message: str, history: list[dict] | None = None) -> It
     if not has_content or not valid_global:
         # LLM không tìm ra căn cứ — thử rewrite
         yield ("step", {"name": "rewrite", "label": "Phân tích và đề xuất câu hỏi pháp lý chuẩn hơn"})
-        rewrite = _suggest_rewrite(router, message)
+        rewrite = call(_suggest_rewrite, router, message)
         if rewrite:
             suggested, reason = rewrite
             yield ("suggest_rewrite", {"original": message, "suggested": suggested, "reason": reason})
         else:
             yield ("token", {"text": REFUSAL})
-        yield ("done", {})
+        yield ("done", {"uses_uploads": bool(upload_titles)})
         return
 
     # Stream summary (1-2 câu mở đầu)
@@ -347,7 +396,7 @@ def answer_with_citations(message: str, history: list[dict] | None = None) -> It
 
     yield ("verifier", v)
     yield ("timeframe", tf)
-    yield ("done", {"confidence": confidence})
+    yield ("done", {"confidence": confidence, "uses_uploads": bool(upload_titles)})
 
 
 def _chunks(text: str):
