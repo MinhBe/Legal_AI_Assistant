@@ -118,8 +118,8 @@ def status_of(html: str, number: str = "") -> tuple[str, str]:
     text = html_lib.unescape(re.sub(r"<[^>]+>", " ", raw))
     num = (number or "").lower()
     for line in text.splitlines():
-        for sentence in _SENTENCE.split(line):
-            sentence = " ".join(sentence.split())
+        for raw_sentence in _SENTENCE.split(line):
+            sentence = " ".join(raw_sentence.split())
             if not sentence or len(sentence) > 400:
                 continue
             low = sentence.lower()
