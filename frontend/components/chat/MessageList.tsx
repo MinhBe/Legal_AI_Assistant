@@ -10,7 +10,7 @@ import {
 } from "@/components/chat/AnswerParts";
 import { IconGraph } from "@/components/chat/icons";
 import { useAuth } from "@/lib/auth";
-import type { Msg, Risk } from "@/lib/chat/types";
+import type { Msg, Reading, Risk } from "@/lib/chat/types";
 import type { MODE_TEXT } from "@/lib/mode";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -31,6 +31,14 @@ function RiskBadge({ risk }: { risk: Risk }) {
   }
   if (typeof risk.score !== "number" || risk.score <= 0) return null;
   return <span className="risk risk-low">Rủi ro thấp ({risk.score})</span>;
+}
+
+/* Chip cách đọc câu không dấu (ML2). */
+function ReadingChip({ reading }: { reading: Reading }) {
+  if (reading.lang === "vi") {
+    return <span className="reading reading-vi">Đã hiểu là tiếng Việt: «{reading.vi_text}»</span>;
+  }
+  return <span className="reading reading-en">Understood as English</span>;
 }
 
 export default function MessageList({
@@ -103,6 +111,8 @@ export default function MessageList({
                 )}
 
                 {m.role === "ai" && m.verifier && <VerifierBadge v={m.verifier} />}
+
+                {m.role === "ai" && m.reading && <ReadingChip reading={m.reading} />}
 
                 {m.role === "ai" && m.risk && <RiskBadge risk={m.risk} />}
 

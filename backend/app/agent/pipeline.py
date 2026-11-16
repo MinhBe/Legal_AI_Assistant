@@ -15,7 +15,7 @@ from sqlalchemy import text
 
 from app.agent.followup import CHARS_PER_TOKEN, MAX_QUESTION_TOKENS, est_tokens
 from app.agent.guard import REDIRECT, looks_like_injection
-from app.agent.lang import detect
+from app.agent.lang import choose_reading, detect, is_unaccented
 from app.db.base import SessionLocal
 from app.gateway.classify import gate
 from app.gateway.pii import unmask
@@ -27,6 +27,23 @@ LOCAL_UNAVAILABLE = (
     "Câu hỏi có thông tin cá nhân nên chỉ được xử lý bằng mô hình chạy trong máy, "
     "nhưng mô hình này chưa sẵn sàng. Vui lòng thử lại sau hoặc bỏ thông tin cá nhân khỏi câu hỏi."
 )
+
+CLARIFY_LANGUAGE = (
+    "Bạn đang hỏi bằng tiếng Việt không dấu hay tiếng Anh? Bạn có thể gõ lại có dấu để mình "
+    "trả lời chính xác hơn. / Is your question in English or unaccented Vietnamese?"
+)
+
+
+def _reading_search(query: str, top_k: int = 5) -> list[dict]:
+    """Truy hồi cho bước chọn cách đọc, dùng phiên DB ngắn."""
+    from app.rag.search import search_nodes
+
+    db = SessionLocal()
+    try:
+        return search_nodes(db, query, top_k=top_k)
+    finally:
+        db.close()
+
 
 def too_long_message(message: str) -> str:
     max_chars = int(MAX_QUESTION_TOKENS * CHARS_PER_TOKEN)
@@ -78,7 +95,29 @@ def run_chat(
         yield ("done", {"category": "too_long"})
         return
     g = gate(message, history)
+    if looks_like_injection(message):  # chặn trước bước chọn cách đọc để không tốn LLM/truy hồi
+        logger.warning("Chặn câu chèn lệnh: {!r}", message[:200])
+        yield ("token", {"text": REDIRECT})
+        yield ("done", {"category": "injection"})
+        return
     lang = detect(message)  # câu gốc, trước khi che PII
+    question = g.message
+    if lang == "en" and is_unaccented(question):
+        # Câu không dấu: thử cả cách đọc tiếng Việt (thêm dấu) và tiếng Anh, giữ cái khớp hơn.
+        # lời gọi thêm dấu phải chạy đúng mức dữ liệu của câu hỏi (mức B chỉ được ở trong máy)
+        with data_class_scope(g.data_class):
+            decision = choose_reading(get_router(), _reading_search, question)
+        logger.info("Cách đọc câu không dấu: lang={} scores={}", decision["lang"], decision["scores"])
+        if decision["lang"] == "tie":
+            yield ("token", {"text": CLARIFY_LANGUAGE})
+            yield ("done", {"category": "clarify_language"})
+            return
+        lang = decision["lang"]
+        question = decision["text"]
+        yield (
+            "reading",
+            {"lang": lang, "vi_text": decision["vi_text"], "scores": decision["scores"]},
+        )
     logger.info("Ngôn ngữ câu hỏi: {}", lang)
     logger.info("Gateway: class={} counts={}", g.data_class, g.counts)
     ctx = metrics.current()
@@ -90,7 +129,7 @@ def run_chat(
     # bọc cả vòng lặp bằng một scope (giữa các yield mức dữ liệu sẽ rơi về "C" và
     # reset báo lỗi "different Context"). Đặt mức quanh từng bước next() thay vào đó.
     it = _chat(
-        g.message, g.history, mode, original=message,
+        question, g.history, mode, original=message,
         **{"use_uploads": True} if use_uploads else {},
     )
     while True:
@@ -120,7 +159,10 @@ def _chat(
     tại chỗ, không gọi LLM) nên phải là câu gốc chưa che."""
     router = get_router()
 
-    if looks_like_injection(original if original is not None else message):
+    if looks_like_injection(original if original is not None else message) or looks_like_injection(
+        message
+    ):
+        # Kiểm tra câu gốc và cả bản đã thêm dấu (ML2).
         logger.warning("Chặn câu chèn lệnh: {!r}", message[:200])  # bản đã che PII
         yield ("token", {"text": REDIRECT})
         yield ("done", {"category": "injection"})

@@ -86,6 +86,9 @@ export type CalcItem = {
 };
 export type Calc = { items: CalcItem[] };
 
+/* Cách đọc câu không dấu do backend chọn (ML2): hiện chip để người dùng biết. */
+export type Reading = { lang: "vi" | "en"; vi_text?: string; scores?: Record<string, number> };
+
 export type Msg = {
   role: "user" | "ai";
   content: string;
@@ -106,6 +109,7 @@ export type Msg = {
   risk?: Risk;
   facts?: Facts;
   calc?: Calc;
+  reading?: Reading;
 };
 
 export type Conversation = { id: string; title: string; messages: Msg[] };

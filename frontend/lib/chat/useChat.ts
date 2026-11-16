@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { API_BASE, apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { genId, loadConvos, saveConvos } from "@/lib/chat/storage";
-import type { Calc, Conversation, Facts, Msg, Risk, Section, TimeFrame, Verifier } from "@/lib/chat/types";
+import type { Calc, Conversation, Facts, Msg, Reading, Risk, Section, TimeFrame, Verifier } from "@/lib/chat/types";
 import type { Mode } from "@/lib/mode";
 import { streamChat } from "@/lib/sse";
 
@@ -208,6 +208,8 @@ export function useChat(mode: Mode = "law") {
           update((ai) => ({ ...ai, facts: data as Facts }));
         else if (event === "calc")
           update((ai) => ({ ...ai, calc: data as Calc }));
+        else if (event === "reading")
+          update((ai) => ({ ...ai, reading: data as Reading }));
         else if (event === "risk")
           update((ai) => ({ ...ai, risk: data as Risk }));
         else if (event === "suggest_rewrite")
