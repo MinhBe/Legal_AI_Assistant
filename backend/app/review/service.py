@@ -20,6 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import AnswerRecord, LegalNode, ReviewCase
+from app.review import autonomy, sla, traps
 
 ERROR_LABELS = {
     "sai_trich_dan": "Sai trích dẫn",
@@ -60,28 +61,44 @@ def _json(value: Any, default: Any) -> Any:
         return default
 
 
+# Ca bẫy chưa duyệt phải trông như ca tự động: không lộ nguồn, lý do "(ca kiểm tra)" hay đáp án.
+_TRAP_COVER = [{"code": "high_stakes", "weight": 3,
+                "message": "Giá trị/hậu quả lớn (sa thải, chấm dứt hợp đồng, bồi thường, kỷ luật)"}]
+
+
 def case_row(case: ReviewCase) -> dict:
+    hidden_trap = case.source == "trap" and case.status == "pending"
     return {
         "id": case.id,
         "created_at": case.created_at,
         "question": case.question,
         "risk_score": case.risk_score,
-        "reasons": _json(case.reasons, []),
+        "reasons": _TRAP_COVER if hidden_trap else _json(case.reasons, []),
         "status": case.status,
-        "source": case.source,
+        "source": "auto" if hidden_trap else case.source,
         "answer_id": case.answer_id,
         "thread_id": case.thread_id,
         "case_type": case.case_type,
         "reviewer_text": case.reviewer_text,
         "diff": case.diff,
         "error_labels": _json(case.error_labels, []),
-        "reply": case.reply,
+        "reply": None if hidden_trap else case.reply,
         "reviewed_at": case.reviewed_at,
+        "due_at": sla.due_at(case),
+        "overdue": sla.overdue(case),
     }
 
 
 def _record(db: Session, case: ReviewCase) -> AnswerRecord | None:
     return db.get(AnswerRecord, case.answer_id) if case.answer_id else None
+
+
+def _draft(db: Session, case: ReviewCase) -> str | None:
+    """Bản nháp để duyệt: hồ sơ trả lời, hoặc bản cài lỗi của ca bẫy."""
+    rec = _record(db, case)
+    if rec is not None:
+        return rec.answer
+    return case.reviewer_text if case.source == "trap" else None
 
 
 def _provisions(db: Session, cited: Any) -> list[dict]:
@@ -113,6 +130,7 @@ def package(db: Session, case_id: str) -> dict:
                 "as_of": None, "category": None})
     rec = _record(db, case)
     if rec is None:
+        out["draft"] = _draft(db, case)
         return out
     out.update({
         "draft": rec.answer,
@@ -154,8 +172,7 @@ def act(db: Session, case_id: str, action: str, text: str = "",
         raise LookupError(f"Không tìm thấy ca {case_id}")
     if case.status != "pending":
         raise ValueError(f"Ca đã được xử lý ({case.status})")
-    rec = _record(db, case)
-    draft = rec.answer if rec else None
+    draft = _draft(db, case)
 
     if action in ("light_edit", "heavy_edit"):
         if not text:
@@ -182,6 +199,7 @@ def act(db: Session, case_id: str, action: str, text: str = "",
     # `reply` là bản gửi cho người hỏi: câu trả lời đã duyệt/sửa, hoặc lý do từ chối.
     case.reply = reason if action == "reject" else case.reviewer_text
     db.commit()
+    autonomy.on_review(db, case)
     return case_row(case)
 
 
@@ -204,6 +222,7 @@ def stats(db: Session) -> dict:
         "by_status": by_status,
         "by_label": by_label,
         "approved_rate": round(by_status["approved"] / decided, 4) if decided else None,
+        "traps": traps.trap_stats(db),
     }
 
 

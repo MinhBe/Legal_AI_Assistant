@@ -10,7 +10,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -27,6 +27,7 @@ from app.llm.router import get_router
 from app.pv.library import LAYERS, load_library
 from app.pv.chat import run_pv_chat
 from app.pv.graph import build_pv_graph
+from app.review import autonomy, sla, traps
 from app.review import service as review
 from app.sse import sse
 
@@ -390,13 +391,28 @@ def chat(req: ChatRequest):
             return
         try:
             r = risk.score(req.message, events)
+            question = ctx.get("question") or req.message
+            on_duty = True
+            try:
+                db = SessionLocal()
+                try:
+                    ct = autonomy.case_type(question)
+                    r["case_type"] = ct
+                    r["autonomy_level"] = autonomy.get_level(db, ct)
+                    on_duty = sla.is_on_duty(db)
+                finally:
+                    db.close()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Không đọc được mức tự chủ: {}", exc)
             if r["queue"]:
                 try:
-                    r["case_id"] = _open_review_case(
-                        rec_id, ctx.get("question") or req.message, r, thread_id
-                    )
+                    r["case_id"] = _open_review_case(rec_id, question, r, thread_id)
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Không tạo được ca duyệt: {}", exc)
+                # Mức 1: gửi khách ngay nhưng phải mang nhãn "chưa xác nhận" (design §9.4).
+                r["unconfirmed"] = r.get("autonomy_level") == 1
+                if not on_duty:
+                    r["no_lawyer"] = True
             yield sse("risk", r)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Không chấm được điểm rủi ro: {}", exc)
@@ -435,8 +451,14 @@ def _open_review_case(answer_id, question, r, thread_id) -> str:
             id=case_id, answer_id=answer_id, question=question,
             risk_score=str(r["score"]), reasons=json.dumps(r["reasons"], ensure_ascii=False),
             status="pending", source="auto", thread_id=thread_id,
+            case_type=autonomy.case_type(question),
         ))
         db.commit()
+        # Cứ 20 ca tự động thì trộn một ca bẫy vào hàng đợi (design §15.6).
+        try:
+            traps.maybe_insert_trap(db)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Không chèn được ca bẫy: {}", exc)
         return case_id
     finally:
         db.close()
@@ -484,6 +506,41 @@ def review_labels():
 @router.get("/api/review/stats")
 def review_stats(db: Session = Depends(get_db)):
     return review.stats(db)
+
+
+# ---------- Mức tự chủ theo loại ca (R4) + lịch luật sư trực (R7) ----------
+class AutonomyRequest(BaseModel):
+    level: int = Field(ge=0, le=3)
+    reason: str = ""
+
+
+class DutyRequest(BaseModel):
+    on_duty: bool
+    lawyer: str | None = None
+    backup: str | None = None
+
+
+@router.get("/api/review/autonomy")
+def review_autonomy(db: Session = Depends(get_db)):
+    return autonomy.all_levels(db)
+
+
+@router.patch("/api/review/autonomy/{ct}")
+def review_autonomy_set(ct: str, req: AutonomyRequest, db: Session = Depends(get_db)):
+    try:
+        return autonomy.set_level(db, ct, req.level, req.reason)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/api/review/duty")
+def review_duty(db: Session = Depends(get_db)):
+    return sla.get_duty(db)
+
+
+@router.patch("/api/review/duty")
+def review_duty_set(req: DutyRequest, db: Session = Depends(get_db)):
+    return sla.set_duty(db, req.on_duty, req.lawyer, req.backup)
 
 
 @router.get("/api/review/cases/{case_id}/package")

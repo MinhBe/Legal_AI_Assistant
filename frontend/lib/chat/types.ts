@@ -53,9 +53,20 @@ export type Verifier = {
    rejected -> chuyên gia từ chối (escalate_reply là lý do) */
 export type EscalateStatus = "pending" | "denied" | "waiting" | "approved" | "answered" | "rejected" | null;
 
-/* Điểm rủi ro do backend chấm bằng quy tắc (R1): ca rủi ro cao vào hàng đợi luật sư. */
+/* Điểm rủi ro do backend chấm bằng quy tắc (R1): ca rủi ro cao vào hàng đợi luật sư.
+   Mức tự chủ theo loại ca (R4): mức 1 thì câu trả lời mang nhãn "chưa xác nhận";
+   không có luật sư trực (R7) thì `no_lawyer` bật. */
 export type RiskReason = { code: string; weight: number | "inf"; message: string };
-export type Risk = { score: number | "inf"; queue: boolean; reasons: RiskReason[]; case_id?: string };
+export type Risk = {
+  score: number | "inf";
+  queue: boolean;
+  reasons: RiskReason[];
+  case_id?: string;
+  case_type?: string;
+  autonomy_level?: number;
+  unconfirmed?: boolean;
+  no_lawyer?: boolean;
+};
 
 /* Bảng tình tiết do backend trích từ câu hỏi (I1): nguồn và độ chắc của từng trường. */
 export type FactValue = { value: string | number | string[]; source: string; confidence: number };

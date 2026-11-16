@@ -102,6 +102,18 @@ export default function MessageList({
 
                 {m.role === "ai" && m.risk && <RiskBadge risk={m.risk} />}
 
+                {/* R4: mức tự chủ 1 gửi khách ngay nhưng phải nói rõ là chưa xác nhận */}
+                {m.role === "ai" && m.risk?.unconfirmed && (
+                  <span className="unconfirmed">Chưa được luật sư xác nhận</span>
+                )}
+
+                {/* R7: không có luật sư trực thì câu trả lời chưa được duyệt ngay */}
+                {m.role === "ai" && m.risk?.no_lawyer && (
+                  <span className="unconfirmed">
+                    Hiện không có luật sư trực: câu trả lời chưa được gửi duyệt ngay
+                  </span>
+                )}
+
                 {m.suggested_query && m.role === "ai" && (
                   <SuggestRewrite
                     suggested={m.suggested_query}

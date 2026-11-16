@@ -319,3 +319,30 @@ class ReviewCase(Base):
     reply: Mapped[str | None] = mapped_column(Text)
     thread_id: Mapped[str | None] = mapped_column(String(64))
     case_type: Mapped[str | None] = mapped_column(String(32))
+
+
+class AutonomyLevel(Base):
+    """Mức tự chủ theo loại ca (R4, design §9.4): thiếu dòng = mức 0."""
+
+    __tablename__ = "autonomy_level"
+
+    case_type: Mapped[str] = mapped_column(String(32), primary_key=True)
+    level: Mapped[int] = mapped_column(Integer, default=0)
+    reason: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class DutyStatus(Base):
+    """Lịch luật sư trực (R7, design §15.5) — một dòng duy nhất id=1."""
+
+    __tablename__ = "duty_status"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    on_duty: Mapped[bool] = mapped_column(default=True)
+    lawyer: Mapped[str] = mapped_column(String(64), default="Luật sư chính")
+    backup: Mapped[str] = mapped_column(String(64), default="Luật sư dự phòng")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

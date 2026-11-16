@@ -15,7 +15,7 @@ type RiskReason = { code: string; weight: number | "inf"; message: string };
 type CaseRow = {
   id: string; created_at: string; question: string; risk_score: string;
   reasons: RiskReason[]; status: string; source: string; answer_id: string | null;
-  thread_id?: string | null;
+  thread_id?: string | null; due_at: string | null; overdue: boolean;
 };
 type Provision = { node_id: string; doc_id: string | null; heading: string | null; text: string };
 type Pkg = CaseRow & {
@@ -33,11 +33,21 @@ type Pkg = CaseRow & {
 type Stats = {
   total: number; by_status: Record<string, number>;
   by_label: Record<string, number>; approved_rate: number | null;
+  traps?: { total: number; reviewed: number; caught: number; catch_rate: number | null };
 };
+type Duty = { on_duty: boolean; lawyer: string; backup: string };
+type Autonomy = { case_type: string; level: number; reason: string | null };
 type Action = "approve" | "light_edit" | "heavy_edit" | "reject";
 type Filter = "pending" | "done" | "all";
 
-const SOURCE_LABEL: Record<string, string> = { auto: "Tự động", user: "Người dùng gửi" };
+/* Ca bẫy (R3) dùng nhãn như ca tự động: hàng đợi không được lộ ca nào là bẫy. */
+const SOURCE_LABEL: Record<string, string> = {
+  auto: "Tự động", user: "Người dùng gửi", trap: "Tự động",
+};
+const CASE_TYPE_LABEL: Record<string, string> = {
+  cham_dut: "Chấm dứt", tien_luong: "Tiền lương", nghi_ngoi: "Nghỉ ngơi",
+  ky_luat: "Kỷ luật", hop_dong: "Hợp đồng", khac: "Khác",
+};
 const STATUS_LABEL: Record<string, string> = {
   pending: "Chờ duyệt", approved: "Duyệt thẳng", light_edit: "Sửa nhẹ",
   heavy_edit: "Sửa nhiều", rejected: "Từ chối",
@@ -49,6 +59,15 @@ function timeAgo(iso: string): string {
   if (m < 60) return `${m} phút trước`;
   const h = Math.floor(m / 60);
   return h < 24 ? `${h} giờ trước` : `${Math.floor(h / 24)} ngày trước`;
+}
+
+/* Hạn duyệt (R7): "Hạn 10:00 05/05". */
+function dueLabel(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `Hạn ${d.toLocaleString("vi-VN", {
+    day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+  })}`;
 }
 
 function Diff({ text }: { text: string }) {
@@ -79,18 +98,24 @@ export default function ReviewPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
+  const [duty, setDuty] = useState<Duty | null>(null);
+  const [levels, setLevels] = useState<Autonomy[]>([]);
 
   const load = useCallback(async () => {
-    const [c, s, l] = await Promise.all([
+    const [c, s, l, d, a] = await Promise.all([
       fetch(`${API_BASE}/api/review/cases?status=all`).then((r) => r.json()).catch(() => []),
       fetch(`${API_BASE}/api/review/stats`).then((r) => r.json()).catch(() => null),
       fetch(`${API_BASE}/api/review/labels`).then((r) => r.json()).catch(() => ({})),
+      fetch(`${API_BASE}/api/review/duty`).then((r) => r.json()).catch(() => null),
+      fetch(`${API_BASE}/api/review/autonomy`).then((r) => r.json()).catch(() => []),
     ]);
     const rows: CaseRow[] = Array.isArray(c) ? c : [];
     rows.sort((a, b) => Number(b.status === "pending") - Number(a.status === "pending"));
     setCases(rows);
     setStats(s as Stats | null);
     setLabelNames(l && typeof l === "object" ? (l as Record<string, string>) : {});
+    setDuty(d as Duty | null);
+    setLevels(Array.isArray(a) ? (a as Autonomy[]) : []);
     setLoading(false);
   }, []);
 
@@ -146,6 +171,26 @@ export default function ReviewPage() {
     }
   }
 
+  async function toggleDuty() {
+    if (!duty) return;
+    const r = await fetch(`${API_BASE}/api/review/duty`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ on_duty: !duty.on_duty }),
+    });
+    if (r.ok) setDuty((await r.json()) as Duty);
+    await load();
+  }
+
+  async function changeLevel(ct: string, level: number) {
+    const r = await fetch(`${API_BASE}/api/review/autonomy/${ct}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ level, reason: "" }),
+    });
+    if (r.ok) await load();
+  }
+
   const shown = cases.filter((c) =>
     filter === "all" ? true : filter === "pending" ? c.status === "pending" : c.status !== "pending");
 
@@ -154,18 +199,44 @@ export default function ReviewPage() {
   const top = Object.entries(stats?.by_label ?? {})
     .sort((a, b) => b[1] - a[1]).slice(0, 3)
     .map(([key, n]) => `${labelNames[key] ?? key} ${n}`).join(" · ") || "—";
+  const trapRate = stats?.traps?.catch_rate == null
+    ? "—" : `${Math.round(stats.traps.catch_rate * 100)}%`;
 
   return (
     <div className="rv-shell">
       <div className="rv-header">
         <Link href="/dashboard" className="rv-back">← Dashboard</Link>
         <span className="rv-title">Bàn duyệt luật sư</span>
+        {duty && (
+          <div className="rv-duty">
+            <span className="rv-w">{duty.lawyer} · dự phòng: {duty.backup}</span>
+            <button className={`rv-btn ${duty.on_duty ? "rv-btn-ok" : "rv-btn-bad"}`}
+              onClick={() => void toggleDuty()}>
+              {duty.on_duty ? "Đang trực" : "Không có luật sư trực"}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="rv-strip">
         <div className="rv-stat"><b>{pending}</b><span>Ca chờ duyệt</span></div>
         <div className="rv-stat"><b>{rate}</b><span>Tỷ lệ duyệt thẳng</span></div>
+        <div className="rv-stat"><b>{trapRate}</b><span>Tỷ lệ bắt ca bẫy</span></div>
         <div className="rv-stat"><b>{top}</b><span>Nhãn lỗi nhiều nhất</span></div>
+      </div>
+
+      <div className="rv-autonomy">
+        <span className="rv-h">Mức tự chủ</span>
+        {levels.map((a) => (
+          <label className="rv-autonomy-row" key={a.case_type}>
+            <span>{CASE_TYPE_LABEL[a.case_type] ?? a.case_type}</span>
+            <select className="rv-select" value={a.level}
+              onChange={(e) => void changeLevel(a.case_type, Number(e.target.value))}>
+              {[0, 1, 2, 3].map((n) => <option key={n} value={n}>Mức {n}</option>)}
+            </select>
+            {a.reason && <span className="rv-w">{a.reason}</span>}
+          </label>
+        ))}
       </div>
 
       <div className="rv-body">
@@ -191,6 +262,9 @@ export default function ReviewPage() {
                     {c.risk_score === "inf" ? "∞" : c.risk_score}
                   </span>
                   <span className="rv-src">{SOURCE_LABEL[c.source] ?? c.source}</span>
+                  <span className={`rv-due ${c.overdue ? "late" : ""}`}>
+                    {c.overdue ? "Quá hạn" : dueLabel(c.due_at)}
+                  </span>
                   <span className="rv-time">{timeAgo(c.created_at)}</span>
                 </div>
                 <div className="rv-q">{c.question.slice(0, 120)}</div>
