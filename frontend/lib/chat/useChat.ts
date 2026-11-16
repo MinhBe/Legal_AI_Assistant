@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { genId, loadConvos, saveConvos } from "@/lib/chat/storage";
-import type { Conversation, Msg, Section } from "@/lib/chat/types";
+import type { Conversation, Msg, Section, TimeFrame } from "@/lib/chat/types";
 import type { Mode } from "@/lib/mode";
 import { streamChat } from "@/lib/sse";
 
@@ -181,6 +181,8 @@ export function useChat(mode: Mode = "law") {
           update((ai) => ({ ...ai, citations: [...(ai.citations ?? []), data] }));
         else if (event === "section")
           update((ai) => ({ ...ai, sections: [...(ai.sections ?? []), data as Section] }));
+        else if (event === "timeframe")
+          update((ai) => ({ ...ai, timeframe: data as TimeFrame }));
         else if (event === "suggest_rewrite")
           update((ai) => ({ ...ai, suggested_query: data.suggested, suggest_reason: data.reason }));
         else if (event === "error") update((ai) => ({ ...ai, content: ai.content + `\n\n⚠️ ${data.message}` }));

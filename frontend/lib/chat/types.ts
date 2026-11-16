@@ -1,5 +1,28 @@
 export type Citation = { n?: number; node_id: string; display?: string; text?: string };
 export type Section = { title: string; detail: string; citations: Citation[] };
+
+/* Khung thời gian do backend chốt (T2): luật áp dụng tại ngày sự kiện và các thay đổi sau đó. */
+export type TimeFrameDoc = { doc_id: string; title?: string | null; number?: string | null };
+export type TimeFrameChange = TimeFrameDoc & { effective_date?: string | null; replaces: string[] };
+export type TimeFrameUpcoming = TimeFrameDoc & { effective_date?: string | null; status?: string };
+export type TransitionRule = {
+  doc_key: string;
+  condition: string;
+  outcome: string;
+  provision_ref?: string | null;
+  note?: string | null;
+};
+export type TimeFrame = {
+  event_date: string | null;
+  event_date_source: string;
+  advice_date: string;
+  as_of: string;
+  applicable: TimeFrameDoc[];
+  changes_after: TimeFrameChange[];
+  upcoming: TimeFrameUpcoming[];
+  transition_rules: TransitionRule[];
+  flags: string[];
+};
 /* Vòng phê duyệt có người thật:
    pending  -> người dùng chưa quyết gửi hay không
    denied   -> người dùng chọn không gửi
@@ -22,6 +45,7 @@ export type Msg = {
   suggest_reason?: string;
   suggest_used?: boolean;
   sections?: Section[];
+  timeframe?: TimeFrame;
 };
 
 export type Conversation = { id: string; title: string; messages: Msg[] };

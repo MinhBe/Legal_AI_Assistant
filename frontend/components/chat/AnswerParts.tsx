@@ -5,7 +5,7 @@
 import { useState } from "react";
 
 import { IconCheck, IconChevron, IconLock, IconRefresh, IconSearch } from "@/components/chat/icons";
-import type { Citation, EscalateStatus, Section } from "@/lib/chat/types";
+import type { Citation, EscalateStatus, Section, TimeFrame } from "@/lib/chat/types";
 
 export function ApprovalCard({
   question,
@@ -253,6 +253,69 @@ export function CitationList({ citations }: { citations: Citation[] }) {
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+/* hộp "Khung thời gian": backend chốt luật áp dụng tại ngày sự kiện */
+const dmy = (iso?: string | null) => (iso ? iso.split("-").reverse().join("/") : "—");
+const docLabel = (d: { title?: string | null; number?: string | null; doc_id: string }) =>
+  d.title || d.number || d.doc_id;
+
+const OUTCOME: Record<string, string> = {
+  old_law: "áp dụng luật cũ",
+  new_law: "áp dụng luật mới",
+  mixed: "kết hợp luật cũ và mới",
+};
+
+export function TimeFrameBox({ tf }: { tf: TimeFrame }) {
+  const rows: { label: string; items: string[] }[] = [
+    {
+      label: "Ngày sự kiện",
+      items: [
+        tf.event_date
+          ? `${dmy(tf.event_date)} (${tf.event_date_source})`
+          : `không nêu — dùng ngày tư vấn ${dmy(tf.as_of)}`,
+      ],
+    },
+    { label: "Luật áp dụng", items: (tf.applicable ?? []).map(docLabel) },
+    {
+      label: "Thay đổi sau sự kiện",
+      items: (tf.changes_after ?? []).map(
+        (c) => `${docLabel(c)} — hiệu lực ${dmy(c.effective_date)}`,
+      ),
+    },
+    {
+      label: "Sắp thay đổi (không làm căn cứ)",
+      items: (tf.upcoming ?? []).map(
+        (u) => `${docLabel(u)} — ${dmy(u.effective_date)}${u.status ? ` (${u.status})` : ""}`,
+      ),
+    },
+    {
+      label: "Điều khoản chuyển tiếp đã xét",
+      items: (tf.transition_rules ?? []).map(
+        (r) => `${r.doc_key}: ${r.condition} → ${OUTCOME[r.outcome] ?? r.outcome}`,
+      ),
+    },
+  ];
+  return (
+    <div className="timeframe">
+      <div className="timeframe-title">Khung thời gian</div>
+      {rows.map((r) => (
+        <div className="timeframe-row" key={r.label}>
+          <span className="timeframe-label">{r.label}</span>
+          <span className="timeframe-val">
+            {r.items.length === 0 ? <span className="timeframe-empty">không có</span> : r.items.join("; ")}
+          </span>
+        </div>
+      ))}
+      {(tf.flags ?? []).length > 0 && (
+        <div className="timeframe-flags">
+          {tf.flags.map((f, i) => (
+            <span className="timeframe-flag" key={i}>⚠ {f}</span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
