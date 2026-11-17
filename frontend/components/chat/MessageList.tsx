@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import {
-  ApprovalCard, CalcBox, CitationList, FactsBox, SectionAccordion, StepTimeline, SuggestRewrite,
+  ApprovalCard, CalcBox, CitationList, FactsBox, HintsBox, SectionAccordion, StepTimeline, SuggestRewrite,
   TimeFrameBox, VerifierBadge,
 } from "@/components/chat/AnswerParts";
 import { IconGraph } from "@/components/chat/icons";
@@ -111,6 +111,8 @@ export default function MessageList({
                 )}
 
                 {m.role === "ai" && m.verifier && <VerifierBadge v={m.verifier} />}
+
+                {m.role === "ai" && m.hints && <HintsBox hints={m.hints} />}
 
                 {m.role === "ai" && m.reading && <ReadingChip reading={m.reading} />}
 

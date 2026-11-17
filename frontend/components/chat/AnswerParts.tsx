@@ -5,7 +5,7 @@
 import { useState } from "react";
 
 import { IconCheck, IconChevron, IconLock, IconRefresh, IconSearch } from "@/components/chat/icons";
-import type { Calc, FactValue, Facts, Citation, EscalateStatus, Section, TimeFrame, Verifier } from "@/lib/chat/types";
+import type { Calc, FactValue, Facts, Citation, EscalateStatus, Hints, Section, TimeFrame, Verifier } from "@/lib/chat/types";
 
 export function ApprovalCard({
   question,
@@ -455,6 +455,55 @@ export function CalcBox({ calc }: { calc: Calc }) {
             {item.note || "Kết quả tính tự động — cần luật sư đối chiếu"}
           </div>
         </div>
+      ))}
+    </div>
+  );
+}
+
+/* hộp "Tham khảo thêm" (PR1): án lệ/bài toán đã duyệt — chỉ để đọc, không phải căn cứ. */
+const PREC_STATUS: Record<string, string> = {
+  dang_ap_dung: "đang áp dụng",
+  bi_huy_bo: "bị hủy bỏ",
+  chua_ro: "chưa rõ",
+};
+
+export function HintsBox({ hints }: { hints: Hints }) {
+  const precedents = hints.precedents ?? [];
+  const problems = hints.problems ?? [];
+  if (precedents.length === 0 && problems.length === 0) return null;
+  return (
+    <div className="prec-hint">
+      <div className="prec-hint-title">Tham khảo thêm</div>
+      {precedents.length > 0 && (
+        <>
+          <div className="prec-hint-label">
+            Án lệ có thể liên quan — chưa được luật sư xác nhận áp dụng cho trường hợp này
+          </div>
+          {precedents.map((p) => (
+            <a
+              key={`${p.number}-${p.url}`}
+              className="prec-hint-item"
+              href={p.url || "#"}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span className="prec-hint-num">Án lệ {p.number}</span>
+              <span className="prec-hint-name">{p.title}</span>
+              <span className={`prec-hint-status ${p.status}`}>
+                {PREC_STATUS[p.status] ?? p.status}
+              </span>
+              <span className="prec-hint-sim">{Math.round(p.similarity * 100)}%</span>
+            </a>
+          ))}
+        </>
+      )}
+      {problems.map((p) => (
+        <a key={p.id} className="prec-hint-item" href="/bai-toan">
+          <span className="prec-hint-name">{p.title}</span>
+          <span className="prec-hint-label">
+            Bài toán đã được luật sư {p.approved_by || "(chưa rõ)"} duyệt
+          </span>
+        </a>
       ))}
     </div>
   );

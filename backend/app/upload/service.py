@@ -17,7 +17,7 @@ from app.audio import CONSENT_MSG, ConsentRequired
 from app.audio import SUFFIXES as AUDIO_SUFFIXES
 from app.config import get_settings
 from app.db.base import SessionLocal
-from app.db.models import LegalDocument, LegalNode, UploadedFile
+from app.db.models import LegalDocument, LegalNode, UploadOption, UploadedFile
 from app.upload.extract import IMAGE_MIMES, MAX_BYTES, TooLarge, UnsupportedFile, extract
 from app.upload.ingest import delete_upload, ingest_upload, make_doc_id
 
@@ -39,6 +39,21 @@ def text_path(sha256_hex: str) -> Path:
 def is_audio(filename: str) -> bool:
     """Tệp ghi âm/ghi hình đi đường chép lời (AU1) chứ không phải OCR."""
     return Path(filename).suffix.lower() in AUDIO_SUFFIXES
+
+
+def get_allow_dahl(db: Session, upload_id: str) -> bool:
+    """Công tắc Dahl của một tệp (AU2); thiếu dòng = tắt."""
+    option = db.get(UploadOption, upload_id)
+    return bool(option and option.allow_dahl)
+
+
+def set_option(db: Session, upload_id: str, *, allow_dahl: bool, set_by: str = "") -> None:
+    """Ghi công tắc Dahl cho một tệp; mặc định tắt, bật thì chỉ gửi bản ĐÃ CHE."""
+    option = db.get(UploadOption, upload_id) or UploadOption(upload_id=upload_id)
+    option.allow_dahl = bool(allow_dahl)
+    option.set_by = (set_by or "")[:32]
+    db.add(option)
+    db.commit()
 
 
 def full_text(db: Session, row: UploadedFile) -> str:
@@ -160,13 +175,20 @@ def _process(
 
 
 def save_upload(
-    db: Session, data: bytes, filename: str, title: str | None = None
+    db: Session,
+    data: bytes,
+    filename: str,
+    title: str | None = None,
+    *,
+    allow_dahl: bool = False,
+    set_by: str = "",
 ) -> UploadedFile:
     """Lưu tệp rồi nạp thành node ngay trong lượt gọi (test và script dùng)."""
     precheck(data, filename)
     row, is_new = register_upload(db, data, filename, title=title)
     if not is_new:
         return row
+    set_option(db, row.upload_id, allow_dahl=allow_dahl, set_by=set_by)
     process_upload(row.upload_id, data, filename, title)
     db.refresh(row)
     return row

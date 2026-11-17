@@ -1640,3 +1640,85 @@ a.calc-chip:hover { color: var(--foreground); background: var(--muted); }
   border: 1px solid var(--border); color: var(--muted-foreground);
 }
 .tpl-actions { display: flex; gap: 6px; }
+
+/* ---------- AU2: bài toán rút từ ghi âm / ghi chú nhóm ---------- */
+.bt-note { font-size: 13px; color: var(--muted-foreground); margin: 0 0 12px; }
+.bt-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.bt-tab {
+  font: inherit; font-size: 13px; padding: 6px 14px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--card); color: var(--muted-foreground);
+}
+.bt-tab.active { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+.bt-card {
+  display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; padding: 14px 16px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
+}
+.bt-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.bt-title { font-size: 15px; font-weight: 600; }
+.bt-status {
+  font-size: 11px; padding: 2px 8px; border-radius: 20px;
+  border: 1px solid var(--border); color: var(--muted-foreground);
+}
+.bt-status.da_duyet { border-color: oklch(0.7 0.15 150); color: oklch(0.45 0.13 150); }
+.bt-status.bac_bo { border-color: var(--destructive); color: var(--destructive); }
+.bt-meta { font-size: 12px; color: var(--muted-foreground); }
+.bt-row { display: flex; gap: 10px; font-size: 13px; }
+.bt-label { flex: none; width: 190px; color: var(--muted-foreground); font-size: 12px; }
+.bt-options { width: 100%; border-collapse: collapse; font-size: 12px; }
+.bt-options th, .bt-options td {
+  border: 1px solid var(--border); padding: 5px 8px; text-align: left; vertical-align: top;
+}
+.bt-options th { background: var(--muted); font-weight: 600; }
+.bt-links { display: flex; gap: 20px; flex-wrap: wrap; }
+.bt-link-group { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.bt-link { font-size: 12px; color: var(--foreground); text-decoration: none; }
+.bt-link:hover { text-decoration: underline; }
+.bt-prec {
+  margin-left: 6px; font-size: 10px; padding: 1px 6px; border-radius: 20px;
+  border: 1px solid var(--border); color: var(--muted-foreground);
+}
+.bt-prec.bi_huy_bo { border-color: var(--destructive); color: var(--destructive); }
+.bt-sim { margin-left: 6px; font-size: 10px; color: var(--muted-foreground); }
+.bt-lawyer {
+  display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--muted);
+}
+.bt-lawyer-head { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; }
+.bt-approved { font-size: 11px; font-weight: 400; color: var(--muted-foreground); }
+.bt-textarea {
+  font: inherit; font-size: 13px; min-height: 64px; padding: 8px 10px; resize: vertical;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--background); color: var(--foreground);
+}
+.bt-actions { display: flex; gap: 8px; }
+.bt-btn {
+  font: inherit; font-size: 13px; padding: 6px 16px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--card); color: var(--foreground);
+}
+.bt-btn.ok { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+.bt-btn.bad:hover { color: var(--destructive); border-color: var(--destructive); }
+.bt-btn:disabled { opacity: 0.6; cursor: default; }
+.bt-error { font-size: 12px; color: var(--destructive); }
+
+/* ---------- PR1: hộp "Tham khảo thêm" dưới câu trả lời ---------- */
+.prec-hint {
+  display: flex; flex-direction: column; gap: 5px; margin-top: 10px; padding: 10px 14px;
+  border: 1px dashed var(--border); border-radius: var(--radius); background: var(--muted);
+}
+.prec-hint-title { font-size: 12px; font-weight: 600; color: var(--muted-foreground); }
+.prec-hint-label { font-size: 11px; color: var(--muted-foreground); }
+.prec-hint-item {
+  display: flex; align-items: center; gap: 8px; font-size: 12px;
+  color: var(--foreground); text-decoration: none;
+}
+.prec-hint-item:hover .prec-hint-name { text-decoration: underline; }
+.prec-hint-num { flex: none; font-weight: 600; }
+.prec-hint-name { flex: 1; }
+.prec-hint-status {
+  font-size: 10px; padding: 1px 6px; border-radius: 20px;
+  border: 1px solid var(--border); color: var(--muted-foreground);
+}
+.prec-hint-status.bi_huy_bo { border-color: var(--destructive); color: var(--destructive); }
+.prec-hint-sim { font-size: 10px; color: var(--muted-foreground); }

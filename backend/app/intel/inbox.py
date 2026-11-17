@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import threading
 import time
 import unicodedata
 from collections import deque
@@ -22,11 +23,15 @@ from typing import Any
 from loguru import logger
 from sqlalchemy import select
 
+from app.audio import SUFFIXES as AUDIO_SUFFIXES
+from app.audio import job as audio_job
+from app.config import get_settings
 from app.db.models import IntelItem
 from app.intel import sources, store
+from app.problems import service as problems_service
 from app.upload import service as upload_service
 
-EXTS = (".pdf", ".docx", ".doc", ".txt")
+EXTS = (".pdf", ".docx", ".doc", ".txt", *AUDIO_SUFFIXES)
 MIN_AGE_S = 10  # tệp mới sửa trong 10 giây cuối coi như còn đang ghi
 RECENT_MAX = 50
 
@@ -123,13 +128,22 @@ def _match(db, number: str) -> list[IntelItem]:
     return [item for item in rows if _fold(normalise_number(item.number)) == key]
 
 
-def _scan_one(db, path: Path) -> tuple[str, Any, list[str]]:
-    number = number_from_name(path.name)
+def _scan_one(db, path: Path) -> dict[str, Any]:
+    """Nạp một tệp: văn bản luật → đồ thị, ghi âm → job chép lời, ghi chú nhóm → bài toán."""
     data = path.read_bytes()
+    suffix = path.suffix.lower()
+    if suffix in AUDIO_SUFFIXES:
+        return _scan_audio(db, path, data)
+    if _is_note(path, data):
+        return _scan_note(db, data)
+
+    number = number_from_name(path.name)
     items = _match(db, number)
     title = items[0].title if items else path.stem
 
-    row = upload_service.save_upload(db, data, path.name, title=title)
+    row = upload_service.save_upload(
+        db, data, path.name, title=title, allow_dahl=_inbox_allow_dahl(), set_by="inbox"
+    )
     if row.status == "failed":
         raise RuntimeError(row.error or "nạp tệp thất bại")
     if not number:
@@ -148,7 +162,48 @@ def _scan_one(db, path: Path) -> tuple[str, Any, list[str]]:
         )
         # để lượt phân tích sau chạy lại với toàn văn vừa nạp
         store.set_status(db, item, "new")
-    return number, row, [item.id for item in items]
+    return {"number": number, "upload_id": row.upload_id, "matched": [i.id for i in items]}
+
+
+def _inbox_allow_dahl() -> bool:
+    """Tệp từ inbox mặc định KHÔNG gửi Dahl; chỉ bật khi cấu hình cho phép."""
+    return bool(getattr(get_settings(), "problems_inbox_allow_dahl", False))
+
+
+def _is_note(path: Path, data: bytes) -> bool:
+    """`.txt` không có số hiệu văn bản = ghi chú nhóm, không phải toàn văn luật."""
+    if path.suffix.lower() != ".txt":
+        return False
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    return not normalise_number(sources.doc_number(text))
+
+
+def _scan_audio(db, path: Path, data: bytes) -> dict[str, Any]:
+    """Ghi âm/ghi hình: job chép lời AU1, đồng ý ghi là "inbox", xử lý ở luồng nền."""
+    upload_service.precheck(data, path.name, consent=True)
+    row, is_new = upload_service.register_upload(db, data, path.name, title=path.stem)
+    if is_new:
+        audio_job.create(db, row.upload_id, consent=True)
+        upload_service.set_option(
+            db, row.upload_id, allow_dahl=_inbox_allow_dahl(), set_by="inbox"
+        )
+        threading.Thread(
+            target=audio_job.process_audio,
+            args=(row.upload_id, data),
+            name=f"inbox-audio-{row.upload_id[:8]}",
+            daemon=True,
+        ).start()
+    return {"number": "", "upload_id": row.upload_id, "matched": []}
+
+
+def _scan_note(db, data: bytes) -> dict[str, Any]:
+    """Ghi chú của nhóm → bài toán (mức A, không tạo tệp tải lên)."""
+    text = data.decode("utf-8", errors="replace")
+    problems_service.extract_note(db, text)
+    return {"number": "", "upload_id": None, "matched": []}
 
 
 def _push(entry: dict[str, Any]) -> None:
@@ -189,7 +244,7 @@ def scan_inbox(db, root: str | Path) -> dict[str, int]:
             name = path.name
             number = number_from_name(name)
             try:
-                number, row, matched = _scan_one(db, path)
+                result = _scan_one(db, path)
             except Exception as exc:  # noqa: BLE001 — một tệp lỗi không được chặn cả lượt
                 counts["failed"] += 1
                 logger.warning("Inbox: tệp {} lỗi: {}", name, exc)
@@ -216,13 +271,13 @@ def scan_inbox(db, root: str | Path) -> dict[str, int]:
 
             moved_to = str(_move(path, base / "done" / date.today().isoformat()))
             counts["ingested"] += 1
-            counts["matched"] += len(matched)
+            counts["matched"] += len(result["matched"])
             _push(
                 {
                     "filename": name,
-                    "number": number,
-                    "upload_id": row.upload_id,
-                    "matched_item_ids": matched,
+                    "number": result["number"],
+                    "upload_id": result["upload_id"],
+                    "matched_item_ids": result["matched"],
                     "moved_to": moved_to,
                     "at": at,
                 }

@@ -509,6 +509,61 @@ class UploadJob(Base):
     )
 
 
+class UploadOption(Base):
+    """Tuỳ chọn riêng của một tệp tải lên (AU2). Hiện chỉ có công tắc cho Dahl.
+
+    Mặc định TẮT: bản gốc và bản chép lời thô không bao giờ ra khỏi máy; bật thì chỉ
+    bản ĐÃ CHE dữ liệu cá nhân mới được gửi đi (xem `app/problems/extract.py`).
+    """
+
+    __tablename__ = "upload_option"
+
+    upload_id: Mapped[str] = mapped_column(
+        ForeignKey("uploaded_file.upload_id", ondelete="CASCADE"), primary_key=True
+    )
+    allow_dahl: Mapped[bool] = mapped_column(default=False)
+    set_by: Mapped[str] = mapped_column(String(32), default="")
+    set_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class CaseProblem(Base):
+    """Một "bài toán" rút từ ghi âm/ghi chú nhóm (AU2), kèm luật sư duyệt sau.
+
+    Nội dung chỉ là GỢI Ý cho mô hình: chưa có `approved_by` thì không được dùng làm
+    căn cứ trả lời, không mang tên luật sư, và chỉ hiện thành hộp "tham khảo thêm".
+    """
+
+    __tablename__ = "case_problem"
+
+    id: Mapped[str] = mapped_column(String(16), primary_key=True)  # uuid4 hex[:16]
+    source_kind: Mapped[str] = mapped_column(String(8))  # audio | note
+    upload_id: Mapped[str | None] = mapped_column(
+        ForeignKey("uploaded_file.upload_id", ondelete="CASCADE")
+    )
+    source_ts: Mapped[str | None] = mapped_column(String(40))  # "00:01:00–00:05:00"
+    title: Mapped[str] = mapped_column(Text)
+    facts: Mapped[str] = mapped_column(Text)
+    legal_question: Mapped[str] = mapped_column(Text)
+    suggested_approach: Mapped[str] = mapped_column(Text, default="")
+    options: Mapped[str] = mapped_column(Text, default="[]")  # JSON [{name, pros, cons}]
+    cited_articles: Mapped[str] = mapped_column(Text, default="[]")  # JSON list (như người nói)
+    uncertain_points: Mapped[str] = mapped_column(Text, default="[]")  # JSON list
+    linked_articles: Mapped[str] = mapped_column(Text, default="[]")  # JSON list node
+    linked_precedents: Mapped[str] = mapped_column(Text, default="[]")  # JSON list án lệ
+    processed_by: Mapped[str] = mapped_column(String(8), default="local")  # local | dahl
+    # goi_y | da_duyet | bac_bo
+    status: Mapped[str] = mapped_column(String(16), default="goi_y")
+    lawyer_analysis: Mapped[str | None] = mapped_column(Text)
+    lawyer_verdict: Mapped[str | None] = mapped_column(Text)
+    approved_by: Mapped[str | None] = mapped_column(String(32))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class Template(Base):
     """Biểu mẫu người dùng tải lên (TPL1): tệp để tái sử dụng, KHÔNG phải văn bản luật.
 

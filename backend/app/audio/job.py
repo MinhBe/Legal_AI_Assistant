@@ -27,6 +27,8 @@ from app.db.models import LegalNode, NodeReference, UploadedFile, UploadJob
 from app.gateway.pii import mask
 from app.ingestion.references import extract_refs, known_docs_from_db
 from app.llm.router import get_router
+from app.problems.extract import extract as extract_problems
+from app.problems.service import save as save_problems
 from app.rag.embeddings import embed_one
 from app.upload import service
 from app.upload.ingest import ingest_upload, make_doc_id
@@ -134,6 +136,8 @@ def _run(db: Session, upload_id: str, data: bytes) -> None:
     _stage(db, job, "extracting", 0.0)
     known = known_docs_from_db(db)
     router = get_router()
+    # AU2: mặc định chỉ mô hình trong máy; bật Dahl thì chỉ gửi bản đã che (assert_masked)
+    allow_dahl = service.get_allow_dahl(db, upload_id)
     seq = db.scalar(select(func.max(LegalNode.seq)).where(LegalNode.doc_id == doc_id)) or 0
     n_cases = n_refs = 0
     for done, c in enumerate(chunks, 1):
@@ -151,6 +155,17 @@ def _run(db: Session, upload_id: str, data: bytes) -> None:
                 )
             )
             n_refs += _link_refs(db, doc_id, node_id, case, known)
+        # Bài toán (AU2): gợi ý cho mô hình, luật sư duyệt sau; không vào node luật.
+        save_problems(
+            db,
+            extract_problems(
+                router, c["masked"], start_ts=c["start"], end_ts=c["end"],
+                allow_dahl=allow_dahl, mapping=mapping,
+            ),
+            source_kind="audio",
+            upload_id=upload_id,
+            processed_by="dahl" if allow_dahl else "local",
+        )
         _stage(db, job, "extracting", done / len(chunks))
     db.commit()
 

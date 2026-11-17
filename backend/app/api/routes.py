@@ -595,6 +595,49 @@ def review_act(case_id: str, req: ReviewActRequest, db: Session = Depends(get_db
         raise _review_error(exc) from exc
 
 
+# ---------- Bài toán rút từ ghi âm/ghi chú nhóm (AU2) ----------
+class ProblemPatch(BaseModel):
+    lawyer_analysis: str | None = None
+    lawyer_verdict: str | None = None
+    status: Literal["goi_y", "da_duyet", "bac_bo"] | None = None
+
+
+@router.get("/api/problems", dependencies=REVIEW)
+def list_problems_route(status: str | None = None, db: Session = Depends(get_db)):
+    """Bài toán gợi ý; `status` lọc goi_y | da_duyet | bac_bo."""
+    from app.problems import service as problems
+
+    return problems.list_problems(db, status=status)
+
+
+@router.get("/api/problems/{problem_id}", dependencies=REVIEW)
+def get_problem_route(problem_id: str, db: Session = Depends(get_db)):
+    from app.problems import service as problems
+
+    problem = problems.get(db, problem_id)
+    if problem is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài toán")
+    return problems.to_dict(problem)
+
+
+@router.patch("/api/problems/{problem_id}", dependencies=REVIEW)
+def review_problem_route(
+    problem_id: str,
+    req: ProblemPatch,
+    user: dict = Depends(auth.current_user),
+    db: Session = Depends(get_db),
+):
+    """Luật sư phân tích/kết luận và duyệt hoặc bác bỏ; `da_duyet` gắn tên người duyệt."""
+    from app.problems import service as problems
+
+    problem = problems.get(db, problem_id)
+    if problem is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài toán")
+    return problems.to_dict(
+        problems.review(db, problem, req.model_dump(exclude_unset=True), user)
+    )
+
+
 # ---------- Threads (tối giản) ----------
 @router.get("/api/threads", dependencies=HISTORY)
 def list_threads(db: Session = Depends(get_db)):
@@ -781,12 +824,15 @@ def create_upload(
     file: UploadFile = File(...),
     title: str | None = Form(None),
     consent: bool = Form(False),
+    allow_dahl: bool = Form(False),
+    user: dict = Depends(auth.current_user),
     db: Session = Depends(get_db),
 ):
     """Tải tệp lên: ghi row `processing` rồi xử lý ở nền.
 
     Tệp ghi âm/ghi hình đi đường khác: tạo job chép lời trong máy (AU1), bắt buộc
-    `consent=true` — người tải lên xác nhận người được ghi âm đã đồng ý.
+    `consent=true` — người tải lên xác nhận người được ghi âm đã đồng ý. Công tắc
+    `allow_dahl` (AU2) chỉ bật được khi đã xác nhận đồng ý, mặc định tắt.
     """
     from app.audio import ConsentRequired
     from app.audio import job as audio_job
@@ -798,6 +844,11 @@ def create_upload(
     data = file.file.read(limit + 1)
     if not data:
         raise HTTPException(status_code=422, detail="Tệp rỗng")
+    if allow_dahl and not consent:
+        raise HTTPException(
+            status_code=422,
+            detail="Chỉ bật xử lý Dahl sau khi xác nhận đã có sự đồng ý dùng bản ghi",
+        )
     try:
         service.precheck(data, filename, consent=consent)
         row, is_new = service.register_upload(db, data, filename, title=title)
@@ -809,6 +860,10 @@ def create_upload(
         raise HTTPException(status_code=415, detail=f"Định dạng không hỗ trợ: {exc}") from exc
     if not is_new:  # tệp trùng: trả ngay bản cũ
         return service.to_dict(row)
+    if allow_dahl:
+        service.set_option(
+            db, row.upload_id, allow_dahl=True, set_by=user.get("username") or user["role"]
+        )
     if audio:
         audio_job.create(db, row.upload_id, consent=consent)
         background.add_task(audio_job.process_audio, row.upload_id, data)

@@ -89,6 +89,17 @@ export type Calc = { items: CalcItem[] };
 /* Cách đọc câu không dấu do backend chọn (ML2): hiện chip để người dùng biết. */
 export type Reading = { lang: "vi" | "en"; vi_text?: string; scores?: Record<string, number> };
 
+/* Gợi ý "tham khảo thêm" (PR1): án lệ/bài toán luật sư đã duyệt — KHÔNG phải căn cứ trả lời. */
+export type PrecedentHint = {
+  number: string;
+  title: string;
+  status: string;
+  url: string;
+  similarity: number;
+};
+export type ProblemHint = { id: string; title: string; approved_by: string | null };
+export type Hints = { precedents: PrecedentHint[]; problems: ProblemHint[] };
+
 export type Msg = {
   role: "user" | "ai";
   content: string;
@@ -110,6 +121,7 @@ export type Msg = {
   facts?: Facts;
   calc?: Calc;
   reading?: Reading;
+  hints?: Hints;
 };
 
 export type Conversation = { id: string; title: string; messages: Msg[] };

@@ -79,6 +79,8 @@ function UploadPageInner() {
   // tiến trình chép lời theo upload_id (chỉ tệp ghi âm/ghi hình mới có)
   const [jobs, setJobs] = useState<Record<string, UploadJob>>({});
   const [consent, setConsent] = useState(false);
+  // AU2: chỉ bật được khi đã xác nhận đồng ý; mặc định tắt
+  const [allowDahl, setAllowDahl] = useState(false);
 
   async function toggleNodes(id: string) {
     setOpenNodes((o) => (o === id ? null : id));
@@ -157,6 +159,7 @@ function UploadPageInner() {
       const fd = new FormData();
       fd.append("file", f);
       if (isAudio(f.name)) fd.append("consent", "true");
+      if (consent && allowDahl) fd.append("allow_dahl", "true");
       let detail = "";
       try {
         const r = await apiFetch(`/api/uploads`, { method: "POST", body: fd });
@@ -239,8 +242,14 @@ function UploadPageInner() {
 
         <label className="au-consent">
           <input type="checkbox" checked={consent}
-            onChange={(e) => setConsent(e.target.checked)} />
+            onChange={(e) => { setConsent(e.target.checked); if (!e.target.checked) setAllowDahl(false); }} />
           {CONSENT} (bắt buộc với tệp ghi âm/ghi hình)
+        </label>
+
+        <label className="au-consent">
+          <input type="checkbox" checked={allowDahl} disabled={!consent}
+            onChange={(e) => setAllowDahl(e.target.checked)} />
+          Cho phép Dahl xử lý bản đã che dữ liệu cá nhân (bản gốc và âm thanh không ra ngoài)
         </label>
 
         <div className="dash-card">

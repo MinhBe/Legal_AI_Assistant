@@ -264,6 +264,20 @@ def _retry_answer(router, messages: list[dict], hits: list[dict], v: dict, as_of
     return (result, v2) if len(v2["problems"]) < len(v["problems"]) else None
 
 
+def _hints(message: str) -> dict:
+    """Hộp "tham khảo thêm" (PR1): tính cục bộ, không LLM, không bao giờ thành căn cứ."""
+    from app.problems.service import answer_hints
+
+    db = SessionLocal()
+    try:
+        return answer_hints(db, message)
+    except Exception as exc:  # noqa: BLE001 — thiếu gợi ý không được làm hỏng câu trả lời
+        logger.warning("Không dựng được gợi ý tham khảo: {}", exc)
+        return {"precedents": [], "problems": []}
+    finally:
+        db.close()
+
+
 def _facts_result(future) -> dict:
     """Bảng tình tiết đã trích; hỏng thì bỏ qua, không chặn câu trả lời."""
     try:
@@ -419,6 +433,8 @@ def answer_with_citations(
         h = by_id[cid]
         yield ("citation", {"n": i, "node_id": cid, "display": h["display"], "text": h["text"]})
 
+    # PR1: gợi ý án lệ/bài toán đã duyệt, chỉ để tham khảo — không vào prompt, không vào trích dẫn
+    yield ("hints", _hints(message))
     yield ("verifier", v)
     yield ("timeframe", tf)
     yield ("done", {"confidence": confidence, "uses_uploads": bool(upload_titles),
