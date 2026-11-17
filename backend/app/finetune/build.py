@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import random
 import subprocess
+import time
 from collections import Counter
 from collections.abc import Callable
 from datetime import UTC, date, datetime
@@ -284,6 +285,23 @@ def _problem_pairs(problems: list[dict]) -> list[dict]:
     return out
 
 
+def _source_id(rec: dict) -> str:
+    return rec.get("node_id") or rec.get("doc_key", "")
+
+
+def _progress(out: Path, i: int, total: int, done: int, failed: int, made: int, started: float,
+              *, stopped: bool = False) -> None:
+    """progress.json để theo dõi lượt chạy dài (đọc được khi đang chạy)."""
+    elapsed = time.monotonic() - started
+    eta = (total - i) * (elapsed / i) if i else None
+    data = {"processed_this_run": i, "todo_this_run": total, "sources_done_total": done,
+            "failed_this_run": failed, "fail_rate": round(failed / made, 3) if made else 0,
+            "elapsed_s": round(elapsed), "eta_s": round(eta) if eta is not None else None,
+            "stopped_for_failures": stopped, "updated": time.strftime("%Y-%m-%dT%H:%M:%S")}
+    (out / "progress.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    logger.info("Fine-tune data: {}/{} bản ghi lượt này, lỗi {}", i, total, failed)
+
+
 def build_dataset(
     db,
     *,
@@ -341,18 +359,55 @@ def build_dataset(
     index = filters.PairIndex([r for r in records if r["kind"] == "law"], embed_fn=embed_fn)
     generated: list[dict] = []
     rejects: Counter[str] = Counter()
-    for rec in generatable[:calls]:
-        items = (
-            generate.law_pairs(router, rec, pairs)
-            if rec["kind"] == "law"
-            else generate.precedent_card(router, rec)
-        )
+
+    # Chạy dài (hàng nghìn lời gọi): mỗi bản ghi xong thì ghi nối vào raw.jsonl; chạy lại thì bỏ
+    # qua bản ghi đã làm. Án lệ duyệt thêm sau có doc_key mới nên lượt sau tự lấy.
+    raw_path = Path(out) / "raw.jsonl"
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    done: dict[str, list[dict]] = {}
+    if raw_path.exists():
+        for line in raw_path.read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            done[row["source"]] = row.get("items") or []
+    todo = [r for r in generatable[:calls] if _source_id(r) not in done]
+    failed = made = 0
+    started = time.monotonic()
+    with raw_path.open("a", encoding="utf-8") as raw:
+        for i, rec in enumerate(todo, 1):
+            try:
+                items = (
+                    generate.law_pairs(router, rec, pairs)
+                    if rec["kind"] == "law"
+                    else generate.precedent_card(router, rec)
+                )
+            except Exception as exc:  # noqa: BLE001 — một bản ghi hỏng không dừng cả lượt
+                logger.warning("Sinh dữ liệu lỗi ở {}: {}", _source_id(rec), exc)
+                items = []
+            made += 1
+            if not items:
+                failed += 1
+            row = {"source": _source_id(rec), "items": items}
+            raw.write(json.dumps(row, ensure_ascii=False) + "\n")
+            raw.flush()
+            done[row["source"]] = items
+            if i % 20 == 0 or i == len(todo):
+                _progress(Path(out), i, len(todo), len(done), failed, made, started)
+            if made >= 100 and failed / made > 0.2:
+                _progress(Path(out), i, len(todo), len(done), failed, made, started, stopped=True)
+                raise RuntimeError(f"Dừng: {failed}/{made} lời gọi không ra cặp nào (> 20 %)")
+
+    by_id = {_source_id(r): r for r in generatable}
+    for source, items in done.items():
+        rec = by_id.get(source, {})
         for item in items:
             why = filters.check_pair(item, index, rec.get("text"))
             if why:
                 rejects[why] += 1
                 continue
-            generated.append({**item, "source": rec.get("node_id") or rec.get("doc_key", "")})
+            generated.append({**item, "source": source})
 
     for item in _problem_pairs(problems):
         why = filters.check_pair(item, index)

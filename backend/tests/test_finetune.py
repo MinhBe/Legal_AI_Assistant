@@ -211,3 +211,35 @@ def test_repealed_law_needs_a_past_event_date_and_vague_answers_are_rejected():
            "bản sao hộ chiếu còn giá trị; giấy tờ chứng minh người lao động tiếp tục làm việc.")
     vague = "Theo Điều 26 khoản 2 NĐ 145/2020, hồ sơ gồm các giấy tờ theo quy định, bạn nên liên hệ cơ quan để được hướng dẫn."
     assert _time_and_grounding("Hồ sơ gia hạn giấy phép lao động gồm gì?", vague, src) == "not_grounded"
+
+
+def test_build_is_resumable_and_skips_finished_sources(tmp_path):
+    """Lượt chạy dài: chạy lại không gọi lại bản ghi đã xong; cặp cũ vẫn vào tệp cuối."""
+    from app.finetune import build
+
+    calls: list[str] = []
+
+    class Router:
+        def chat(self, messages, **kw):
+            import json as _j
+
+            from app.llm.router import LLMResult
+
+            calls.append(messages[-1]["content"][:40])
+            body = {"pairs": [{"question": "Tháng 6/2022 tôi nghỉ việc thì được trợ cấp gì theo luật hiện hành?",
+                               "answer": "Theo Điều 1 BLLĐ 2019 (hiệu lực từ 01/01/2021), " + "nội dung cụ thể " * 8}],
+                    "time_trap": None}
+            return LLMResult(text=_j.dumps(body, ensure_ascii=False), provider="cloud", model="m")
+
+    recs = [{"kind": "law", "node_id": f"blld2019-d{i}", "doc_label": "BLLĐ 2019", "article_no": i,
+             "clause_no": None, "time_tag": "BLLĐ 2019 (hiệu lực từ 01/01/2021)",
+             "validity": "hiệu lực từ 01/01/2021", "text": "nội dung"} for i in (1, 2)]
+    out = tmp_path / "run"
+    kw = dict(scope="all", pairs=1, out=str(out), router=Router(), records=recs,
+              embed_fn=lambda xs: [[1.0, float(i)] for i, _ in enumerate(xs)], golden=[])
+    build.build_dataset(None, **kw)
+    first = len(calls)
+    build.build_dataset(None, **kw)
+    assert first == 2 and len(calls) == 2, "lượt 2 không được gọi lại bản ghi đã xong"
+    assert (out / "raw.jsonl").read_text(encoding="utf-8").count("\n") == 2
+    assert (out / "progress.json").exists()
