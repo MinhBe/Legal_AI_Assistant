@@ -44,6 +44,10 @@ pgdata/
 # Dữ liệu sinh lúc chạy
 data/escalations.json
 data/out_of_scope.jsonl
+
+# Fine-tune (KG1): dataset sinh ra và đầu ra notebook, không commit
+data/finetune/
+finetune/out/
 .dahl.env
 RAG-api/
 
