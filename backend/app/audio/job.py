@@ -24,7 +24,7 @@ from app.audio.cases import extract as extract_cases
 from app.config import get_settings
 from app.db.base import SessionLocal
 from app.db.models import LegalNode, NodeReference, UploadedFile, UploadJob
-from app.gateway.pii import mask
+from app.audio.spoken_pii import mask_spoken, replace_known
 from app.ingestion.references import extract_refs, known_docs_from_db
 from app.llm.router import get_router
 from app.problems.extract import extract as extract_problems
@@ -118,8 +118,12 @@ def _run(db: Session, upload_id: str, data: bytes) -> None:
     _stage(db, job, "masking", 0.0)
     chunks = _chunks(segments, settings.audio_chunk_minutes)
     mapping: dict[str, str] = {}  # dùng chung: placeholder giống nhau giữa các đoạn
+    router = get_router()
     for c in chunks:
-        c["masked"] = mask(c["text"], mapping=mapping).text
+        # bản chép lời chữ thường: lớp NER trong máy (mức A) + luật cho lời nói
+        c["masked"] = mask_spoken(c["text"], mapping=mapping, router=router)
+    for c in chunks:  # giá trị NER thấy ở đoạn sau cũng phải che ở đoạn trước
+        c["masked"] = replace_known(c["masked"], mapping)
     masked = "\n".join(c["masked"] for c in chunks)
     (service.UPLOAD_DIR / f"{row.sha256}.raw.txt").write_text(
         "\n".join(c["text"] for c in chunks), encoding="utf-8"
@@ -135,7 +139,6 @@ def _run(db: Session, upload_id: str, data: bytes) -> None:
 
     _stage(db, job, "extracting", 0.0)
     known = known_docs_from_db(db)
-    router = get_router()
     # AU2: mặc định chỉ mô hình trong máy; bật Dahl thì chỉ gửi bản đã che (assert_masked)
     allow_dahl = service.get_allow_dahl(db, upload_id)
     seq = db.scalar(select(func.max(LegalNode.seq)).where(LegalNode.doc_id == doc_id)) or 0
