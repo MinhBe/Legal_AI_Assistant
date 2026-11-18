@@ -110,6 +110,12 @@ export default function MessageList({
                   <SectionAccordion sections={m.sections!} />
                 )}
 
+                {m.role === "ai" && m.domain_label && !m.refusal && (
+                  <div className="domain-badge" title="Lĩnh vực của văn bản được trích dẫn">
+                    Lĩnh vực: {m.domain_label}
+                  </div>
+                )}
+
                 {m.role === "ai" && m.verifier && <VerifierBadge v={m.verifier} />}
 
                 {m.role === "ai" && m.hints && <HintsBox hints={m.hints} />}

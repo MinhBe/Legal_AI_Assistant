@@ -122,6 +122,7 @@ export type Msg = {
   calc?: Calc;
   reading?: Reading;
   hints?: Hints;
+  domain_label?: string; // lĩnh vực của câu trả lời (mở rộng kho)
 };
 
 export type Conversation = { id: string; title: string; messages: Msg[] };

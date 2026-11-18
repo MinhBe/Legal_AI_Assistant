@@ -592,3 +592,26 @@ class Template(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class DocMeta(Base):
+    """Lĩnh vực + mốc hiệu lực của văn bản ngoài lao động (mở rộng kho, 18/11/2026).
+
+    Bảng riêng thay vì thêm cột vào legal_document: create_all chỉ tạo bảng mới, không
+    ALTER bảng cũ. Văn bản lao động gốc không có dòng ở đây = lĩnh vực "lao_dong".
+    """
+
+    __tablename__ = "doc_meta"
+
+    doc_id: Mapped[str] = mapped_column(
+        ForeignKey("legal_document.doc_id", ondelete="CASCADE"), primary_key=True
+    )
+    # lao_dong | dat_dai | hinh_su | hon_nhan_gia_dinh | thue_tncn | dan_su | xu_phat_hc
+    domain: Mapped[str] = mapped_column(String(24), index=True)
+    number: Mapped[str | None] = mapped_column(String(64))  # số hiệu văn bản gốc
+    effective_from: Mapped[date | None] = mapped_column(Date)
+    effective_to: Mapped[date | None] = mapped_column(Date)
+    replaced_by: Mapped[str | None] = mapped_column(String(64))
+    consolidates: Mapped[str | None] = mapped_column(Text)  # VBHN: các văn bản được hợp nhất
+    source_url: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

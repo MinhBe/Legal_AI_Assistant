@@ -226,6 +226,7 @@ export function useChat(mode: Mode = "law") {
               ...ai,
               step: undefined,
               refusal: isRefusal,
+              domain_label: data?.domain_label || undefined,
               escalate_status: isRefusal ? "pending" : null,
             };
           });

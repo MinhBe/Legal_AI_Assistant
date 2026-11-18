@@ -119,10 +119,13 @@ def search_nodes(
     mode: str | None = None,
     rerank: bool | None = None,
     include_uploads: bool = False,
+    domains: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Truy hồi node luật. mode: vector (mặc định) | bm25 | hybrid (RRF vector + BM25).
     rerank: xếp lại bằng cross-encoder sau khi truy hồi (mặc định theo settings).
-    include_uploads: mặc định loại mọi văn bản tải lên; bật thì chỉ nhận bản đã duyệt."""
+    include_uploads: mặc định loại mọi văn bản tải lên; bật thì chỉ nhận bản đã duyệt.
+    domains: lĩnh vực của câu hỏi (app.rag.domain). Văn bản mở rộng kho (có dòng doc_meta)
+    chỉ được dùng khi đã duyệt VÀ đúng lĩnh vực; None = chỉ kho lao động như trước."""
     mode = mode or settings.search_mode
     rerank = settings.rerank_enabled if rerank is None else rerank
     pool = max(top_k, settings.rerank_top_n) if rerank else top_k
@@ -146,10 +149,17 @@ def search_nodes(
             " WHERE doc_type = 'upload' AND status IS DISTINCT FROM 'approved')"
         )
     else:
+        # văn bản mở rộng kho đi đường upload (chờ duyệt) nhưng là văn bản công khai:
+        # đã duyệt + đúng lĩnh vực thì được dùng như kho gốc
         eff_clause += (
             " AND doc_id NOT IN (SELECT doc_id FROM legal_document"
-            " WHERE doc_type = 'upload')"
+            " WHERE doc_type = 'upload' AND doc_id NOT IN (SELECT m.doc_id FROM doc_meta m"
+            " JOIN legal_document d ON d.doc_id = m.doc_id"
+            " WHERE d.status = 'approved' AND m.domain = ANY(:domains)))"
         )
+    # văn bản mở rộng kho khác lĩnh vực câu hỏi thì không bao giờ được truy hồi
+    eff_clause += " AND doc_id NOT IN (SELECT doc_id FROM doc_meta WHERE domain <> ALL(:domains))"
+    params["domains"] = [d for d in (domains or []) if d != "lao_dong"] or ["__none__"]
 
     if mode == "vector":
         rows = _vector(db, query, pool, eff_clause, params)

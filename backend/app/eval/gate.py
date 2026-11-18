@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.agent.guard import looks_like_injection
 from app.eval.golden import load_golden
 from app.gateway.pii import mask
+from app.rag.domain import classify as classify_domain
 from app.rag.search import search_nodes
 
 BASELINE = Path(__file__).resolve().parents[2] / "eval" / "gate_baseline.json"
@@ -87,7 +88,8 @@ def _provision_articles(row: dict) -> set[str]:
 def _retrieval_metric(db: Session, rows: list[dict], k: int) -> dict[str, Any]:
     ok = 0
     for r in rows:
-        hits = search_nodes(db, r["question"], top_k=k, as_of=_as_of(r))
+        hits = search_nodes(db, r["question"], top_k=k, as_of=_as_of(r),
+                            domains=classify_domain(r["question"]))
         if _provision_articles(r) & {article_of(h["node_id"]) for h in hits}:
             ok += 1
     return _rate(ok, len(rows), sum(1 for r in rows if r.get("reviewed")))
@@ -97,7 +99,8 @@ def _mrr(db: Session, rows: list[dict]) -> dict[str, Any]:
     total = 0.0
     for r in rows:
         want = _provision_articles(r)
-        hits = search_nodes(db, r["question"], top_k=8, as_of=_as_of(r))
+        hits = search_nodes(db, r["question"], top_k=8, as_of=_as_of(r),
+                            domains=classify_domain(r["question"]))
         rank = next((i for i, h in enumerate(hits, 1) if article_of(h["node_id"]) in want), None)
         total += 1 / rank if rank else 0.0
     return {
@@ -122,7 +125,8 @@ def _version_correct(db: Session, rows: list[dict]) -> dict[str, Any]:
     for r in g5:
         want = _provision_articles(r)
         others = by_question[r["question"].strip()] - want
-        hits = search_nodes(db, r["question"], top_k=8, as_of=_as_of(r))
+        hits = search_nodes(db, r["question"], top_k=8, as_of=_as_of(r),
+                            domains=classify_domain(r["question"]))
         got = {article_of(h["node_id"]) for h in hits}
         if want & got and not others & got:
             ok += 1

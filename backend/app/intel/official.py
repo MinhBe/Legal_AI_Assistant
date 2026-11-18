@@ -4,7 +4,7 @@ Sự thật đo ngày 2026-11-16: trang chủ `congbao.chinhphu.vn` liệt kê v
 có trang `/van-ban/<slug>-<id>.htm` chứa link tải trên `g7.cdnchinhphu.vn/api/download/stream`
 mà chữ của link là tên tệp (`2026_576_399/2026/NĐ-CP.docx`, `…pdf`) và dòng
 "Hiệu lực: dd/mm/yyyy". Trang có ô tìm kiếm `input[name=keyword]`; form gửi GET nên tra theo
-số hiệu = mở trang chủ với `?keyword=` (nếu site đổi cách gửi, chỉ hỏng bước tìm kiếm này).
+số hiệu = mở `tim-kiem-van-ban.htm?keyword=` (nếu site đổi cách gửi, chỉ hỏng bước tìm kiếm này).
 
 Chỉ tải tệp công khai của Công báo. Nguồn tin (thuvienphapluat, luatvietnam, vanban.chinhphu)
 không được dùng để lấy toàn văn: không cookie, không đăng nhập, không vượt rào chặn bot.
@@ -22,7 +22,8 @@ from urllib.parse import quote, urljoin, urlparse
 from app.intel import sources
 
 CONGBAO_HOME = "https://congbao.chinhphu.vn/"
-SEARCH_URL = CONGBAO_HOME + "?keyword={keyword}"  # ô tìm kiếm `input[name=keyword]`
+# đo 18/11/2026: ô tìm kiếm chuyển tới trang này; "/?keyword=" chỉ trả lại trang chủ
+SEARCH_URL = CONGBAO_HOME + "tim-kiem-van-ban.htm?keyword={keyword}"
 DOC_PATH = "/van-ban/"  # trang chi tiết một văn bản
 DOWNLOAD_HOST = "cdnchinhphu.vn"  # link tải công khai (g7.cdnchinhphu.vn)
 FILE_EXTS = ("docx", "pdf", "doc")  # thứ tự ưu tiên: DOCX đọc được bảng, rồi PDF

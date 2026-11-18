@@ -60,3 +60,7 @@ data/metrics/
 data/uploads/
 data/templates/
 data/.auth_secret
+
+# Ghi âm tư vấn của Minh (bản gốc) và văn bản Công báo tải về: không vào git
+record/
+data/corpus_ext/

@@ -27,6 +27,7 @@ from app import prompts
 from app.config import get_settings
 from app.llm.context import data_class_scope, get_answer_lang, get_data_class
 from app.llm.router import LLMError, LocalModelUnavailable, get_router, parse_json
+from app.rag import domain as domain_of
 from app.rag.search import search_nodes
 
 REFUSAL = "Không đủ căn cứ trong kho văn bản để trả lời chắc chắn câu này."
@@ -215,13 +216,33 @@ def _split_issues(router, message: str) -> list[str]:
     return [str(q).strip() for q in issues if str(q).strip()][:4]
 
 
+def _hit_domains(db, hits: list[dict]) -> dict[str, str]:
+    """doc_id -> lĩnh vực, chỉ cho văn bản mở rộng kho có trong kết quả truy hồi."""
+    ids = list({h.get("doc_id") for h in hits if h.get("doc_id")})
+    if not ids:
+        return {}
+    try:
+        rows = db.execute(text("SELECT doc_id, domain FROM doc_meta WHERE doc_id = ANY(:ids)"),
+                          {"ids": ids}).all()
+    except Exception as exc:  # noqa: BLE001 — thiếu bảng doc_meta thì coi như kho lao động
+        logger.warning("Không đọc được doc_meta: {}", exc)
+        rollback = getattr(db, "rollback", None)
+        if rollback is not None:
+            rollback()
+        return {}
+    return {doc_id: dom for doc_id, dom in rows}
+
+
 def _issue_hits(
     db, issues: list[str], whole: list[dict], *, include_uploads: bool = False,
+    domains: list[str] | None = None,
 ) -> list[dict]:
     """Mỗi vấn đề góp vài kết quả đầu, rồi tới kết quả của cả đoạn; bỏ trùng."""
     out: list[dict] = []
     seen: set[str] = set()
-    extra = {"include_uploads": True} if include_uploads else {}
+    extra: dict = {"include_uploads": True} if include_uploads else {}
+    if domains:
+        extra["domains"] = domains
     groups = [
         search_nodes(db, q, top_k=_HITS_PER_ISSUE, **extra) for q in issues
     ] + [whole]
@@ -315,12 +336,17 @@ def answer_with_citations(
         yield ("step", {"name": "retrieve", "label": "Đang tra cứu văn bản"})
         tf = _timeframe(db, event, today, message)
         # sự kiện trong quá khứ: truy hồi đúng bản luật còn hiệu lực ngày đó
-        search = functools.partial(search_nodes, as_of=event, include_uploads=use_uploads)
+        # lĩnh vực của câu hỏi: văn bản mở rộng kho (đất đai, hình sự…) chỉ dùng khi đúng lĩnh vực
+        domains = domain_of.classify(message)
+        search = functools.partial(search_nodes, as_of=event, include_uploads=use_uploads,
+                                   domains=domains)
         hits = search_with_history(db, message, history, top_k=8, search=search)
         if issues is not None:
             yield ("step", {"name": "split", "label": "Đang tách các vấn đề pháp lý trong tình huống"})
-            hits = _issue_hits(db, issues.result(), hits, include_uploads=use_uploads)
+            hits = _issue_hits(db, issues.result(), hits, include_uploads=use_uploads,
+                               domains=domains)
         upload_titles = _upload_hits(db, hits) if use_uploads else {}
+        ext_domains = _hit_domains(db, hits)
     finally:
         db.close()
 
@@ -346,6 +372,9 @@ def answer_with_citations(
         yield ("step", {"name": "generate", "label": "Đang soạn câu trả lời có trích dẫn"})
 
     v = verdict.result()
+    if v["category"] == guard.OUT_OF_CORPUS and ext_domains:
+        # bộ phân loại chỉ biết kho lao động; văn bản mở rộng kho đã duyệt có đoạn khớp
+        v = {**v, "category": guard.LEGAL}
     if v["category"] == guard.OUT_OF_CORPUS and upload_titles:
         # bộ phân loại chỉ biết kho luật cố định; tài liệu đã duyệt có đoạn khớp thì trả lời được
         v = {**v, "category": guard.LEGAL}
@@ -437,8 +466,17 @@ def answer_with_citations(
     yield ("hints", _hints(message))
     yield ("verifier", v)
     yield ("timeframe", tf)
+    # lĩnh vực của câu trả lời = lĩnh vực của văn bản được trích; không trích văn bản mở rộng
+    # thì là lao động (kho gốc)
+    cited = {ext_domains[h.get("doc_id")] for h in hits if h["node_id"] in set(valid_global)
+             and h.get("doc_id") in ext_domains}
+    answer_domain = sorted(cited)[0] if len(cited) == 1 else (
+        "lao_dong" if not cited else "nhieu_linh_vuc")
     yield ("done", {"confidence": confidence, "uses_uploads": bool(upload_titles),
-                    "language": get_answer_lang()})
+                    "language": get_answer_lang(), "domain": answer_domain,
+                    "domain_label": domain_of.label(answer_domain) if answer_domain != "nhieu_linh_vuc"
+                    else ", ".join(domain_of.label(d) for d in sorted(cited)),
+                    "question_domains": domains})
 
 
 def _chunks(text: str):
