@@ -55,6 +55,7 @@ class FakeRouter:
         self.chat_classes: list[str] = []
         self.chat_cloud: list[bool] = []
         self.texts: list[str] = []
+        self.systems: list[str] = []
 
     def extract_json(self, messages, *, task="route", temperature=0.0) -> dict:
         self.case_classes.append(get_data_class())
@@ -64,6 +65,7 @@ class FakeRouter:
         self.chat_classes.append(get_data_class())
         self.chat_cloud.append(get_cloud_first())
         self.texts.append(messages[-1]["content"])
+        self.systems.append(messages[0]["content"] if messages[0]["role"] == "system" else "")
         body = json.dumps({"problems": self.items}, ensure_ascii=False)
         return SimpleNamespace(text=body, provider="fake", model="fake")
 
@@ -193,11 +195,18 @@ def test_allow_dahl_sends_only_the_masked_transcript(client, uploads, db, monkey
         {"u": up["upload_id"]},
     ).scalars().all()
     assert processed and set(processed) == {"dahl"}
-    assert set(router.chat_classes) == {"C"} and all(router.chat_cloud)
-    assert router.texts
-    for sent in router.texts:
+    # mức A chỉ là lớp NER che PII chạy trong máy; mọi lời gọi mức C (Dahl) chỉ có bản đã che
+    from app.audio.spoken_pii import NER_SYSTEM
+
+    calls = list(zip(router.chat_classes, router.chat_cloud, router.texts, router.systems,
+                     strict=True))
+    assert {c for c, *_ in calls} <= {"A", "C"}
+    assert all(sys_ == NER_SYSTEM and not cloud for c, cloud, _t, sys_ in calls if c == "A")
+    sent_c = [t for c, cloud, t, _s in calls if c == "C"]
+    assert sent_c and all(cloud for c, cloud, *_ in calls if c == "C")
+    for sent in sent_c:
         assert NAME not in sent and PHONE not in sent
-    assert any("[TÊN_1]" in sent for sent in router.texts)
+    assert any("[TÊN_1]" in sent for sent in sent_c)
 
     masked = mask(f"Tôi là {NAME}, số điện thoại {PHONE}.")
     assert_masked(masked.text, masked.mapping)  # bản đã che: cho qua

@@ -1,4 +1,5 @@
 """Che PII cho bản chép lời chữ thường (lô ghi âm 18/11/2026)."""
+import json
 
 from app.audio.spoken_pii import mask_spoken, ner_values
 
@@ -136,3 +137,24 @@ def test_lowercase_words_after_ban_are_not_names():
     out = mask_lines(lines, mapping=m)
     assert out[0] == lines[0] and out[2] == lines[2] and out[3] == lines[3]
     assert out[1] == "Chào bạn [TÊN_1]"
+
+
+def test_ner_false_positives_from_7b_are_rejected():
+    """Nhãn sai đo trên tệp 1 (18/11/2026): quan hệ gia đình, lĩnh vực, địa danh, đài báo."""
+    items = [("TÊN", "cha mẹ"), ("TÊN", "con nuôi"), ("TÊN", "anh"),
+             ("TỔ_CHỨC", "đất đai"), ("TỔ_CHỨC", "trợ lý"), ("TỔ_CHỨC", "thành phố hồ chí minh"),
+             ("TỔ_CHỨC", "tạp chí kinh tế sài gòn"), ("TỔ_CHỨC", "văn phòng đất đai")]
+    text = " ".join(v for _t, v in items) + " và công ty luật hân vượng, luật sư đỗ đăng khoa"
+    payload = [{"type": t, "text": v} for t, v in items] + [
+        {"type": "TỔ_CHỨC", "text": "công ty luật hân vượng"},
+        {"type": "TÊN", "text": "đỗ đăng khoa"}]
+    router = FakeRouter(json.dumps({"items": payload}, ensure_ascii=False))
+    got = ner_values(router, text)
+    assert got == [("TỔ_CHỨC", "công ty luật hân vượng"), ("TÊN", "đỗ đăng khoa")]
+    m: dict[str, str] = {}
+    from app.audio.spoken_pii import add_ner
+
+    add_ner(router, text, m)
+    assert "đất đai" not in m.values() and "sài gòn" not in m.values()
+    assert mask_spoken("luật đất đai năm 2024, ở thành phố hồ chí minh", mapping=m) == \
+        "luật đất đai năm 2024, ở thành phố hồ chí minh"

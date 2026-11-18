@@ -21,10 +21,10 @@ from sqlalchemy.orm import Session
 
 from app.audio import convert, transcribe
 from app.audio.cases import extract as extract_cases
+from app.audio.spoken_pii import mask_spoken, replace_known
 from app.config import get_settings
 from app.db.base import SessionLocal
 from app.db.models import LegalNode, NodeReference, UploadedFile, UploadJob
-from app.audio.spoken_pii import mask_spoken, replace_known
 from app.ingestion.references import extract_refs, known_docs_from_db
 from app.llm.router import get_router
 from app.problems.extract import extract as extract_problems

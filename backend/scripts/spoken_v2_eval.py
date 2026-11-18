@@ -101,12 +101,55 @@ def _tokens(ids: list) -> int:
     return total
 
 
+def load_window(stem: str, start: float, end: float) -> dict[str, str]:
+    """Nguồn A = PhoWhisper đã che; thêm B nếu đã có lượt hai đã che cho cửa sổ này."""
+    rec = Path("data/raw/record/out")
+    data = json.loads((rec / f"{stem}.masked.json").read_text(encoding="utf-8"))
+    out = {"A": "\n".join(f"[{_ts(s['start'])}] {s['text']}" for s in data["segments"]
+                           if start <= s["start"] < end)}
+    p2 = rec / f"{stem}.pass2.masked.json"
+    if p2.exists():
+        win = json.loads(p2.read_text(encoding="utf-8"))["windows"]
+        b = "\n".join(f"[{_ts(w['start'])}] {w['text']}" for w in win if start <= w["start"] < end)
+        if b:
+            out["B"] = b
+    return out
+
+
+def segment_mode(args) -> None:
+    out = OUT / f"round{args.round}" / "segments"
+    out.mkdir(parents=True, exist_ok=True)
+    for spec in args.windows.split(","):
+        a, b = (float(x) for x in spec.split("-"))
+        sources = load_window(args.file, a, b)
+        for name in args.models.split(","):
+            path = out / f"{args.file}_{int(a)}_{int(b)}.{name}.json"
+            if path.exists():
+                continue
+            kind, model = MODELS[name]
+            stats = {"calls": 0, "seconds": 0.0, "ids": []}
+            result = spoken_v2.run(caller(kind, model, stats), sources, CORPUS)
+            result["audit"] = spoken_v2.audit(result, "\n".join(sources.values()), CORPUS)
+            result["enforced"] = spoken_v2.enforce(result, CORPUS)
+            result["sources"] = sources
+            result["stats"] = {**stats, "seconds": round(stats["seconds"]),
+                               "tokens": _tokens(stats["ids"])}
+            path.write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
+            print(path.name, len(result["units"]), "units", result["errors"], result["audit"],
+                  flush=True)
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--round", type=int, default=1)
     p.add_argument("--clips", default="f0_900,f2_1800,f4_3600")
     p.add_argument("--models", default="minimax,glm,deepseek,local")
+    p.add_argument("--file", help="đoạn dài từ <stem>.masked.json thay cho các đoạn bench")
+    p.add_argument("--windows", default="", help="giây_bắt_đầu-giây_kết_thúc,…")
     args = p.parse_args()
+    if args.file:
+        segment_mode(args)
+        return
     out = OUT / f"round{args.round}"
     out.mkdir(parents=True, exist_ok=True)
     for clip in args.clips.split(","):

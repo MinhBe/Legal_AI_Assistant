@@ -31,10 +31,10 @@ OUT = SRC / "out"
 THREADS = 8  # chừa lõi cho API và lượt sinh dữ liệu đang chạy
 
 
-def _model(name: str):
+def _model(name: str, threads: int = THREADS):
     from faster_whisper import WhisperModel
 
-    return WhisperModel(name, device="cpu", compute_type="int8", cpu_threads=THREADS)
+    return WhisperModel(name, device="cpu", compute_type="int8", cpu_threads=threads)
 
 
 def _write(path: Path, data) -> None:
@@ -166,7 +166,7 @@ def transcribe_all(args) -> None:
         total = convert.duration(src) or 0.0
         _write(OUT / "progress.json", {"model": args.model, "file": stem, "index": i,
                                        "files": len(files), "started": time.time()})
-        model = model or _model(args.model)
+        model = model or _model(args.model, args.threads)
         wav = _clip(src, 0, total + 1, OUT / f"{stem}-16k.wav")
         t0 = time.monotonic()
         try:
@@ -232,13 +232,37 @@ def pass2(stem: str, model_name: str = "medium", threads: int = 4) -> None:
     finally:
         wav.unlink(missing_ok=True)
     _write(OUT / f"{stem}.pass2.raw.json", {"model": model_name, "windows": out})
-    mapping = json.loads((OUT / f"{stem}.map.json").read_text(encoding="utf-8"))
-    masked = mask_lines([w["text"] for w in out], mapping=mapping)
-    _write(OUT / f"{stem}.map.json", mapping)  # lượt hai có thể thêm tên mới
-    _write(OUT / f"{stem}.pass2.masked.json", {"model": model_name, "windows": [
-        {**w, "text": t} for w, t in zip(out, masked, strict=True)]})
+    mask_pass2(stem)
     print(f"pass2 {stem}: {len(windows)} cửa sổ, {sum(b - a for a, b in windows):.0f}s âm thanh",
           flush=True)
+
+
+def mask_pass2(stem: str) -> None:
+    """Che <stem>.pass2.raw.json bằng ánh xạ của tệp (lượt hai có thể thêm tên mới)."""
+    raw = json.loads((OUT / f"{stem}.pass2.raw.json").read_text(encoding="utf-8"))
+    mapping = json.loads((OUT / f"{stem}.map.json").read_text(encoding="utf-8"))
+    masked = mask_lines([w["text"] for w in raw["windows"]], mapping=mapping)
+    _write(OUT / f"{stem}.map.json", mapping)
+    _write(OUT / f"{stem}.pass2.masked.json", {"model": raw["model"], "windows": [
+        {**w, "text": t} for w, t in zip(raw["windows"], masked, strict=True)]})
+
+
+def import_kaggle(args) -> None:
+    """Bản chép thô từ notebook Kaggle (asr/kaggle_asr.ipynb) -> che PII TRÊN MÁY NÀY."""
+    src_dir = Path(args.dir)
+    for raw_path in sorted(src_dir.glob("*.raw.json")):
+        if raw_path.name.endswith(".pass2.raw.json"):
+            continue
+        stem = raw_path.name[: -len(".raw.json")]
+        if src_dir.resolve() != OUT.resolve():
+            (OUT / raw_path.name).write_bytes(raw_path.read_bytes())
+            p2 = src_dir / f"{stem}.pass2.raw.json"
+            if p2.exists():
+                (OUT / p2.name).write_bytes(p2.read_bytes())
+        remask(stem)
+        if (OUT / f"{stem}.pass2.raw.json").exists():
+            mask_pass2(stem)
+        print("đã che", stem, flush=True)
 
 
 def follow(_args) -> None:
@@ -294,15 +318,19 @@ def main() -> None:
     b.add_argument("--clips", default="0:900,2:1800,4:3600", help="chỉ_số_tệp:giây_bắt_đầu")
     t = sub.add_parser("transcribe")
     t.add_argument("--model", default="large-v3")
+    t.add_argument("--threads", type=int, default=THREADS, help="ít luồng = máy mát hơn")
     sub.add_parser("mask-bench")
     sub.add_parser("follow")
+    k = sub.add_parser("import-kaggle")
+    k.add_argument("--dir", required=True, help="thư mục asr_out tải từ Kaggle")
     a = sub.add_parser("analyze")
     a.add_argument("--file", required=True)
     a.add_argument("--start", type=float, required=True)
     a.add_argument("--end", type=float, required=True)
     args = p.parse_args()
     {"bench": bench, "transcribe": transcribe_all, "analyze": analyze,
-     "mask-bench": mask_bench, "follow": follow}[args.cmd](args)
+     "mask-bench": mask_bench, "follow": follow,
+     "import-kaggle": import_kaggle}[args.cmd](args)
 
 
 if __name__ == "__main__":

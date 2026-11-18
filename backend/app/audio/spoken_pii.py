@@ -48,6 +48,19 @@ _ADDRESS_WORD = re.compile(
     r"(?<!\w)(?:số|đường|phố|ngõ|ngách|hẻm|kiệt|thôn|xóm|ấp|tổ|khu phố)(?!\w)", re.IGNORECASE
 )
 TYPES = {"TÊN", "TỔ_CHỨC", "SĐT", "STK", "ĐỊA_CHỈ"}
+# doanh nghiệp / văn phòng luật tư nhân: chỉ những tổ chức này mới bị che
+_PRIVATE_ORG = re.compile(
+    r"^(?:công ty|cty|văn phòng luật|văn phòng luật sư|hãng luật|doanh nghiệp|tập đoàn|"
+    r"cửa hàng|cơ sở|hộ kinh doanh|kênh của)\b", re.IGNORECASE)
+# địa danh hành chính: không phải dữ liệu cá nhân, và là tình tiết (diện tích tối thiểu theo tỉnh)
+_PLACE = re.compile(
+    r"^(?:thành phố|tp|tỉnh|huyện|quận|thị xã|xã|phường|thị trấn|hà nội|sài gòn|"
+    r"hồ chí minh|đà nẵng|hải phòng|cần thơ|huế)\b", re.IGNORECASE)
+# quan hệ gia đình / xưng hô: NER 7B hay gán nhầm thành TÊN ("cha mẹ", "con nuôi")
+_KIN = set(
+    "bố mẹ cha má ba con cháu chắt anh chị em ông bà vợ chồng cô chú bác dì dượng thím mợ cậu "
+    "trai gái nuôi đẻ riêng chung ruột dâu rể họ hàng người bạn thầy luật sư khách".split()
+)
 # Cơ quan, ứng dụng công, tên văn bản: không phải dữ liệu cá nhân, che đi thì mất nghĩa pháp lý
 _PUBLIC = re.compile(
     r"^(?:e-?tax|i ?tách|ứng dụng e|cơ quan|tổng cục|cục thuế|chi cục|vtv|htv|"
@@ -103,10 +116,16 @@ def _plausible(etype: str, value: str) -> bool:
         return bool(_SPOKEN_NUMBER.search(value) or re.search(r"\d{7,}", value))
     if etype == "ĐỊA_CHỈ":
         return bool(_ADDRESS_WORD.search(value))
-    if _PUBLIC.match(value.strip()):
+    words = value.lower().split()
+    if _PUBLIC.match(value.strip()) or _PLACE.match(value.strip()):
         return False
-    if etype == "TỔ_CHỨC":  # "văn phòng công chứng" là danh từ chung, không phải tên riêng
-        return any(w not in _GENERIC_ORG for w in value.lower().split())
+    if etype == "TỔ_CHỨC":
+        # chỉ tên doanh nghiệp/văn phòng luật TƯ NHÂN mới là dữ liệu nhận diện; NER 7B hay gán
+        # nhầm "đất đai", "trợ lý", tên đài báo, tên thành phố (đo trên tệp 1, 18/11/2026)
+        return bool(_PRIVATE_ORG.match(value.strip())) and any(
+            w not in _GENERIC_ORG for w in words)
+    if etype == "TÊN":  # "cha mẹ", "con nuôi", "anh" không phải tên người
+        return words[0] not in _KIN and not all(w in _KIN | _NOT_NAME for w in words)
     return etype in TYPES
 
 
@@ -210,7 +229,9 @@ def add_ner(router, text: str, mapping: dict[str, str]) -> None:
             # phần riêng của tên ("hân vượng") vẫn bị che khi tên vắt qua hai đoạn chép lời
             words = value.split()
             core = [w for w in words if w.lower() not in _GENERIC_ORG]
-            if len(core) >= 2 and len(core) < len(words):
+            # phần riêng chỉ lấy khi không phải từ chung/địa danh ("đất đai", "sài gòn")
+            if (len(core) >= 2 and len(core) < len(words)
+                    and not _PLACE.match(" ".join(core)) and _plausible("TÊN", " ".join(core))):
                 _new_placeholder(mapping, etype, " ".join(core))
 
 
