@@ -128,10 +128,16 @@ def main() -> None:
         report_to="none",
         dataset_text_field="text",
         max_length=MAX_SEQ_LEN,  # trl cũ dùng max_seq_length
+        # CPU không được làm GPU chờ (Minh đo thấy Kaggle chỉ dùng 1 lõi): đóng gói chuỗi,
+        # tiền token hoá 4 tiến trình, DataLoader 4 luồng + pin_memory
+        packing=True,
+        dataset_num_proc=4,
+        dataloader_num_workers=4,
+        dataloader_pin_memory=True,
     )
     trainer = SFTTrainer(
         model=model,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,  # trl mới bỏ tham số tokenizer=
         train_dataset=train,
         eval_dataset=val,
         args=cfg,
@@ -140,7 +146,18 @@ def main() -> None:
 
     resume = latest_checkpoint(ckpt_dir) if args.resume else None
     print(f"Bắt đầu (resume từ {resume})" if resume else "Bắt đầu từ đầu", flush=True)
-    trainer.train(resume_from_checkpoint=str(resume) if resume else None)
+    t0 = time.time()
+    res = trainer.train(resume_from_checkpoint=str(resume) if resume else None)
+    took = time.time() - t0
+    steps = max(1, res.global_step)
+    metrics = {"mode": "unsloth_1gpu", "steps": steps, "seconds": round(took, 1),
+               "s_per_step": round(took / steps, 2),
+               # packing: mỗi mẫu đủ MAX_SEQ_LEN token; batch hiệu dụng 2 × 4
+               "tokens_per_s": round(steps * 2 * 4 * MAX_SEQ_LEN / took),
+               "train_loss": res.training_loss}
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "metrics.json").write_text(json.dumps(metrics, indent=1))
+    print(json.dumps(metrics), flush=True)
 
     model.save_pretrained(str(out / "lora"))
     tokenizer.save_pretrained(str(out / "lora"))

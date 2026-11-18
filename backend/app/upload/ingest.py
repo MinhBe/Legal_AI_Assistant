@@ -60,13 +60,28 @@ def split_sections(text: str) -> list[str]:
     return chunks
 
 
+ISSUE_RATIO = 0.05  # tối đa 5 % số điều có cảnh báo cấu trúc thì vẫn giữ chế độ điều/khoản
+
+
+def tolerable(issues: list, n_articles: int) -> bool:
+    """Văn bản luật dài có điều sửa đổi luật khác (Luật Đất đai 2024, Điều 243–248) trích
+    nguyên khoản/điểm của luật bị sửa nên đánh số lại từ 1: vài cảnh báo kiểu đó không được
+    làm cả văn bản rơi về chế độ "đoạn" (mất số điều, không đối chiếu trích dẫn được).
+    Cảnh báo "Điều không liên tục" (thiếu điều) thì không chấp nhận."""
+    if not issues:
+        return True
+    if any(str(i).startswith("Điều không liên tục") for i in issues):
+        return False
+    return len(issues) <= max(2, int(n_articles * ISSUE_RATIO))
+
+
 def build_rows(doc_id: str, title: str, text: str) -> tuple[str, list[dict]]:
     if not text or not text.strip():
         raise ValueError("no text")
 
     articles = parse_articles(text)
     assign_ids(doc_id, articles)
-    if len(articles) >= 1 and not validate(articles, text):
+    if len(articles) >= 1 and tolerable(validate(articles, text), len(articles)):
         return "articles", _nodes_from_articles(doc_id, articles, None, None)
 
     rows = []
