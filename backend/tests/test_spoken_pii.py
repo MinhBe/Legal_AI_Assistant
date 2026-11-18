@@ -51,3 +51,24 @@ def test_ner_failure_falls_back_to_rules():
     m: dict[str, str] = {}
     out = mask_spoken("chị nguyễn thị lan hỏi", mapping=m, router=FakeRouter("không phải json"))
     assert "lan" not in out
+
+
+def test_single_syllable_name_only_after_honorific_and_generic_org_rejected():
+    text = "luật sư phương nói tặng cho đối phương, ra văn phòng công chứng"
+    router = FakeRouter(
+        '{"items": [{"type": "TÊN", "text": "phương"},'
+        ' {"type": "TỔ_CHỨC", "text": "văn phòng công chứng"}]}'
+    )
+    m: dict[str, str] = {}
+    out = mask_spoken(text, mapping=m, router=router)
+    assert "luật sư [TÊN_1]" in out and "đối phương" in out
+    assert "văn phòng công chứng" in out
+
+
+def test_org_core_masked_when_split_across_segments():
+    router = FakeRouter('{"items": [{"type": "TỔ_CHỨC", "text": "công ty luật hân vượng"}]}')
+    m: dict[str, str] = {}
+    from app.audio.spoken_pii import add_ner
+
+    add_ner(router, "giám đốc công ty luật hân vượng", m)
+    assert "hân" not in mask_spoken("Hân Vượng", mapping=m).lower()

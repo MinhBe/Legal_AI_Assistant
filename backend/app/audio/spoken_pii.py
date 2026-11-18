@@ -48,6 +48,12 @@ _ADDRESS_WORD = re.compile(
     r"(?<!\w)(?:số|đường|phố|ngõ|ngách|hẻm|kiệt|thôn|xóm|ấp|tổ|khu phố)(?!\w)", re.IGNORECASE
 )
 TYPES = {"TÊN", "TỔ_CHỨC", "SĐT", "STK", "ĐỊA_CHỈ"}
+_GENERIC_ORG = set(
+    "văn phòng công chứng ty luật tòa toà án ủy uỷ ban nhân dân cơ quan thuế bảo hiểm xã hội "
+    "ngân hàng doanh nghiệp đơn vị bộ phận kế toán nhân sự kênh trung tâm sở phòng chi cục "
+    "nhà nước chính phủ của các một bất động sản tư vấn đầu tư thương mại dịch vụ xây dựng "
+    "tnhh cổ phần hãng tập đoàn".split()
+)
 
 NER_SYSTEM = """Bạn tìm dữ liệu cá nhân trong một đoạn bản chép lời tiếng Việt (chữ thường, \
 không dấu câu). Chỉ trả về JSON, ví dụ:
@@ -69,6 +75,8 @@ def _plausible(etype: str, value: str) -> bool:
         return bool(_SPOKEN_NUMBER.search(value) or re.search(r"\d{7,}", value))
     if etype == "ĐỊA_CHỈ":
         return bool(_ADDRESS_WORD.search(value))
+    if etype == "TỔ_CHỨC":  # "văn phòng công chứng" là danh từ chung, không phải tên riêng
+        return any(w not in _GENERIC_ORG for w in value.lower().split())
     return etype in TYPES
 
 
@@ -93,10 +101,21 @@ def _rule(pattern: re.Pattern[str], etype: str, text: str, mapping: dict[str, st
 
 
 def replace_known(text: str, mapping: dict[str, str]) -> str:
-    """Thay MỌI lần xuất hiện của giá trị đã biết (giá trị dài thay trước)."""
+    """Thay MỌI lần xuất hiện của giá trị đã biết (giá trị dài thay trước).
+
+    Khoảng trắng trong giá trị khớp cả xuống dòng (tên công ty vắt qua hai đoạn). Tên một
+    âm tiết ("phương") chỉ thay khi đứng sau xưng hô, để "đối phương" không bị che.
+    """
     for ph, value in sorted(mapping.items(), key=lambda kv: -len(kv[1])):
-        if len(value) >= 3:
-            text = re.sub(rf"(?<!\w){re.escape(value)}(?!\w)", ph, text, flags=re.IGNORECASE)
+        words = value.split()
+        if len(value) < 3 or not words:
+            continue
+        body = r"\s+".join(re.escape(w) for w in words)
+        if len(words) == 1:
+            text = re.sub(rf"(?<!\w)((?:{_HONORIFIC})\s+){body}(?!\w)",
+                          lambda m, ph=ph: m.group(1) + ph, text, flags=re.IGNORECASE)
+        else:
+            text = re.sub(rf"(?<!\w){body}(?!\w)", ph, text, flags=re.IGNORECASE)
     return text
 
 
@@ -143,6 +162,14 @@ def add_ner(router, text: str, mapping: dict[str, str]) -> None:
     """Đưa giá trị NER của một cửa sổ văn bản vào ánh xạ (chưa thay gì trong văn bản)."""
     for etype, value in ner_values(router, text):
         _new_placeholder(mapping, etype, value)
+        if etype == "TỔ_CHỨC":
+            # phần riêng của tên ("hân vượng") vẫn bị che khi tên vắt qua hai đoạn chép lời
+            words = value.split()
+            core = [w for w in words if w.lower() not in _GENERIC_ORG]
+            if len(core) >= 2 and len(core) < len(words):
+                _new_placeholder(mapping, etype, " ".join(core))
+            if len(words) >= 4 and words[0].lower() in _GENERIC_ORG:  # tên riêng ở cuối
+                _new_placeholder(mapping, etype, " ".join(words[-2:]))
 
 
 def mask_spoken(text: str, *, mapping: dict[str, str], router=None) -> str:
