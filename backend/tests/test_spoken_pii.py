@@ -79,3 +79,49 @@ def test_media_outlet_does_not_mask_the_word_phap_luat():
     m: dict[str, str] = {}
     out = mask_spoken("các vấn đề về mặt pháp luật", mapping=m, router=router)
     assert out == "các vấn đề về mặt pháp luật"
+
+
+def test_amounts_dates_and_article_numbers_are_kept():
+    m: dict[str, str] = {}
+    text = "đánh dưới 5 triệu thì phạt, 100.000.000 đồng, ngày 16/11/2026, khoản 1 Điều 321"
+    assert mask_spoken(text, mapping=m) == text
+
+
+def test_bare_given_names_after_introductions():
+    m: dict[str, str] = {}
+    out = mask_spoken("câu hỏi đầu tiên của bạn là minh đó là", mapping=m)
+    assert "minh" not in out
+    out = mask_spoken("Chào bạn Lan Anh, cảm ơn bạn Hùng", mapping=m)
+    assert "Lan" not in out and "Hùng" not in out
+    assert mask_spoken("chào bạn nhé, tên là gì", mapping=m) == "chào bạn nhé, tên là gì"
+
+
+def test_public_entities_are_not_masked():
+    router = FakeRouter(
+        '{"items": [{"type": "TỔ_CHỨC", "text": "eTax Mobile"},'
+        ' {"type": "TỔ_CHỨC", "text": "cơ quan thuế"}, {"type": "TỔ_CHỨC", "text": "VTV"},'
+        ' {"type": "TỔ_CHỨC", "text": "toà án nhân dân"},'
+        ' {"type": "TỔ_CHỨC", "text": "văn phòng đăng ký đất đai"}]}'
+    )
+    text = "nộp trên eTax Mobile hoặc cơ quan thuế, VTV đưa tin, toà án nhân dân, văn phòng đăng ký đất đai"
+    m: dict[str, str] = {}
+    assert mask_spoken(text, mapping=m, router=router) == text
+
+
+def test_id_number_masked_but_separated_amount_kept():
+    m: dict[str, str] = {}
+    out = mask_spoken("cccd 001203004567 nộp 100.000.000", mapping=m)
+    assert "001203004567" not in out and "100.000.000" in out
+
+
+def test_mask_lines_uses_context_across_segment_boundaries():
+    from app.audio.spoken_pii import mask_lines
+
+    m: dict[str, str] = {}
+    lines = ["Câu hỏi đầu tiên của bạn là", "Minh đó là cha mẹ có 300 mét vuông đất ở",
+             "Giám đốc công ty luật bất động sản", "Hân Vượng"]
+    m["[TỔ_CHỨC_1]"] = "công ty luật bất động sản Hân Vượng"
+    out = mask_lines(lines, mapping=m)
+    assert len(out) == 4
+    assert "Minh" not in out[1] and "300 mét vuông" in out[1]
+    assert "Hân" not in " ".join(out)

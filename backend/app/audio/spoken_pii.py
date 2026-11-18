@@ -30,24 +30,47 @@ _SURNAME = "|".join(SURNAMES)
 _END = r"(?=[\s,.?!]|$)"
 # "anh nguyễn văn an", "luật sư đỗ đăng khoa": họ + 1–3 âm tiết sau xưng hô
 _NAME_AFTER = re.compile(
-    rf"(?<!\w)(?P<prefix>(?:{_HONORIFIC})\s+)(?P<value>(?:{_SURNAME})(?:\s+{_SYL}){{1,3}}){_END}",
+    rf"(?<!\w)(?P<prefix>(?:{_HONORIFIC})\s+)(?P<value>(?:{_SURNAME})(?:[ ]+{_SYL}){{1,3}}){_END}",
     re.IGNORECASE,
 )
 # tên hiển thị kiểu mạng xã hội sau lời chào: "chào bạn bảy bảy nguyễn", "bạn lan phạm"
 _NAME_BEFORE_SURNAME = re.compile(
     rf"(?<!\w)(?P<prefix>(?:chào bạn|chào anh|chào chị|của bạn)\s+)"
-    rf"(?P<value>{_SYL}(?:\s+{_SYL})?\s+(?:{_SURNAME})){_END}",
+    rf"(?P<value>{_SYL}(?:[ ]+{_SYL})?[ ]+(?:{_SURNAME})){_END}",
     re.IGNORECASE,
 )
 _DIGIT = r"không|một|mốt|hai|ba|bốn|tư|năm|lăm|sáu|bảy|tám|chín|linh|lẻ"
 # từ 7 chữ số đọc liền trở lên: số điện thoại, số tài khoản, CCCD đọc thành chữ
 _SPOKEN_NUMBER = re.compile(
-    rf"(?<!\w)(?:(?:{_DIGIT})[\s,.-]+){{6,}}(?:{_DIGIT})(?!\w)", re.IGNORECASE
+    rf"(?<!\w)(?:(?:{_DIGIT})[ ,.-]+){{6,}}(?:{_DIGIT})(?!\w)", re.IGNORECASE
 )
 _ADDRESS_WORD = re.compile(
     r"(?<!\w)(?:số|đường|phố|ngõ|ngách|hẻm|kiệt|thôn|xóm|ấp|tổ|khu phố)(?!\w)", re.IGNORECASE
 )
 TYPES = {"TÊN", "TỔ_CHỨC", "SĐT", "STK", "ĐỊA_CHỈ"}
+# Cơ quan, ứng dụng công, tên văn bản: không phải dữ liệu cá nhân, che đi thì mất nghĩa pháp lý
+_PUBLIC = re.compile(
+    r"^(?:e-?tax|i ?tách|ứng dụng e|cơ quan|tổng cục|cục thuế|chi cục|vtv|htv|"
+    r"to[àa] án|viện kiểm sát|công an|ubnd|[uủ]y ban|văn phòng công chứng|"
+    r"văn phòng đăng ký|bộ luật|luật\s|nghị định|thông tư|quốc hội|chính phủ)",
+    re.IGNORECASE,
+)
+# Tên gọi đứng một mình sau lời giới thiệu: "của bạn là minh", "tên là lan", "chào bạn hùng"
+_NOT_NAME = set(
+    "ai gì gi người một hai ba đây đó đấy thế như này kia là có không được và thì mà ạ nhé nha "
+    "nhá ơi à ừ vâng dạ ok tôi mình em anh chị bạn các những cái về câu hỏi".split()
+)
+_BARE_NAME = re.compile(
+    rf"(?<!\w)(?P<prefix>(?:của bạn là|tên là|tên tôi là|tên mình là|chào bạn|chào anh|chào chị)"
+    rf"\s+)(?P<value>{_SYL})(?!\w)",
+    re.IGNORECASE,
+)
+# bản chép có chữ hoa (Whisper): "bạn Minh", "bạn Lan Anh"
+_CAP = r"[A-ZĐÀ-Ỹ][a-zàáâãèéêìíòóôõùúýăđĩũơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]+"
+_CAP_NAME = re.compile(rf"(?<!\w)(?P<prefix>(?:[Bb]ạn|[Cc]hào)\s+)(?P<value>{_CAP}(?:[ ]+{_CAP})?)")
+# số CCCD/CMND viết liền (số tiền có dấu chấm phân cách thì không bị bắt)
+_ID_NUMBER = re.compile(r"(?<![\d.,])(?:\d{9}|\d{12})(?![\d.,])")
+_KEEP = frozenset({"TIỀN", "CCCD"})  # số tiền là tình tiết; CCCD dùng luật riêng ở trên
 _GENERIC_ORG = set(
     "văn phòng công chứng ty luật tòa toà án ủy uỷ ban nhân dân cơ quan thuế bảo hiểm xã hội "
     "ngân hàng doanh nghiệp đơn vị bộ phận kế toán nhân sự kênh trung tâm sở phòng chi cục "
@@ -76,6 +99,8 @@ def _plausible(etype: str, value: str) -> bool:
         return bool(_SPOKEN_NUMBER.search(value) or re.search(r"\d{7,}", value))
     if etype == "ĐỊA_CHỈ":
         return bool(_ADDRESS_WORD.search(value))
+    if _PUBLIC.match(value.strip()):
+        return False
     if etype == "TỔ_CHỨC":  # "văn phòng công chứng" là danh từ chung, không phải tên riêng
         return any(w not in _GENERIC_ORG for w in value.lower().split())
     return etype in TYPES
@@ -101,6 +126,18 @@ def _rule(pattern: re.Pattern[str], etype: str, text: str, mapping: dict[str, st
     return pattern.sub(repl, text)
 
 
+def _named(pattern: re.Pattern[str], text: str, mapping: dict[str, str]) -> str:
+    """Tên đứng một mình: bỏ qua từ thường ("chào bạn nhé") và tên cơ quan công."""
+    def repl(m: re.Match[str]) -> str:
+        value = m.group("value")
+        first = value.split()[0].lower()
+        if first in _NOT_NAME or _PUBLIC.match(value):
+            return m.group(0)
+        return m.group("prefix") + _new_placeholder(mapping, "TÊN", value)
+
+    return pattern.sub(repl, text)
+
+
 def replace_known(text: str, mapping: dict[str, str]) -> str:
     """Thay MỌI lần xuất hiện của giá trị đã biết (giá trị dài thay trước).
 
@@ -115,8 +152,10 @@ def replace_known(text: str, mapping: dict[str, str]) -> str:
         if len(words) == 1:
             text = re.sub(rf"(?<!\w)((?:{_HONORIFIC})\s+){body}(?!\w)",
                           lambda m, ph=ph: m.group(1) + ph, text, flags=re.IGNORECASE)
-        else:
-            text = re.sub(rf"(?<!\w){body}(?!\w)", ph, text, flags=re.IGNORECASE)
+        else:  # giữ nguyên số dòng để tách lại đúng từng đoạn chép lời
+            text = re.sub(rf"(?<!\w){body}(?!\w)",
+                          lambda m, ph=ph: ph + "\n" * m.group(0).count("\n"),
+                          text, flags=re.IGNORECASE)
     return text
 
 
@@ -176,9 +215,24 @@ def mask_spoken(text: str, *, mapping: dict[str, str], router=None) -> str:
     if router is not None:
         add_ner(router, text, mapping)
     out = replace_known(text, mapping)
-    out = mask(out, mapping=mapping).text
+    # luật cũ có \s+ bên trong giá trị: chạy từng dòng để không nuốt mất dấu xuống dòng
+    out = "\n".join(mask(line, mapping=mapping, skip=_KEEP).text for line in out.split("\n"))
+    out = _rule(_ID_NUMBER, "CCCD", out, mapping)
     out = _rule(_NAME_AFTER, "TÊN", out, mapping)
     out = _rule(_NAME_BEFORE_SURNAME, "TÊN", out, mapping)
+    out = _named(_BARE_NAME, out, mapping)
+    out = _named(_CAP_NAME, out, mapping)
     out = _rule(_SPOKEN_NUMBER, "SỐ", out, mapping)
     out = replace_known(out, mapping)
     return _given_names(out, mapping)
+
+
+def mask_lines(lines: list[str], *, mapping: dict[str, str], router=None) -> list[str]:
+    """Che cả cửa sổ một lượt rồi tách lại từng đoạn: ngữ cảnh vắt qua ranh giới đoạn
+    ("…của bạn là" | "Minh đó là…") vẫn được nhận ra. Mỗi đoạn không được chứa xuống dòng."""
+    lines = [line.replace("\n", " ") for line in lines]
+    out = mask_spoken("\n".join(lines), mapping=mapping, router=router).split("\n")
+    if len(out) != len(lines):  # không bao giờ được xảy ra; vẫn che được, chỉ mất ngữ cảnh
+        logger.warning("mask_lines: lệch số dòng, che từng đoạn")
+        out = [mask_spoken(line, mapping=mapping) for line in lines]
+    return [replace_known(line, mapping) for line in out]

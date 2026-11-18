@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 
 from app.audio import convert, transcribe
-from app.audio.spoken_pii import add_ner, mask_spoken
+from app.audio.spoken_pii import add_ner, mask_lines
 
 SRC = Path("data/raw/record")
 OUT = SRC / "out"
@@ -76,8 +76,10 @@ def mask_segments(segs: list[dict], window_s: float = 300) -> list:
         windows.setdefault(int(s["start"] // window_s), []).append(s["text"])
     for texts in windows.values():
         add_ner(router, "\n".join(texts), mapping)
-    out: list = [{"start": s["start"], "end": s["end"],
-                  "text": mask_spoken(s["text"], mapping=mapping)} for s in segs]
+    # che cả bản một lượt (ngữ cảnh vắt qua ranh giới đoạn), rồi tách lại từng đoạn
+    masked = mask_lines([s["text"] for s in segs], mapping=mapping)
+    out: list = [{"start": s["start"], "end": s["end"], "text": t}
+                 for s, t in zip(segs, masked, strict=True)]
     out.append(mapping)
     return out
 
@@ -146,9 +148,10 @@ def mask_bench(_args) -> None:
         for segs in segs_by.values():
             add_ner(router, "\n".join(x["text"] for x in segs), mapping)
         for f, segs in segs_by.items():
+            masked = mask_lines([x["text"] for x in segs], mapping=mapping)
             f.with_name(f.name.replace(".raw.txt", ".masked.txt")).write_text(
-                "\n".join(f"[{x['start']:.0f}] {mask_spoken(x['text'], mapping=mapping)}"
-                          for x in segs), encoding="utf-8")
+                "\n".join(f"[{x['start']:.0f}] {t}" for x, t in zip(segs, masked, strict=True)),
+                encoding="utf-8")
 
 
 def transcribe_all(args) -> None:

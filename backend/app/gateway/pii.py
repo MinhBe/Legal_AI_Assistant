@@ -94,15 +94,20 @@ def _next_index(mapping: dict[str, str], etype: str) -> int:
     return top + 1
 
 
-def mask(text: str, *, mapping: dict[str, str] | None = None) -> Masked:
+def mask(
+    text: str, *, mapping: dict[str, str] | None = None, skip: frozenset[str] = frozenset()
+) -> Masked:
     """Che PII trong `text`. `mapping` (nếu có) được mở rộng tại chỗ, để lượt sau
-    dùng lại đúng placeholder của lượt trước (lịch sử hội thoại)."""
+    dùng lại đúng placeholder của lượt trước (lịch sử hội thoại). `skip` là các loại
+    không che (bản chép lời giữ số tiền vì đó là tình tiết pháp lý)."""
     mapping = mapping if mapping is not None else {}
     reverse = {v: k for k, v in mapping.items()}
     seen: dict[str, set[str]] = {}
     out = text
 
     for etype, pattern, check in _RULES:
+        if etype in skip:
+            continue
         def repl(m: re.Match[str], etype: str = etype, check: object = check) -> str:
             grouped = "value" in m.groupdict()
             value = m.group("value") if grouped else m.group(0)
