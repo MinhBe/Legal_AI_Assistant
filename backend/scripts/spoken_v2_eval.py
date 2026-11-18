@@ -71,7 +71,7 @@ def caller(kind: str, model: str | None, stats: dict):
                                                  task="route")
                     break
                 except Exception as exc:  # noqa: BLE001
-                    if "429" not in str(exc) and "nghỉ" not in str(exc) or attempt == 3:
+                    if not any(k in str(exc) for k in ("429", "nghỉ", "timed out")) or attempt == 3:
                         raise
                     time.sleep(120 * (attempt + 1))
         else:
@@ -92,7 +92,10 @@ def _tokens(ids: list) -> int:
     if not path.exists():
         return 0
     for line in path.read_text(encoding="utf-8").splitlines()[-5000:]:
-        rec = json.loads(line)
+        try:  # tiến trình khác có thể đang ghi dở một dòng
+            rec = json.loads(line)
+        except ValueError:
+            continue
         if rec.get("call_id") in want:
             total += (rec.get("input_tokens") or 0) + (rec.get("output_tokens") or 0)
     return total

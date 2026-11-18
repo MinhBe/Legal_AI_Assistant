@@ -45,9 +45,14 @@ Write ONE corrected Vietnamese transcript:
 1. Fix misheard legal terms. Known pairs: {KNOWN_FIXES}.
 2. Add punctuation and capitalisation; write numbers, amounts, dates, article and law numbers \
 as digits ("Điều 321", "5 triệu", "109/2025").
-3. When sources disagree on MEANING (e.g. "tách được" vs "không tách được") or on a NUMBER or \
-CITATION (e.g. 109 vs 129): if three sources exist and two agree, take the majority; \
-otherwise write both as [?a/b], e.g. [?109/129]. Never pick silently, never invent.
+3. Disagreements between sources:
+   - MEANING words (e.g. "tách được" vs "không tách được"): if three sources exist and two \
+agree, take the majority; with only two sources, write both: [?tách được/không tách được].
+   - NUMBERS in law/decree/article citations (law number, decree number, Điều, khoản): \
+B and C come from the same recogniser family, so a majority does NOT settle them. Keep \
+[?109/129] unless ALL sources agree.
+   - Write the real alternatives inside the brackets. Never write the literal text "[?a/b]".
+   - Never pick silently, never invent.
 4. Keep the speakers' meaning and wording; do not summarise. Mark words you cannot \
 reconstruct as [?].
 5. Drop advertising, channel promotion, greetings and calls to comment.
@@ -123,14 +128,24 @@ skip intros, ads, greetings); then fill this JSON schema per unit, in Vietnamese
 {UNIT_SCHEMA}
 
 Hard rules:
-- "facts" and "lawyer_says" contain only what is in the transcript. Never add events, people, \
-amounts or conclusions.
+- "facts" are the asker's situation only (not the lawyer's answer), as stated. No \
+calculations or inferences (do not write "each child gets 100 m²").
+- "lawyer_says" contains only what the lawyer/expert said, without repeats. Never add events, \
+people, amounts or conclusions.
+- A new question from the host or asker starts a new unit, even if the same expert answers.
 - Everything you add yourself goes to "suggestions", each with "needs_lawyer_review": true.
 - NEVER output an article/law/decree number that is not in the transcript, unless it is in \
-the corpus list given to you. A citation from your own memory must have status \
-"outside_corpus_unverified" and source "model". Only use "verified_in_corpus" for documents \
-in the corpus list.
-- Keep [?a/b] and [?] marks; list them under "uncertain". Do not resolve them.
+the corpus list given to you. This applies to suggestions too.
+- A document you add from memory: give only its name with NO article number, status \
+"outside_corpus_unverified", source "model". Today is 2026: cite the version in force \
+(e.g. Luật Đất đai 2024, not 2013; Bộ luật Lao động 2019, not 2012). Do not mention abolished \
+papers such as sổ hộ khẩu.
+- A citation spoken in the audio has source "audio". Only use "verified_in_corpus" for \
+documents in the corpus list.
+- Keep every [?x/y] and [?] mark exactly, in the field where it occurs AND under \
+"uncertain" with a short explanation. Do not resolve them.
+- All values are strings (or lists of strings); "start"/"end" are "mm:ss" strings.
+- Do not repeat the same sentence in suggestions and practical_tactics.
 - "practical_tactics": lawful steps only. Never give tips for evading the law, hiding assets, \
 avoiding detection or obstructing authorities.
 - "in_scope_labour": "yes" for labour law, "related" when it touches wages/employment \
@@ -171,6 +186,33 @@ class Unit(BaseModel):
     end: str = ""
 
 
+def _coerce(item: dict[str, Any]) -> None:
+    """Sửa lệch kiểu hay gặp (MiniMax): số ở trường chuỗi, gợi ý là chuỗi trần, phần tử
+    danh sách là dict… Không đổi nội dung, chỉ đổi kiểu để kiểm lược đồ không vứt cả đơn vị."""
+    for key in ("domain", "in_scope_labour", "legal_question", "start", "end"):
+        if item.get(key) is not None and not isinstance(item[key], str):
+            item[key] = str(item[key])
+    for key in ("facts", "lawyer_says", "practical_tactics", "uncertain"):
+        val = item.get(key)
+        if isinstance(val, str):
+            val = [val]
+        if isinstance(val, list):
+            item[key] = [v.get("text", json.dumps(v, ensure_ascii=False)) if isinstance(v, dict)
+                         else str(v) for v in val]
+    sugg = item.get("suggestions")
+    if isinstance(sugg, list):
+        item["suggestions"] = [{"text": s, "needs_lawyer_review": True} if isinstance(s, str)
+                               else s for s in sugg]
+    cites = item.get("citations")
+    if isinstance(cites, list):
+        fixed = []
+        for c in cites:
+            entry = {"doc": c} if isinstance(c, str) else c
+            if isinstance(entry, dict):
+                fixed.append({k: "" if v is None else str(v) for k, v in entry.items()})
+        item["citations"] = fixed
+
+
 def stage1_user(sources: dict[str, str]) -> str:
     return "\n\n".join(f"SOURCE {name}:\n{text}" for name, text in sources.items())
 
@@ -200,6 +242,8 @@ def run(
             data = parse_json(call([{"role": "system", "content": STAGE2_SYSTEM},
                                     {"role": "user", "content": stage2_user(corrected, corpus_docs)}]))
             for item in data.get("units") or []:
+                if isinstance(item, dict):
+                    _coerce(item)
                 try:
                     units.append(Unit.model_validate(item).model_dump())
                 except ValidationError as exc:
@@ -207,6 +251,28 @@ def run(
         except Exception as exc:  # noqa: BLE001
             errors.append(f"stage2: {str(exc)[:200]}")
     return {"corrected": corrected, "units": units, "errors": errors}
+
+
+def enforce(result: dict[str, Any], corpus_docs: list[str]) -> list[str]:
+    """Lưới an toàn bằng code trước khi lưu vào /bai-toan (mô hình nhỏ hay vi phạm):
+    - "verified_in_corpus" cho văn bản ngoài kho -> hạ về "outside_corpus_unverified";
+    - trích dẫn từ trí nhớ (source=model) có số điều -> xoá số điều;
+    - mọi gợi ý luôn needs_lawyer_review=True.
+    Trả danh sách thay đổi (ghi kèm để luật sư biết mô hình đã vi phạm gì)."""
+    changes: list[str] = []
+    corpus = [d.lower() for d in corpus_docs]
+    for i, u in enumerate(result.get("units", []), 1):
+        for c in u["citations"]:
+            in_corpus = any(d in c["doc"].lower() or c["doc"].lower() in d for d in corpus)
+            if c["status"] == "verified_in_corpus" and not in_corpus:
+                c["status"] = "outside_corpus_unverified"
+                changes.append(f"unit {i}: hạ '{c['doc']}' về outside_corpus_unverified")
+            if c["source"] == "model" and re.search(r"\d", c["article"]):
+                changes.append(f"unit {i}: xoá số điều từ trí nhớ '{c['article']}'")
+                c["article"] = ""
+        for s in u["suggestions"]:
+            s["needs_lawyer_review"] = True
+    return changes
 
 
 _NUM = re.compile(r"\d+(?:/\d+)*")
@@ -235,8 +301,16 @@ def audit(result: dict[str, Any], source_text: str, corpus_docs: list[str]) -> l
                 d in c["doc"].lower() or c["doc"].lower() in d for d in corpus
             ):
                 issues.append(f"unit {i}: '{c['doc']}' ghi verified_in_corpus nhưng không có trong kho")
+            if c["source"] == "model" and re.search(r"\d", c["article"]):
+                issues.append(f"unit {i}: trích dẫn từ trí nhớ có số điều '{c['article']}'")
         for said in u["lawyer_says"]:
             for n in _numbers(said):
                 if n not in allowed:
                     issues.append(f"unit {i}: lawyer_says có số {n} không có trong nguồn")
+        for s in u["suggestions"]:
+            for m in re.finditer(r"(?:Điều|khoản|Nghị định|số)\s+(\d+(?:/\d+)*)", s["text"]):
+                if m[1] not in allowed:
+                    issues.append(f"unit {i}: gợi ý nêu '{m[0]}' không có trong nguồn")
+    if "[?a/b]" in json.dumps(result, ensure_ascii=False):
+        issues.append("còn chữ '[?a/b]' nguyên văn thay vì hai khả năng thật")
     return issues
