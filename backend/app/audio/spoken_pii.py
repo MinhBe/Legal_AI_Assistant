@@ -52,7 +52,8 @@ _GENERIC_ORG = set(
     "văn phòng công chứng ty luật tòa toà án ủy uỷ ban nhân dân cơ quan thuế bảo hiểm xã hội "
     "ngân hàng doanh nghiệp đơn vị bộ phận kế toán nhân sự kênh trung tâm sở phòng chi cục "
     "nhà nước chính phủ của các một bất động sản tư vấn đầu tư thương mại dịch vụ xây dựng "
-    "tnhh cổ phần hãng tập đoàn".split()
+    "tnhh cổ phần hãng tập đoàn pháp truyền hình báo đài tạp chí kinh tế tài chính ứng dụng "
+    "livestream live stream tư vấn giải đáp".split()
 )
 
 NER_SYSTEM = """Bạn tìm dữ liệu cá nhân trong một đoạn bản chép lời tiếng Việt (chữ thường, \
@@ -168,8 +169,6 @@ def add_ner(router, text: str, mapping: dict[str, str]) -> None:
             core = [w for w in words if w.lower() not in _GENERIC_ORG]
             if len(core) >= 2 and len(core) < len(words):
                 _new_placeholder(mapping, etype, " ".join(core))
-            if len(words) >= 4 and words[0].lower() in _GENERIC_ORG:  # tên riêng ở cuối
-                _new_placeholder(mapping, etype, " ".join(words[-2:]))
 
 
 def mask_spoken(text: str, *, mapping: dict[str, str], router=None) -> str:

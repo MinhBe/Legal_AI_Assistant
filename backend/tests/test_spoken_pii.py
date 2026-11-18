@@ -72,3 +72,10 @@ def test_org_core_masked_when_split_across_segments():
 
     add_ner(router, "giám đốc công ty luật hân vượng", m)
     assert "hân" not in mask_spoken("Hân Vượng", mapping=m).lower()
+
+
+def test_media_outlet_does_not_mask_the_word_phap_luat():
+    router = FakeRouter('{"items": [{"type": "TỔ_CHỨC", "text": "kênh truyền hình pháp luật"}]}')
+    m: dict[str, str] = {}
+    out = mask_spoken("các vấn đề về mặt pháp luật", mapping=m, router=router)
+    assert out == "các vấn đề về mặt pháp luật"
