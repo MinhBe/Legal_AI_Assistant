@@ -186,11 +186,27 @@ def transcribe_all(args) -> None:
     _write(OUT / "progress.json", {"model": args.model, "done": True, "files": len(files)})
 
 
-def remask(stem: str) -> dict[str, str]:
-    """Che lại <stem>.raw.json bằng mã hiện tại (bản đang chạy có thể nạp mã che cũ)."""
+def remask(stem: str, reuse_map: bool = False) -> dict[str, str]:
+    """Che lại <stem>.raw.json bằng mã hiện tại (bản đang chạy có thể nạp mã che cũ).
+
+    reuse_map: giữ giá trị NER đã tìm ở lần trước (lọc lại bằng luật hiện tại) thay vì gọi
+    mô hình lại cả tệp (~1 giờ khi máy bận); chỉ chạy lại các lớp luật."""
+    from app.audio.spoken_pii import _plausible
+
     raw = json.loads((OUT / f"{stem}.raw.json").read_text(encoding="utf-8"))
-    masked = mask_segments(raw["segments"])
-    mapping = masked.pop()
+    if reuse_map and (OUT / f"{stem}.map.json").exists():
+        old = json.loads((OUT / f"{stem}.map.json").read_text(encoding="utf-8"))
+        mapping = {}
+        for ph, value in old.items():
+            etype = ph.strip("[]").rsplit("_", 1)[0]
+            if etype in {"TÊN", "TỔ_CHỨC", "ĐỊA_CHỈ", "SĐT", "STK"} and _plausible(etype, value):
+                mapping[ph] = value
+        texts = mask_lines([s["text"] for s in raw["segments"]], mapping=mapping)
+        masked = [{"start": s["start"], "end": s["end"], "text": t}
+                  for s, t in zip(raw["segments"], texts, strict=True)]
+    else:
+        masked = mask_segments(raw["segments"])
+        mapping = masked.pop()
     _write(OUT / f"{stem}.map.json", mapping)
     _write(OUT / f"{stem}.masked.json", {**{k: v for k, v in raw.items() if k != "segments"},
                                          "segments": masked, "masker": "mask_lines"})

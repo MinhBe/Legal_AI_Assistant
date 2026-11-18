@@ -66,7 +66,10 @@ def run(key_file: str, args: list[str], timeout: int = 600,
     """Chạy `kaggle <args>`; trả (mã thoát, đầu ra đã ẩn khoá, tên tài khoản).
 
     `stage`: thư mục có *metadata.json chứa __KAGGLE_USER__; được chép sang thư mục tạm và
-    `{STAGE}` trong args trỏ tới bản chép. __KAGGLE_USER__ trong args cũng được điền."""
+    `{STAGE}` trong args trỏ tới bản chép. __KAGGLE_USER__ trong args cũng được điền.
+    `key_file` None = chế độ gốc: CLI tự đọc cấu hình chuẩn (~/.kaggle), không đụng keys/."""
+    if key_file is None:
+        return _run_native(args, timeout, stage)
     env_extra, user, secrets = load_credentials(KEYS / key_file)
     args = [a.replace(PLACEHOLDER, user) for a in args]
     if stage is not None:
@@ -90,6 +93,39 @@ def run(key_file: str, args: list[str], timeout: int = 600,
     return code, out, user
 
 
+def native_user() -> str:
+    """Tên tài khoản theo cấu hình chuẩn của CLI (`kaggle config view` chỉ in username)."""
+    proc = subprocess.run(_cli() + ["config", "view"], capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=60)
+    for line in (proc.stdout or "").splitlines():
+        if line.strip().lower().startswith("- username:") or line.strip().lower().startswith("username:"):
+            return line.split(":", 1)[1].strip()
+    return ""
+
+
+def _run_native(args: list[str], timeout: int, stage: Path | None,
+                user: str | None = None) -> tuple[int, str, str]:
+    """Kaggle CLI với cấu hình chuẩn của người dùng; tệp khoá không bao giờ được mở ở đây."""
+    user = user or os.environ.get("KAGGLE_RUN_USER") or native_user()
+    args = [a.replace(PLACEHOLDER, user) for a in args]
+    if stage is not None:
+        tmp = Path(tempfile.mkdtemp(prefix="kaggle-stage-")) / stage.name
+        _stage(stage, tmp, user)
+        args = [a.replace("{STAGE}", str(tmp)) for a in args]
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    try:
+        proc = subprocess.run(_cli() + args, env=env, capture_output=True, text=True,
+                              encoding="utf-8", errors="replace", timeout=timeout)
+        out, code = (proc.stdout or "") + (proc.stderr or ""), proc.returncode
+    except subprocess.TimeoutExpired:
+        out, code = "hết thời gian chờ", 124
+    # phòng khi CLI in lại khoá trong thông báo lỗi: ẩn mọi chuỗi giống khoá API
+    import re
+
+    out = re.sub(r"\b(?:KGAT_)?[0-9a-f]{32}\b", REDACTED, out)
+    return code, out, user
+
+
 def test_all() -> None:
     files = sorted(p.name for p in KEYS.iterdir() if p.name.lower().startswith("kaggle"))
     for name in files:
@@ -101,7 +137,7 @@ def test_all() -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--key", help="tên tệp trong keys/")
+    p.add_argument("--key", help="tên tệp trong keys/; bỏ trống = dùng ~/.kaggle của CLI")
     p.add_argument("--test-all", action="store_true")
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--stage", help="thư mục dataset/kernel có __KAGGLE_USER__ trong metadata")

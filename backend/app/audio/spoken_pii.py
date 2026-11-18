@@ -71,11 +71,25 @@ _PUBLIC = re.compile(
 # Tên gọi đứng một mình sau lời giới thiệu: "của bạn là minh", "tên là lan", "chào bạn hùng"
 _NOT_NAME = set(
     "ai gì gi người một hai ba đây đó đấy thế như này kia là có không được và thì mà ạ nhé nha "
-    "nhá ơi à ừ vâng dạ ok tôi mình em anh chị bạn các những cái về câu hỏi".split()
+    "nhá ơi à ừ vâng dạ ok tôi mình em anh chị bạn các những cái về câu hỏi "
+    "ấy nào khác thường hay cũng đã đang sẽ muốn đều vẫn mới lại còn nữa chỉ cứ rất "
+    "nhiều ít tự hãy đừng thì là xin cho".split()
 )
 _BARE_NAME = re.compile(
     rf"(?<!\w)(?P<prefix>(?:của bạn là|tên là|tên tôi là|tên mình là|chào bạn|chào anh|chào chị)"
     rf"\s+)(?P<value>{_SYL})(?!\w)",
+    re.IGNORECASE,
+)
+# người hỏi trên livestream: "bạn tùng hỏi", "bạn trường có hỏi", "bạn là thúy hỏi",
+# "câu hỏi tiếp của bạn phùng là" (đo trên tệp 1, 18/11/2026)
+_ASKER = re.compile(
+    rf"(?<!\w)(?P<prefix>bạn(?:[ ]+là)?[ ]+)(?P<value>{_SYL}(?:[ ]+{_SYL}){{0,2}})"
+    rf"(?=[ ]+(?:có[ ]+)?(?:hỏi|thắc mắc|bình luận)\b)",
+    re.IGNORECASE,
+)
+_ASKER_OF = re.compile(
+    rf"(?<!\w)(?P<prefix>(?:câu hỏi|thắc mắc)(?:[ ]+tiếp(?:[ ]+theo)?)?[ ]+của[ ]+bạn[ ]+)"
+    rf"(?P<value>{_SYL}(?:[ ]+{_SYL})?)(?=[ ]+(?:là|đó là|hỏi)\b)",
     re.IGNORECASE,
 )
 # bản chép có chữ hoa (Whisper): "bạn Minh", "bạn Lan Anh"
@@ -124,8 +138,9 @@ def _plausible(etype: str, value: str) -> bool:
         # nhầm "đất đai", "trợ lý", tên đài báo, tên thành phố (đo trên tệp 1, 18/11/2026)
         return bool(_PRIVATE_ORG.match(value.strip())) and any(
             w not in _GENERIC_ORG for w in words)
-    if etype == "TÊN":  # "cha mẹ", "con nuôi", "anh" không phải tên người
-        return words[0] not in _KIN and not all(w in _KIN | _NOT_NAME for w in words)
+    if etype == "TÊN":  # "cha mẹ", "con nuôi", "anh", "bảy có" không phải tên người
+        return (words[0] not in _KIN | _NOT_NAME and words[-1] not in _NOT_NAME
+                and not all(w in _KIN | _NOT_NAME for w in words))
     return etype in TYPES
 
 
@@ -133,8 +148,11 @@ def _new_placeholder(mapping: dict[str, str], etype: str, value: str) -> str:
     for ph, v in mapping.items():
         if v.lower() == value.lower():
             return ph
-    n = 1 + sum(1 for k in mapping if k.startswith(f"[{etype}_"))
-    ph = f"[{etype}_{n}]"
+    # số thứ tự = lớn nhất + 1 (không phải đếm + 1): ánh xạ đã lọc có thể có lỗ, đếm thì trùng
+    # số và GHI ĐÈ giá trị cũ -> các dòng sau không còn che giá trị đó nữa
+    used = [int(k[len(etype) + 2:-1]) for k in mapping
+            if k.startswith(f"[{etype}_") and k[len(etype) + 2:-1].isdigit()]
+    ph = f"[{etype}_{max(used, default=0) + 1}]"
     mapping[ph] = value
     return ph
 
@@ -152,11 +170,19 @@ def _rule(pattern: re.Pattern[str], etype: str, text: str, mapping: dict[str, st
 def _named(pattern: re.Pattern[str], text: str, mapping: dict[str, str]) -> str:
     """Tên đứng một mình: bỏ qua từ thường ("chào bạn nhé") và tên cơ quan công."""
     def repl(m: re.Match[str]) -> str:
-        value = m.group("value")
-        first = value.split()[0].lower()
-        if first in _NOT_NAME or _PUBLIC.match(value):
+        words = m.group("value").split()
+        lead = []  # từ đệm đứng trước tên ("bạn à am hỏi") giữ nguyên, phần sau mới là tên
+        while words and words[0].lower() in _NOT_NAME:
+            lead.append(words.pop(0))
+        tail = []  # "bạn trường có hỏi": "có" là từ đệm, không thuộc tên
+        while words and words[-1].lower() in _NOT_NAME:
+            tail.insert(0, words.pop())
+        value = " ".join(words)
+        if not value or _PUBLIC.match(value) or words[0].lower() in _KIN:
             return m.group(0)
-        return m.group("prefix") + _new_placeholder(mapping, "TÊN", value)
+        head = m.group("prefix") + (" ".join(lead) + " " if lead else "")
+        after = " " + " ".join(tail) if tail else ""
+        return head + _new_placeholder(mapping, "TÊN", value) + after
 
     return pattern.sub(repl, text)
 
@@ -212,7 +238,8 @@ def _given_names(text: str, mapping: dict[str, str]) -> str:
     """Tên gọi sau xưng hô ("thầy khoa") của người đã che dùng chung placeholder."""
     for ph, value in list(mapping.items()):
         parts = value.split()
-        if not ph.startswith("[TÊN_") or len(parts) < 2 or len(parts[-1]) < 2:
+        if (not ph.startswith("[TÊN_") or len(parts) < 2 or len(parts[-1]) < 2
+                or parts[-1].lower() in _NOT_NAME | _KIN):
             continue
         text = re.sub(
             rf"(?<!\w)((?:{_HONORIFIC})\s+){re.escape(parts[-1])}(?!\w)",
@@ -230,7 +257,9 @@ def add_ner(router, text: str, mapping: dict[str, str]) -> None:
             words = value.split()
             core = [w for w in words if w.lower() not in _GENERIC_ORG]
             # phần riêng chỉ lấy khi không phải từ chung/địa danh ("đất đai", "sài gòn")
-            if (len(core) >= 2 and len(core) < len(words)
+            # chỉ với tên dài ("công ty luật bất động sản hưng vượng"); "công ty thanh lý" mà
+            # tách lõi thì "thanh lý (hợp đồng)" bị che khắp nơi
+            if (len(words) >= 4 and len(core) >= 2 and len(core) < len(words)
                     and not _PLACE.match(" ".join(core)) and _plausible("TÊN", " ".join(core))):
                 _new_placeholder(mapping, etype, " ".join(core))
 
@@ -246,6 +275,8 @@ def mask_spoken(text: str, *, mapping: dict[str, str], router=None) -> str:
     out = _rule(_NAME_AFTER, "TÊN", out, mapping)
     out = _rule(_NAME_BEFORE_SURNAME, "TÊN", out, mapping)
     out = _named(_BARE_NAME, out, mapping)
+    out = _named(_ASKER, out, mapping)
+    out = _named(_ASKER_OF, out, mapping)
     out = _named(_CAP_NAME, out, mapping)
     out = _rule(_SPOKEN_NUMBER, "SỐ", out, mapping)
     out = replace_known(out, mapping)

@@ -158,3 +158,33 @@ def test_ner_false_positives_from_7b_are_rejected():
     assert "đất đai" not in m.values() and "sài gòn" not in m.values()
     assert mask_spoken("luật đất đai năm 2024, ở thành phố hồ chí minh", mapping=m) == \
         "luật đất đai năm 2024, ở thành phố hồ chí minh"
+
+
+def test_livestream_asker_names():
+    m: dict[str, str] = {}
+    text = ("bạn tùng hỏi là bố đẻ cho tiền, bạn trường có hỏi là, bạn là thúy hỏi là, bạn trời số trời hỏi là, "
+            "câu hỏi tiếp của bạn phùng là đất, bạn à am có hỏi là, các bạn thường hỏi là, "
+            "bạn ấy hỏi là")
+    out = mask_spoken(text, mapping=m)
+    for name in ("tùng", "trường", "thúy", "phùng", " am ", "trời"):
+        assert name not in out, name
+    assert "các bạn thường hỏi" in out and "bạn ấy hỏi" in out and "bạn à [TÊN_" in out
+
+
+def test_function_words_never_become_names():
+    m: dict[str, str] = {"[TÊN_1]": "bảy có"}  # giá trị rác từ lần che cũ
+    from app.audio.spoken_pii import _plausible
+
+    assert not _plausible("TÊN", "bảy có") and not _plausible("TÊN", "có")
+    out = mask_spoken("bạn có quyền yêu cầu, ông có đất để bán, bạn trường có hỏi", mapping={})
+    assert "bạn có quyền" in out and "ông có đất" in out and "trường" not in out
+    assert "có hỏi" in out
+    del m
+
+
+def test_new_placeholder_never_overwrites_with_gaps():
+    from app.audio.spoken_pii import _new_placeholder
+
+    m = {"[TÊN_1]": "an", "[TÊN_3]": "bình"}  # lỗ ở số 2 sau khi lọc
+    ph = _new_placeholder(m, "TÊN", "cường")
+    assert ph == "[TÊN_4]" and m["[TÊN_3]"] == "bình" and len(m) == 3
