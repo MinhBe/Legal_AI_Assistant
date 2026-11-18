@@ -51,7 +51,7 @@ def main() -> None:
         quantization_config=BitsAndBytesConfig(
             load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True,
             bnb_4bit_compute_dtype=torch.float16),
-        device_map={"": local_rank}, torch_dtype=torch.float16,
+        device_map={"": local_rank}, dtype=torch.float16,  # transformers 5: dtype thay torch_dtype
     )
     model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
     model = get_peft_model(model, LoraConfig(r=16, lora_alpha=16, lora_dropout=0.0,
@@ -69,6 +69,8 @@ def main() -> None:
         return Dataset.from_list([{"text": tok.apply_chat_template(r["messages"], tokenize=False)}
                                   for r in load_rows(p)])
 
+    print("dtype tham số học:", sorted({str(p.dtype) for p in model.parameters() if p.requires_grad}),
+          flush=True)
     cfg = SFTConfig(
         output_dir=str(out / "ckpt"),
         per_device_train_batch_size=2,
@@ -78,7 +80,10 @@ def main() -> None:
         learning_rate=2e-4,
         lr_scheduler_type="linear",
         warmup_steps=5,
-        fp16=True,
+        # không dùng GradScaler fp16: LoRA để fp32, phép nhân 4-bit vẫn tính fp16 (bnb compute
+        # dtype); tránh hẳn lỗi unscale bf16 của smoke v2/v3
+        fp16=False,
+        bf16=False,
         logging_steps=10,
         save_steps=CKPT_EVERY,
         save_total_limit=2,

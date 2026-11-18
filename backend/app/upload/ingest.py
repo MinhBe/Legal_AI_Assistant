@@ -75,6 +75,27 @@ def tolerable(issues: list, n_articles: int) -> bool:
     return len(issues) <= max(2, int(n_articles * ISSUE_RATIO))
 
 
+def unique_ids(rows: list[dict]) -> list[dict]:
+    """Điều sửa đổi luật khác trích nguyên khoản của luật bị sửa ("1. … 1. …") nên cùng một
+    điều có thể sinh hai node trùng mã (d245-k1). Mã lặp thêm hậu tố -r2, -r3…; node con của
+    node bị đổi tên đi theo node cha mới (gặp sau cùng)."""
+    seen: dict[str, int] = {}
+    renamed: dict[str, str] = {}
+    for r in rows:
+        if r.get("parent_id") in renamed:
+            r["parent_id"] = renamed[r["parent_id"]]
+        nid = r["node_id"]
+        if nid in seen:
+            seen[nid] += 1
+            new = f"{nid}-r{seen[nid]}"
+            renamed[nid] = new
+            r["node_id"] = new
+        else:
+            seen[nid] = 1
+            renamed.pop(nid, None)
+    return rows
+
+
 def build_rows(doc_id: str, title: str, text: str) -> tuple[str, list[dict]]:
     if not text or not text.strip():
         raise ValueError("no text")
@@ -82,7 +103,7 @@ def build_rows(doc_id: str, title: str, text: str) -> tuple[str, list[dict]]:
     articles = parse_articles(text)
     assign_ids(doc_id, articles)
     if len(articles) >= 1 and tolerable(validate(articles, text), len(articles)):
-        return "articles", _nodes_from_articles(doc_id, articles, None, None)
+        return "articles", unique_ids(_nodes_from_articles(doc_id, articles, None, None))
 
     rows = []
     for i, chunk in enumerate(split_sections(text), 1):

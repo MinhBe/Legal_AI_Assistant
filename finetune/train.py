@@ -83,6 +83,7 @@ def main() -> None:
     ap.add_argument("--resume", action="store_true", help="chạy tiếp checkpoint mới nhất")
     args = ap.parse_args()
 
+    import torch
     from datasets import Dataset
     from trl import SFTConfig, SFTTrainer
     from unsloth import FastLanguageModel
@@ -91,7 +92,9 @@ def main() -> None:
     ckpt_dir = out / "ckpt"
 
     model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=MODEL_NAME, max_seq_length=MAX_SEQ_LEN, dtype=None, load_in_4bit=True
+        # dtype tường minh: để None thì bản 4-bit lượng tử sẵn nạp bf16, GradScaler fp16 của T4
+        # không unscale được bf16 (lỗi smoke v3)
+        model_name=MODEL_NAME, max_seq_length=MAX_SEQ_LEN, dtype=torch.float16, load_in_4bit=True
     )
     model = FastLanguageModel.get_peft_model(
         model,
@@ -103,6 +106,8 @@ def main() -> None:
         random_state=42,
     )
 
+    print("dtype tham số học:", sorted({str(p.dtype) for p in model.parameters() if p.requires_grad}),
+          flush=True)
     train = Dataset.from_list(to_text(load_rows(data / "train.jsonl"), tokenizer))
     val_path = data / "val.jsonl"
     val = Dataset.from_list(to_text(load_rows(val_path), tokenizer)) if val_path.exists() else None
