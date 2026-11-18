@@ -62,9 +62,18 @@ def caller(kind: str, model: str | None, stats: dict):
         t0 = time.monotonic()
         stats["calls"] += 1
         if kind == "cloud":
-            # bản đã che, mức C, đúng một model (không rơi sang model khác để so cho công bằng)
-            with data_class_scope("C"), cloud_first_scope(True):
-                res = router._call_cloud(model, messages, 0.2, 6000, task="route")  # noqa: SLF001
+            # bản đã che, mức C, đúng một model (không rơi sang model khác để so cho công bằng);
+            # model hết chỗ (429) thì chờ rồi thử lại, tối đa 4 lần
+            for attempt in range(4):
+                try:
+                    with data_class_scope("C"), cloud_first_scope(True):
+                        res = router._call_cloud(model, messages, 0.2, 6000,  # noqa: SLF001
+                                                 task="route")
+                    break
+                except Exception as exc:  # noqa: BLE001
+                    if "429" not in str(exc) and "nghỉ" not in str(exc) or attempt == 3:
+                        raise
+                    time.sleep(120 * (attempt + 1))
         else:
             with data_class_scope("A"):
                 res = router._call_local(settings.local_model, messages, 0.2, 3000,  # noqa: SLF001

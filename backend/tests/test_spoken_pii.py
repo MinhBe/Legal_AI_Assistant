@@ -125,3 +125,14 @@ def test_mask_lines_uses_context_across_segment_boundaries():
     assert len(out) == 4
     assert "Minh" not in out[1] and "300 mét vuông" in out[1]
     assert "Hân" not in " ".join(out)
+
+
+def test_lowercase_words_after_ban_are_not_names():
+    from app.audio.spoken_pii import mask_lines
+
+    m: dict[str, str] = {}
+    lines = ["Vâng, xin chào các bạn đã gửi lời chào", "Chào bạn Bảy Nguyễn",
+             "các bạn đã đặt ở phần bình luận", "đã tới tay bạn đọc"]
+    out = mask_lines(lines, mapping=m)
+    assert out[0] == lines[0] and out[2] == lines[2] and out[3] == lines[3]
+    assert out[1] == "Chào bạn [TÊN_1]"

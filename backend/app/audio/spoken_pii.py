@@ -66,8 +66,12 @@ _BARE_NAME = re.compile(
     re.IGNORECASE,
 )
 # bản chép có chữ hoa (Whisper): "bạn Minh", "bạn Lan Anh"
-_CAP = r"[A-ZĐÀ-Ỹ][a-zàáâãèéêìíòóôõùúýăđĩũơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]+"
-_CAP_NAME = re.compile(rf"(?<!\w)(?P<prefix>(?:[Bb]ạn|[Cc]hào)\s+)(?P<value>{_CAP}(?:[ ]+{_CAP})?)")
+# chỉ chữ HOA (dải "À-Ỹ" của Unicode lẫn cả chữ thường như "đ", "ã" nên không dùng được)
+_UPPER = "A-ZĂÂĐÊÔƠƯÀÁẢÃẠẰẮẲẴẶẦẤẨẪẬÈÉẺẼẸỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌỒỐỔỖỘỜỚỞỠỢÙÚỦŨỤỪỨỬỮỰỲÝỶỸỴ"
+_CAP = rf"[{_UPPER}][a-zàáâãèéêìíòóôõùúýăđĩũơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]+"
+_CAP_NAME = re.compile(
+    rf"(?<!\w)(?P<prefix>(?:[Bb]ạn|[Cc]hào)[ ]+)(?P<value>{_CAP}(?:[ ]+{_CAP})?)(?!\w)"
+)
 # số CCCD/CMND viết liền (số tiền có dấu chấm phân cách thì không bị bắt)
 _ID_NUMBER = re.compile(r"(?<![\d.,])(?:\d{9}|\d{12})(?![\d.,])")
 _KEEP = frozenset({"TIỀN", "CCCD"})  # số tiền là tình tiết; CCCD dùng luật riêng ở trên

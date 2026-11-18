@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -185,6 +186,74 @@ def transcribe_all(args) -> None:
     _write(OUT / "progress.json", {"model": args.model, "done": True, "files": len(files)})
 
 
+def remask(stem: str) -> dict[str, str]:
+    """Che lại <stem>.raw.json bằng mã hiện tại (bản đang chạy có thể nạp mã che cũ)."""
+    raw = json.loads((OUT / f"{stem}.raw.json").read_text(encoding="utf-8"))
+    masked = mask_segments(raw["segments"])
+    mapping = masked.pop()
+    _write(OUT / f"{stem}.map.json", mapping)
+    _write(OUT / f"{stem}.masked.json", {**{k: v for k, v in raw.items() if k != "segments"},
+                                         "segments": masked, "masker": "mask_lines"})
+    return mapping
+
+
+# Cửa sổ cần lượt hai: số đọc thành chữ ghép (trăm/mươi/nghìn…) hoặc từ khoá trích dẫn
+_PASS2 = re.compile(
+    r"(?<!\w)(?:điều|khoản|điểm|nghị định|thông tư|luật số|số hiệu|bộ luật|triệu|nghìn|ngàn|tỷ|tỉ"
+    r"|trăm|mươi|phần trăm|năm hai nghìn)(?!\w)",
+    re.IGNORECASE,
+)
+
+
+def pass2(stem: str, model_name: str = "medium", threads: int = 4) -> None:
+    """Lượt hai bằng Whisper medium chỉ trên các đoạn có số / trích dẫn (Tech Lead duyệt)."""
+    from faster_whisper import WhisperModel
+
+    raw = json.loads((OUT / f"{stem}.raw.json").read_text(encoding="utf-8"))
+    hits = [s for s in raw["segments"] if _PASS2.search(s["text"])]
+    windows: list[list[float]] = []
+    for s in hits:  # gộp đoạn sát nhau để Whisper có ngữ cảnh
+        a, b = max(0.0, s["start"] - 1.0), s["end"] + 1.0
+        if windows and a - windows[-1][1] < 3.0:
+            windows[-1][1] = b
+        else:
+            windows.append([a, b])
+    src = SRC / raw["file"]
+    wav = _clip(src, 0, raw["duration_s"] + 1, OUT / f"{stem}-pass2.wav")
+    try:
+        audio = transcribe._read_wav(wav)
+        model = WhisperModel(model_name, device="cpu", compute_type="int8", cpu_threads=threads)
+        out = []
+        for a, b in windows:
+            segs, _ = model.transcribe(audio[int(a * 16000):int(b * 16000)], language="vi",
+                                       vad_filter=False, beam_size=5)
+            text = " ".join((x.text or "").strip() for x in segs).strip()
+            out.append({"start": round(a, 2), "end": round(b, 2), "text": text})
+    finally:
+        wav.unlink(missing_ok=True)
+    _write(OUT / f"{stem}.pass2.raw.json", {"model": model_name, "windows": out})
+    mapping = json.loads((OUT / f"{stem}.map.json").read_text(encoding="utf-8"))
+    masked = mask_lines([w["text"] for w in out], mapping=mapping)
+    _write(OUT / f"{stem}.map.json", mapping)  # lượt hai có thể thêm tên mới
+    _write(OUT / f"{stem}.pass2.masked.json", {"model": model_name, "windows": [
+        {**w, "text": t} for w, t in zip(out, masked, strict=True)]})
+    print(f"pass2 {stem}: {len(windows)} cửa sổ, {sum(b - a for a, b in windows):.0f}s âm thanh",
+          flush=True)
+
+
+def follow(_args) -> None:
+    """Theo lô chép lời: tệp nào xong PhoWhisper thì che lại bằng mã mới rồi chạy lượt hai."""
+    files = sorted(SRC.glob("*.mp4"))
+    for src in files:
+        stem = src.stem.replace(" ", "_")
+        while not (OUT / f"{stem}.masked.json").exists():
+            time.sleep(60)
+        if not (OUT / f"{stem}.pass2.masked.json").exists():
+            remask(stem)
+            pass2(stem)
+    print("FOLLOW_DONE", flush=True)
+
+
 def _ts(s: float) -> str:
     s = int(s)
     return f"{s // 3600:02d}:{s % 3600 // 60:02d}:{s % 60:02d}"
@@ -226,13 +295,14 @@ def main() -> None:
     t = sub.add_parser("transcribe")
     t.add_argument("--model", default="large-v3")
     sub.add_parser("mask-bench")
+    sub.add_parser("follow")
     a = sub.add_parser("analyze")
     a.add_argument("--file", required=True)
     a.add_argument("--start", type=float, required=True)
     a.add_argument("--end", type=float, required=True)
     args = p.parse_args()
     {"bench": bench, "transcribe": transcribe_all, "analyze": analyze,
-     "mask-bench": mask_bench}[args.cmd](args)
+     "mask-bench": mask_bench, "follow": follow}[args.cmd](args)
 
 
 if __name__ == "__main__":
