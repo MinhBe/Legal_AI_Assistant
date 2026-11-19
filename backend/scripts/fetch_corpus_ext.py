@@ -57,7 +57,53 @@ CANDIDATES: list[dict] = [
     {"domain": "dan_su", "number": "91/2015/QH13", "title": "Bộ luật Dân sự 2015",
      "url": CB + "luat-so-912015qh13-18397.htm", "file_key": "91_2015_QH13"},
 ]
+# Đợt 2 (Minh duyệt corpus-gap-2026-11.md, 20/11/2026): chỉ biết số hiệu; trang Công báo tra bằng
+# ô tìm kiếm. Số hiệu không tra ra thì báo "not_found", không đoán. Tên là gợi ý, chờ duyệt ở /upload.
+WANTED: list[dict] = [
+    {"domain": "lao_dong", "number": "41/2024/QH15", "title": "Luật Bảo hiểm xã hội 2024"},
+    {"domain": "lao_dong", "number": "74/2025/QH15", "title": "Luật Việc làm 2025"},
+    {"domain": "lao_dong", "number": "84/2015/QH13", "title": "Luật An toàn, vệ sinh lao động 2015"},
+    {"domain": "lao_dong", "number": "50/2024/QH15", "title": "Luật Công đoàn 2024"},
+    {"domain": "lao_dong", "number": "12/2022/NĐ-CP",
+     "title": "Nghị định 12/2022/NĐ-CP xử phạt VPHC lĩnh vực lao động, BHXH"},
+    {"domain": "lao_dong", "number": "135/2020/NĐ-CP", "title": "Nghị định 135/2020/NĐ-CP tuổi nghỉ hưu"},
+    {"domain": "lao_dong", "number": "293/2025/NĐ-CP", "title": "Nghị định 293/2025/NĐ-CP lương tối thiểu"},
+    {"domain": "lao_dong", "number": "10/2020/TT-BLĐTBXH",
+     "title": "Thông tư 10/2020/TT-BLĐTBXH hướng dẫn Bộ luật Lao động"},
+    {"domain": "thue_tncn", "number": "38/2019/QH14", "title": "Luật Quản lý thuế 2019"},
+    {"domain": "thue_tncn", "number": "10/2022/NĐ-CP", "title": "Nghị định 10/2022/NĐ-CP lệ phí trước bạ"},
+    {"domain": "dat_dai", "number": "103/2024/NĐ-CP", "title": "Nghị định 103/2024/NĐ-CP tiền sử dụng đất, tiền thuê đất"},
+    {"domain": "dat_dai", "number": "88/2024/NĐ-CP", "title": "Nghị định 88/2024/NĐ-CP bồi thường, hỗ trợ, tái định cư"},
+    {"domain": "dat_dai", "number": "27/2023/QH15", "title": "Luật Nhà ở 2023"},
+    {"domain": "dat_dai", "number": "29/2023/QH15", "title": "Luật Kinh doanh bất động sản 2023"},
+    {"domain": "dan_su", "number": "46/2024/QH15", "title": "Luật Công chứng 2024"},
+    {"domain": "hon_nhan_gia_dinh", "number": "126/2014/NĐ-CP",
+     "title": "Nghị định 126/2014/NĐ-CP hướng dẫn Luật Hôn nhân và gia đình"},
+    {"domain": "to_tung", "number": "92/2015/QH13", "title": "Bộ luật Tố tụng dân sự 2015"},
+    {"domain": "to_tung", "number": "101/2015/QH13", "title": "Bộ luật Tố tụng hình sự 2015"},
+]
 OUT = Path("data/corpus_ext")
+
+
+def probe_wanted(render, done: set[str]) -> list[dict]:
+    found = []
+    for w in WANTED:
+        if w["number"] in done:
+            continue
+        hit = official.congbao_lookup(w["number"], render)
+        if hit is None:
+            print(json.dumps({"number": w["number"], "status": "not_found"}, ensure_ascii=False), flush=True)
+            continue
+        eff = hit["effective_date"]
+        if eff is not None and eff.year < 1950:
+            eff = None
+        row = {**w, "url": hit["page_url"], "effective_from": eff.isoformat() if eff else None,
+               "files": [f["name"] for f in hit["files"]], "file_urls": [f["url"] for f in hit["files"]],
+               "exts": [f["ext"] for f in hit["files"]], "page_ok": True}
+        found.append(row)
+        print(json.dumps({k: row[k] for k in ("number", "title", "effective_from", "files")},
+                         ensure_ascii=False), flush=True)
+    return found
 
 
 def probe(render) -> list[dict]:
@@ -167,17 +213,25 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--probe", action="store_true")
     p.add_argument("--ingest", action="store_true")
+    p.add_argument("--wanted", action="store_true", help="đợt 2: tra theo số hiệu (WANTED)")
     args = p.parse_args()
     settings = get_settings()
     fetcher = _fetcher(settings)
     OUT.mkdir(parents=True, exist_ok=True)
     with fetch.Renderer(fetcher) as renderer:
-        found = probe(renderer.render)
-    (OUT / "probe.json").write_text(json.dumps(found, ensure_ascii=False, indent=1), encoding="utf-8")
+        if args.wanted:
+            done = {r["number"] for r in json.loads((OUT / "ingest_wanted.json").read_text(
+                encoding="utf-8")) if r["status"] not in ("failed", "not_found")}                 if (OUT / "ingest_wanted.json").exists() else set()
+            found = probe_wanted(renderer.render, done)
+        else:
+            found = probe(renderer.render)
+    (OUT / ("probe_wanted.json" if args.wanted else "probe.json")).write_text(json.dumps(found, ensure_ascii=False, indent=1), encoding="utf-8")
     if args.ingest:
         report = ingest(found, fetcher, settings)
-        (OUT / "ingest.json").write_text(json.dumps(report, ensure_ascii=False, indent=1),
-                                         encoding="utf-8")
+        name = "ingest_wanted.json" if args.wanted else "ingest.json"
+        prev = json.loads((OUT / name).read_text(encoding="utf-8")) if args.wanted and             (OUT / name).exists() else []
+        (OUT / name).write_text(json.dumps(prev + report, ensure_ascii=False, indent=1),
+                                encoding="utf-8")
         print(json.dumps(report, ensure_ascii=False, indent=1))
 
 

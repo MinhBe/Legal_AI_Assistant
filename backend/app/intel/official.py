@@ -37,6 +37,10 @@ def _key(text: str) -> str:
     return " ".join((text or "").split()).lower()
 
 
+def _alnum(text: str) -> str:
+    return re.sub(r"[^0-9a-zđ]", "", (text or "").lower())
+
+
 def effective_date(html: str) -> date | None:
     """Ngày "Hiệu lực: dd/mm/yyyy" trên trang chi tiết; không có thì None."""
     found = re.search(_EFFECTIVE, sources.plain_text(html), re.IGNORECASE)
@@ -67,7 +71,13 @@ def find_page(number: str, html: str, base_url: str = CONGBAO_HOME) -> dict[str,
     needle = _key(number)
     if not needle:
         return None
-    for row in parse_list(html, base_url):
+    rows = parse_list(html, base_url)
+    # văn bản sửa đổi cũng nhắc số hiệu trong tiêu đề ("…sửa đổi Luật số 31/2024/QH15"): ưu tiên
+    # tiêu đề mà số hiệu nằm ngay đầu ("Luật số 41/2024/QH15 …")
+    for row in rows:
+        if needle in _key(row["title"][:40]):
+            return row
+    for row in rows:
         if needle in _key(row["title"]):
             return row
     return None
@@ -75,7 +85,8 @@ def find_page(number: str, html: str, base_url: str = CONGBAO_HOME) -> dict[str,
 
 def parse_files(html: str, base_url: str, number: str = "") -> list[dict[str, str]]:
     """Tệp tải về của một văn bản, DOCX trước rồi PDF; chỉ link có tên chứa số hiệu."""
-    needle = _key(number)
+    # tên tệp viết số hiệu bằng "-" hoặc "_" ("…_41-2024-QH15.pdf"): so khớp chỉ trên chữ và số
+    needle = _alnum(number)
     found: list[dict[str, str]] = []
     for href, text in sources._anchors(html):
         url = urljoin(base_url, href.strip())
@@ -83,7 +94,7 @@ def parse_files(html: str, base_url: str, number: str = "") -> list[dict[str, st
         ext = Path(name).suffix.lower().lstrip(".")
         if ext not in FILE_EXTS or DOWNLOAD_HOST not in urlparse(url).netloc:
             continue
-        if needle and needle not in _key(name):
+        if needle and needle not in _alnum(name):
             continue
         found.append({"name": name, "url": url, "ext": ext})
     found.sort(key=lambda row: FILE_EXTS.index(row["ext"]))
@@ -99,14 +110,13 @@ def congbao_lookup(number: str, render: Render | None) -> dict[str, Any] | None:
     number = (number or "").strip()
     if not number or render is None:
         return None
-    page = find_page(number, render(CONGBAO_HOME))
-    if page is None:
-        search = SEARCH_URL.format(keyword=quote(number))
-        page = find_page(number, render(search), search)
-    if page is None:
-        return None
-    html = render(page["url"])
-    files = parse_files(html, page["url"], number)
-    if not files:
-        return None
-    return {"page_url": page["url"], "files": files, "effective_date": effective_date(html)}
+    search = SEARCH_URL.format(keyword=quote(number))
+    for list_url in (CONGBAO_HOME, search):  # trang chủ trước; không có tệp thì tra ô tìm kiếm
+        page = find_page(number, render(list_url), list_url)
+        if page is None:
+            continue
+        html = render(page["url"])
+        files = parse_files(html, page["url"], number)
+        if files:
+            return {"page_url": page["url"], "files": files, "effective_date": effective_date(html)}
+    return None
