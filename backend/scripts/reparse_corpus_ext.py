@@ -49,13 +49,21 @@ def main() -> None:
             doc = db.get(LegalDocument, m.doc_id)
             doc_saved = {"number": doc.number, "effective_date": doc.effective_date,
                          "source_url": doc.source_url, "status": doc.status}
-            res = ingest_upload(db, doc_id=m.doc_id, title=doc.title, text=body,
-                                filename=row.filename)
+            # uploaded_file cũng xoá theo legal_document (ON DELETE CASCADE): lần chạy 18/11 làm
+            # mất dòng /upload của Luật Đất đai. Lưu đủ cột để ghi lại sau khi nạp.
+            up_saved = {c.key: getattr(row, c.key) for c in UploadedFile.__table__.columns}
+            title = doc.title
+            db.expunge(row)
+            db.expunge(m)  # merge với đối tượng cũ trong session không ghi lại dòng đã bị CASCADE xoá
+            res = ingest_upload(db, doc_id=m.doc_id, title=title, text=body,
+                                filename=up_saved["filename"])
             doc = db.get(LegalDocument, m.doc_id)
             for k, v in doc_saved.items():
                 setattr(doc, k, v)
             db.merge(DocMeta(doc_id=m.doc_id, **saved))
-            row.parse_mode, row.n_nodes, row.n_refs = res["parse_mode"], res["n_nodes"], res["n_refs"]
+            up_saved.update(parse_mode=res["parse_mode"], n_nodes=res["n_nodes"],
+                            n_refs=res["n_refs"])
+            db.merge(UploadedFile(**up_saved))
             db.commit()
             logger.info("-> {}: {} node, chế độ {}", m.number, res["n_nodes"], res["parse_mode"])
     finally:
