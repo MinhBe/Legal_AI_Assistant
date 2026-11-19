@@ -81,6 +81,9 @@ def main() -> None:
     ap.add_argument("--epochs", type=int, default=EPOCHS)
     ap.add_argument("--max-steps", type=int, default=MAX_STEPS)
     ap.add_argument("--resume", action="store_true", help="chạy tiếp checkpoint mới nhất")
+    ap.add_argument("--time-guard-min", type=float, default=None,
+                    help="dừng sạch sau N phút (smoke: 20) thay cho mốc 11 h 15 của phiên Kaggle")
+    ap.add_argument("--no-eval", action="store_true", help="bỏ tập val (smoke chỉ đo tốc độ)")
     args = ap.parse_args()
 
     import torch
@@ -112,7 +115,7 @@ def main() -> None:
     val_path = data / "val.jsonl"
     val = Dataset.from_list(to_text(load_rows(val_path), tokenizer)) if val_path.exists() else None
 
-    guard = time_guard_class()()
+    guard = time_guard_class()(args.time_guard_min * 60 if args.time_guard_min else TIME_GUARD_S)
     cfg = SFTConfig(
         output_dir=str(ckpt_dir),
         per_device_train_batch_size=2,
@@ -146,7 +149,7 @@ def main() -> None:
         model=model,
         processing_class=tokenizer,  # trl mới bỏ tham số tokenizer=
         train_dataset=train,
-        eval_dataset=val,
+        eval_dataset=None if args.no_eval else val,
         args=cfg,
         callbacks=[guard],
     )

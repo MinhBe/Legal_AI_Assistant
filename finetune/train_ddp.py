@@ -33,6 +33,8 @@ def main() -> None:
     ap.add_argument("--epochs", type=int, default=2)
     ap.add_argument("--max-steps", type=int, default=-1)
     ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--time-guard-min", type=float, default=None, help="dừng sạch sau N phút")
+    ap.add_argument("--no-eval", action="store_true")
     args = ap.parse_args()
 
     import torch
@@ -103,8 +105,17 @@ def main() -> None:
     )
     trainer = SFTTrainer(
         model=model, processing_class=tok, train_dataset=texts("train.jsonl"),
-        eval_dataset=texts("val.jsonl"), args=cfg,
+        eval_dataset=None if args.no_eval else texts("val.jsonl"), args=cfg,
     )
+    if args.time_guard_min:
+        from transformers import TrainerCallback
+
+        class _Guard(TrainerCallback):
+            def on_step_end(self, a, state, control, **kw):
+                if time.time() - t0 > args.time_guard_min * 60:
+                    control.should_training_stop = True
+
+        trainer.add_callback(_Guard())
     t0 = time.time()
     res = trainer.train(resume_from_checkpoint=args.resume or None)
     took = time.time() - t0
