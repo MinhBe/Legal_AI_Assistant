@@ -415,9 +415,9 @@ def build_dataset(
             done[row["source"]] = items
             if i % 20 == 0 or i == len(todo):
                 _progress(Path(out), i, len(todo), len(done), failed, made, started)
-            if made >= 100 and failed / made > 0.2:
+            if made >= 100 and failed / made > 0.5:  # nguồn rỗng được làm lại ở lượt sau
                 _progress(Path(out), i, len(todo), len(done), failed, made, started, stopped=True)
-                raise RuntimeError(f"Dừng: {failed}/{made} lời gọi không ra cặp nào (> 20 %)")
+                raise RuntimeError(f"Dừng: {failed}/{made} lời gọi không ra cặp nào (> 50 %)")
 
     by_id = {_source_id(r): r for r in generatable}
     for source, items in done.items():
