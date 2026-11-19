@@ -168,25 +168,50 @@ async def stt_live(ws: WebSocket) -> None:
         await ws.close()
         return
     sess = LiveSession()
-    try:
+    pending = bytearray()
+    state = {"stop": False, "gone": False}
+    wake = asyncio.Event()
+
+    async def receive() -> None:
+        # nhận liên tục, kể cả khi đang chép: socket không bị nghẽn, ping vẫn được trả lời
         while True:
             msg = await ws.receive()
             if msg.get("type") == "websocket.disconnect":
-                break
-            if msg.get("bytes"):
-                for ev in await asyncio.to_thread(sess.feed, msg["bytes"]):
-                    await ws.send_json(ev)
+                state["gone"] = True
+            elif msg.get("bytes"):
+                pending.extend(msg["bytes"])
             elif msg.get("text") == "stop":
+                state["stop"] = True
+            wake.set()
+            if state["gone"] or state["stop"]:
+                return
+
+    recv = asyncio.create_task(receive())
+    try:
+        while True:
+            await wake.wait()
+            wake.clear()
+            if pending:  # gộp mọi khối đã tới: CPU chậm thì xử lý một lượt lớn thay vì xếp hàng
+                chunk = bytes(pending)
+                del pending[:]
+                for ev in await asyncio.to_thread(sess.feed, chunk):
+                    await ws.send_json(ev)
+            if state["gone"]:
+                break
+            if state["stop"] and not pending:
                 for ev in await asyncio.to_thread(sess.close):
                     await ws.send_json(ev)
                 await ws.send_json({"type": "done"})
                 break
+            if pending:
+                wake.set()
     except WebSocketDisconnect:
         pass
     except Exception as exc:
         logger.warning("stt live lỗi: {}", exc)
         await ws.send_json({"type": "error", "text": "Lỗi chép lời"})
     finally:
+        recv.cancel()
         LIVE_LOCK.release()
         try:
             await ws.close()

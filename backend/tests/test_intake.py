@@ -158,3 +158,17 @@ def test_analyze_uses_record_data_class(monkeypatch, tmp_path):
     analyze.run("x1")
     assert seen["classes"] and set(seen["classes"]) == {"B"}
     assert Row.status == "failed" and seen["commit"]
+
+
+def test_live_session_spaces_partials_when_cpu_is_slow():
+    import time as _t
+
+    def slow(audio):
+        _t.sleep(0.2)  # mỗi lần chép tốn 0,2 s
+        return "x"
+
+    fast_cfg = dict(silence_ms=600, max_segment_s=30, partial_every_s=0.1)
+    s = LiveSession(transcribe=slow, **fast_cfg)
+    ev = s.feed(_tone(2.0))
+    # partial cách nhau ít nhất 2 x 0,2 s thay vì mỗi 0,1 s
+    assert 1 <= sum(e["type"] == "partial" for e in ev) <= 6

@@ -57,6 +57,15 @@ class LiveSession:
         self.silent_frames = 0
         self.since_partial = 0.0
         self.loud_frames = 0
+        self.last_cost = 0.0  # giây máy cần cho lần chép gần nhất
+
+    def _run(self, audio: np.ndarray) -> str:
+        import time
+
+        t0 = time.monotonic()
+        text = self.transcribe(audio)
+        self.last_cost = time.monotonic() - t0
+        return text
 
     def feed(self, pcm16: bytes) -> list[dict]:
         x = np.frombuffer(pcm16, dtype=np.int16).astype(np.float32) / 32768.0
@@ -78,9 +87,10 @@ class LiveSession:
             seg_len = len(self.buf) / RATE
             if self.silent_frames * 30 >= self.silence_ms or seg_len >= self.max_segment_s:
                 events += self._final()
-            elif self.since_partial >= self.partial_every_s:
+            # máy chậm hơn lời nói (CPU bận): giãn partial theo thời gian chép thật, không dồn việc
+            elif self.since_partial >= max(self.partial_every_s, 2 * self.last_cost):
                 self.since_partial = 0.0
-                text = self.transcribe(self.buf)
+                text = self._run(self.buf)
                 if text:
                     events.append({"type": "partial", "text": text,
                                    "start": round(self.seg_start, 2), "end": round(self.t, 2)})
@@ -91,7 +101,7 @@ class LiveSession:
         self.buf, self.voiced, self.silent_frames = np.zeros(0, dtype=np.float32), False, 0
         if self.loud_frames * FRAME < RATE // 4:  # tiếng nói dưới 0,25 s: tiếng động
             return []
-        text = self.transcribe(audio)
+        text = self._run(audio)
         return [{"type": "final", "text": text, "start": round(start, 2),
                  "end": round(self.t, 2)}] if text else []
 
