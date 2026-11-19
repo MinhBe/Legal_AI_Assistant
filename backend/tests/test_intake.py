@@ -112,9 +112,49 @@ def _submit(client):
     r = client.post("/api/intake/submit", json={"text": TEXT})
     assert r.status_code == 400
     r = client.post("/api/intake/submit", json={"text": TEXT, "consent_case": True,
-                                                "consent_training": True, "source": "text"})
+                                                "consent_training": True, "source": "text",
+                                                "analyze": False})
     assert r.status_code == 200
     body = r.json()
     assert "Nguyễn Văn An" not in body["text"] and body["data_class"] == "C"
     assert body["consent_training"] is True
     return body["intake_id"]
+
+
+def test_analyze_uses_record_data_class(monkeypatch, tmp_path):
+    from app.intake import analyze
+
+    seen = {}
+
+    class Row:
+        id, text, data_class, status = "x1", "Hỏi về [TÊN_1] bị nợ lương.", "B", "new"
+
+    class FakeDB:
+        def get(self, model, key):
+            return Row
+
+        def execute(self, q):
+            class R:
+                def all(self):
+                    return [("Bộ luật Lao động 2019", "45/2019/QH14", "active")]
+            return R()
+
+        def commit(self):
+            seen["commit"] = True
+
+        def close(self):
+            pass
+
+    class FakeRouter:
+        def chat(self, messages, task, temperature):
+            from app.llm.context import get_data_class
+
+            seen.setdefault("classes", []).append(get_data_class())
+            return type("R", (), {"text": '{"corrected": "x", "units": []}'})()
+
+    monkeypatch.setattr(analyze, "SessionLocal", FakeDB)
+    monkeypatch.setattr(analyze, "get_router", FakeRouter)
+    monkeypatch.setattr(analyze, "OUT", tmp_path)
+    analyze.run("x1")
+    assert seen["classes"] and set(seen["classes"]) == {"B"}
+    assert Row.status == "failed" and seen["commit"]

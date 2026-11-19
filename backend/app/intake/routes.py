@@ -14,6 +14,7 @@ from pathlib import Path
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Body,
     Depends,
     File,
@@ -62,7 +63,8 @@ def intake_apply(body: dict = Body(...)) -> dict:
 
 
 @router.post("/api/intake/submit")
-def intake_submit(body: dict = Body(...), db: Session = Depends(get_db),
+def intake_submit(background: BackgroundTasks, body: dict = Body(...),
+                  db: Session = Depends(get_db),
                   user: dict = Depends(auth.require("chat"))) -> dict:
     """Lưu bản đã làm mờ, chỉ khi khách tick đồng ý xử lý vụ việc. Đồng ý góp dữ liệu train chỉ
     có hiệu lực với bản không còn đoạn nhạy cảm nào được giữ nguyên."""
@@ -88,6 +90,10 @@ def intake_submit(body: dict = Body(...), db: Session = Depends(get_db),
         with POOL.open("a", encoding="utf-8") as f:
             f.write(json.dumps({"intake_id": row.id, "text": res["text"], "source": row.source},
                                ensure_ascii=False) + "\n")
+    if body.get("analyze", True):
+        from app.intake import analyze
+
+        background.add_task(analyze.run, row.id)
     return {"intake_id": row.id, "text": res["text"], "data_class": row.data_class,
             "consent_training": training, "kept": kept}
 
@@ -116,6 +122,23 @@ async def stt_file(file: UploadFile = File(...)) -> dict:
         segs = await asyncio.to_thread(transcribe.run, wav)
     return {"duration_s": dur, "segments": segs,
             "text": " ".join(s["text"] for s in segs if s["text"])}
+
+
+@router.get("/api/intake/{intake_id}")
+def intake_get(intake_id: str, db: Session = Depends(get_db),
+               user: dict = Depends(auth.require("chat"))) -> dict:
+    """Hồ sơ và kết quả phân tích v2.1: chỉ người gửi (tài khoản hoặc mã trình duyệt) xem được."""
+    from app.intake import analyze
+
+    row = db.get(IntakeRecord, intake_id)
+    owner = row is not None and (
+        (row.username and row.username == user.get("username"))
+        or (not row.username and row.client_id == user.get("client_id")))
+    if not owner:
+        raise HTTPException(404, "Không thấy hồ sơ")
+    return {"intake_id": row.id, "status": row.status, "data_class": row.data_class,
+            "text": row.text, "created_at": row.created_at.isoformat() if row.created_at else None,
+            "analysis": analyze.load(row.id)}
 
 
 def _ws_allowed(ws: WebSocket) -> bool:

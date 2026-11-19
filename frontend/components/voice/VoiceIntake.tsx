@@ -271,6 +271,7 @@ export default function VoiceIntake({ open, initialFiles, onClose, onUseText }: 
           <div className="vi-body">
             <p>Đã lưu hồ sơ <code>{saved.intake_id}</code>{saved.consent_training ? ", có góp vào dữ liệu cải thiện" : ""}.</p>
             <div className="vi-preview">{saved.text}</div>
+            <AnalysisView intakeId={saved.intake_id} />
             <div className="vi-actions">
               {saved.data_class === "C" && (
                 <button className="vi-btn primary" onClick={() => { onUseText(saved.text); reset(); onClose(); }}>Hỏi trợ lý với nội dung này</button>
@@ -282,6 +283,52 @@ export default function VoiceIntake({ open, initialFiles, onClose, onUseText }: 
 
         {error && <p className="vi-error">{error}</p>}
       </div>
+    </div>
+  );
+}
+
+type Unit = {
+  domain: string; legal_question: string; facts: string[];
+  citations: { doc: string; article: string; status: string }[];
+  suggestions: { text: string; needs_lawyer_review: boolean }[];
+};
+const CITE_MARK: Record<string, string> = {
+  verified_in_corpus: "✔ trong kho", in_corpus_pending_approval: "⏳ chờ duyệt", outside_corpus_unverified: "✖ cần kiểm",
+};
+
+/** Kết quả phân tích v2.1 của hồ sơ: hỏi lại máy chủ mỗi 5 s, tối đa 3 phút. */
+function AnalysisView({ intakeId }: { intakeId: string }) {
+  const [state, setState] = useState<{ status: string; units: Unit[] }>({ status: "new", units: [] });
+  useEffect(() => {
+    let tries = 0;
+    let stop = false;
+    const tick = async () => {
+      if (stop) return;
+      const r = await apiFetch(`/api/intake/${intakeId}`).catch(() => null);
+      if (r?.ok) {
+        const b = await r.json();
+        setState({ status: b.status, units: b.analysis?.units || [] });
+        if (b.status !== "new") return;
+      }
+      if (++tries < 36) setTimeout(tick, 5000);
+    };
+    tick();
+    return () => { stop = true; };
+  }, [intakeId]);
+
+  if (state.status === "new") return <p className="vi-note">Đang phân tích hồ sơ (tình tiết, câu hỏi pháp lý, điều luật)…</p>;
+  if (state.status === "failed" || !state.units.length) return <p className="vi-note">Chưa phân tích được hồ sơ này; luật sư sẽ xem trực tiếp.</p>;
+  return (
+    <div className="vi-analysis">
+      <strong>Phân tích sơ bộ (chờ luật sư duyệt)</strong>
+      {state.units.map((u, i) => (
+        <div key={i} className="vi-span">
+          <div><b>{u.legal_question || "Câu hỏi chưa rõ"}</b> <small>· {u.domain}</small></div>
+          {u.facts.length > 0 && <div className="vi-note">Tình tiết: {u.facts.join(" ")}</div>}
+          {u.citations.map((c, j) => <div key={j}>{CITE_MARK[c.status] || c.status} — {c.doc} {c.article}</div>)}
+          {u.suggestions.slice(0, 3).map((s, j) => <div key={`s${j}`}>Gợi ý: {s.text}</div>)}
+        </div>
+      ))}
     </div>
   );
 }

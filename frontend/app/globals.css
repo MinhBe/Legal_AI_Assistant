@@ -1798,3 +1798,4 @@ a.calc-chip:hover { color: var(--foreground); background: var(--muted); }
   .vi-review { grid-template-columns: 1fr; }
   .vi-jobs li { grid-template-columns: 1fr; }
 }
+.vi-analysis { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
