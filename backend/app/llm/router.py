@@ -279,6 +279,8 @@ class LLMRouter:
         route = settings.cloud_route()
         cloud = [("cloud", m) for m in route.models] if route else []
         plan = cloud + [local] if (get_cloud_first() or settings.cloud_first_for_c) else [local] + cloud
+        if settings.no_local_for_c and cloud:
+            plan = cloud
         return [(p, m) for (p, m) in plan if self._available(p)]
 
     def _legacy_plan(self, task: str) -> list[tuple[str, str]]:

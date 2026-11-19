@@ -289,6 +289,12 @@ def _source_id(rec: dict) -> str:
     return rec.get("node_id") or rec.get("doc_key", "")
 
 
+def _cooling(exc: Exception) -> bool:
+    """Lỗi vì hết hạn mức tạm thời (mọi key nghỉ, 429): nên đợi chứ không tính là nguồn hỏng."""
+    t = str(exc).lower()
+    return "đang nghỉ" in t or "429" in t or "rate limit" in t or "timeout" in t
+
+
 def _progress(out: Path, i: int, total: int, done: int, failed: int, made: int, started: float,
               *, stopped: bool = False) -> None:
     """progress.json để theo dõi lượt chạy dài (đọc được khi đang chạy)."""
@@ -371,21 +377,27 @@ def build_dataset(
                 row = json.loads(line)
             except ValueError:
                 continue
-            done[row["source"]] = row.get("items") or []
+            if row.get("items"):  # nguồn lỗi (rỗng) được thử lại ở lượt sau
+                done[row["source"]] = row["items"]
     todo = [r for r in generatable[:calls] if _source_id(r) not in done]
     failed = made = 0
     started = time.monotonic()
     with raw_path.open("a", encoding="utf-8") as raw:
         for i, rec in enumerate(todo, 1):
-            try:
-                items = (
-                    generate.law_pairs(router, rec, pairs)
-                    if rec["kind"] == "law"
-                    else generate.precedent_card(router, rec)
-                )
-            except Exception as exc:  # noqa: BLE001 — một bản ghi hỏng không dừng cả lượt
-                logger.warning("Sinh dữ liệu lỗi ở {}: {}", _source_id(rec), exc)
-                items = []
+            items = []
+            for attempt in range(4):
+                try:
+                    items = (
+                        generate.law_pairs(router, rec, pairs)
+                        if rec["kind"] == "law"
+                        else generate.precedent_card(router, rec)
+                    )
+                    break
+                except Exception as exc:  # noqa: BLE001 — một bản ghi hỏng không dừng cả lượt
+                    logger.warning("Sinh dữ liệu lỗi ở {}: {}", _source_id(rec), exc)
+                    if not _cooling(exc) or attempt == 3:
+                        break
+                    time.sleep(60 * 2 ** attempt)  # mọi key đang nghỉ / 429: đợi rồi thử lại
             made += 1
             if not items:
                 failed += 1

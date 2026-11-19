@@ -38,7 +38,7 @@ def load_key_dir(path: str) -> tuple[str, ...]:
     # Dahl (key #5–#8 trả 401) tức là thông tin Kaggle đã bị gửi tới Dahl làm bearer token.
     def _is_dahl_key_file(p) -> bool:
         name = p.name.lower()
-        return (p.is_file() and not name.startswith(".") and "dahl" in name
+        return (p.is_file() and not name.startswith(".") and ("dahl" in name or name.endswith(".keys"))
                 and not name.endswith((".json", ".bak")))
 
     for f in sorted(p for p in root.iterdir() if _is_dahl_key_file(p)):
@@ -106,6 +106,7 @@ class Settings(BaseSettings):
     cloud_llm_reasoning_effort: str = "low"  # rỗng = không gửi tham số này
     cloud_llm_min_tokens: int = 8192  # model có suy nghĩ cần chỗ cho phần nghĩ + câu trả lời
     cloud_llm_timeout: float = 45  # lời gọi treo trên Dahl không bao giờ về; đổi key sớm thay vì chờ
+    no_local_for_c: bool = False  # true = mức C chỉ đám mây (việc nền dài, không chiếm máy nhà)
     cloud_first_for_c: bool = False  # true = mức C gọi đám mây trước, mô hình trong máy làm dự phòng
     # DEEPSEEK_*: tên cũ, chỉ để tương thích; chỉ dùng khi biến chứa key CLOUD_LLM chưa có giá trị
     deepseek_base_url: str = "https://api.deepseek.com"
