@@ -71,6 +71,8 @@ WANTED: list[dict] = [
     {"domain": "lao_dong", "number": "10/2020/TT-BLĐTBXH",
      "title": "Thông tư 10/2020/TT-BLĐTBXH hướng dẫn Bộ luật Lao động"},
     {"domain": "thue_tncn", "number": "38/2019/QH14", "title": "Luật Quản lý thuế 2019"},
+    {"domain": "thue_tncn", "number": "108/2025/QH15", "title": "Luật Quản lý thuế 2025",
+     "replaces": "38/2019/QH14"},
     {"domain": "thue_tncn", "number": "10/2022/NĐ-CP", "title": "Nghị định 10/2022/NĐ-CP lệ phí trước bạ"},
     {"domain": "dat_dai", "number": "103/2024/NĐ-CP", "title": "Nghị định 103/2024/NĐ-CP tiền sử dụng đất, tiền thuê đất"},
     {"domain": "dat_dai", "number": "88/2024/NĐ-CP", "title": "Nghị định 88/2024/NĐ-CP bồi thường, hỗ trợ, tái định cư"},

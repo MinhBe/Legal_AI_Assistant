@@ -49,7 +49,14 @@ def get(client: httpx.Client, url: str) -> httpx.Response:
     if wait > 0:
         time.sleep(wait)
     _last = time.monotonic()
-    return client.get(url, timeout=60, follow_redirects=True)
+    for attempt in range(3):  # trang toà án hay chậm: đợi lâu dần rồi thử lại, không dừng cả lượt
+        try:
+            return client.get(url, timeout=60, follow_redirects=True)
+        except httpx.TransportError:
+            if attempt == 2:
+                return httpx.Response(599, request=httpx.Request("GET", url))
+            time.sleep(30 * (attempt + 1))
+            _last = time.monotonic()
 
 
 def text_of(page: str) -> str:
