@@ -24,6 +24,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 KEYS = ROOT / "keys"
 REDACTED = "[ĐÃ ẨN]"
+# vị trí chuẩn của từng tài khoản (keys/kaggle/README.txt)
+ACCOUNTS = {"minhart": Path.home() / ".kaggle", "wtc": Path.home() / ".kaggle-wtc"}
 
 
 def _cli() -> list[str]:
@@ -138,6 +140,7 @@ def test_all() -> None:
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--key", help="tên tệp trong keys/; bỏ trống = dùng ~/.kaggle của CLI")
+    p.add_argument("--account", choices=sorted(ACCOUNTS), help="minhart = ~/.kaggle, wtc = ~/.kaggle-wtc")
     p.add_argument("--test-all", action="store_true")
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--stage", help="thư mục dataset/kernel có __KAGGLE_USER__ trong metadata")
@@ -147,6 +150,8 @@ def main() -> None:
         test_all()
         return
     rest = a.rest[1:] if a.rest[:1] == ["--"] else a.rest
+    if a.account:  # chọn tài khoản bằng thư mục cấu hình chuẩn, không đụng keys/
+        os.environ["KAGGLE_CONFIG_DIR"] = str(ACCOUNTS[a.account])
     code, out, _user = run(a.key, rest, timeout=a.timeout,
                            stage=Path(a.stage).resolve() if a.stage else None)
     sys.stdout.write(out)
