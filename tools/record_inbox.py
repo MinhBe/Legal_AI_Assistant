@@ -54,10 +54,10 @@ def wait(kernel: str, every: int = 120, limit_s: int = 6 * 3600) -> str:
 
 def push_new() -> list[str]:
     INBOX.mkdir(parents=True, exist_ok=True)
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from fb_dyi import import_inbox  # bản xuất DYI Facebook của chính Minh -> video vào inbox
+    sys.path.insert(0, str(ROOT / "packages" / "lawvn-ingest" / "src"))
+    from lawvn_ingest import get_adapter, ingest  # bản xuất DYI Facebook của chính Minh
 
-    fb = import_inbox(INBOX)
+    fb = ingest(get_adapter("fb-dyi", path=str(INBOX)), INBOX)
     if fb:
         print(f"facebook DYI: +{len(fb)} video")
     state =json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {"done": []}

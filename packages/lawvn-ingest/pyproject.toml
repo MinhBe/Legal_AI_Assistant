@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lawvn-ingest"
+version = "0.1.0"
+description = "Pluggable media ingest for LawVN: adapters -> record/inbox -> Kaggle ASR/PII"
+requires-python = ">=3.10"
+dependencies = []  # stdlib only; fb-graph uses `requests` if installed
+
+[project.optional-dependencies]
+graph = ["requests"]
+
+[project.scripts]
+lawvn-ingest = "lawvn_ingest.cli:main"
+
+# Built-ins are also loaded without installing; third-party packages add their own entries
+# to this same group in THEIR pyproject (see docs/design/ingest-contract.md).
+[project.entry-points."lawvn_ingest.adapters"]
+folder = "lawvn_ingest.adapters.folder:Folder"
+fb-dyi = "lawvn_ingest.adapters.fb_dyi:FacebookDYI"
+fb-graph = "lawvn_ingest.adapters.fb_graph:FacebookGraph"
+
+[tool.setuptools.packages.find]
+where = ["src"]
