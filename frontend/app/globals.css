@@ -1732,3 +1732,69 @@ a.calc-chip:hover { color: var(--foreground); background: var(--muted); }
 }
 .prec-hint-status.bi_huy_bo { border-color: var(--destructive); color: var(--destructive); }
 .prec-hint-sim { font-size: 10px; color: var(--muted-foreground); }
+
+/* ---- voice intake: ghi âm, kéo thả, duyệt làm mờ ---- */
+.composer-tools { display: flex; gap: 6px; align-items: flex-end; }
+.tool-btn {
+  width: 40px; height: 40px; border-radius: var(--radius); border: 1px solid var(--border);
+  background: var(--card); color: var(--foreground); cursor: pointer; font-size: 16px;
+}
+.tool-btn:hover { background: var(--muted); }
+.composer-wrap.drag { outline: 2px dashed var(--ring); outline-offset: -6px; }
+.vi-backdrop {
+  position: fixed; inset: 0; background: oklch(0 0 0 / 45%); z-index: 50;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.vi-panel {
+  background: var(--card); color: var(--foreground); border: 1px solid var(--border);
+  border-radius: calc(var(--radius) * 1.5); width: min(920px, 100%); max-height: 92vh;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.vi-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.vi-body { padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+.vi-drop {
+  border: 2px dashed var(--border); border-radius: var(--radius); padding: 20px; text-align: center;
+  display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center;
+}
+.vi-drop p { width: 100%; margin: 0 0 4px; color: var(--muted-foreground); }
+.vi-drop.over { border-color: var(--ring); background: var(--muted); }
+.vi-btn {
+  padding: 8px 14px; border-radius: var(--radius); border: 1px solid var(--border);
+  background: var(--card); color: var(--foreground); cursor: pointer; font: inherit;
+}
+.vi-btn.primary { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+.vi-btn:disabled { opacity: .45; cursor: default; }
+.vi-btn.vi-rec { background: var(--destructive); color: #fff; border-color: var(--destructive); }
+.vi-jobs { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.vi-jobs li { display: grid; grid-template-columns: 1fr 140px auto; gap: 8px; align-items: center; font-size: 13px; }
+.vi-jobs li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vi-label { font-size: 13px; color: var(--muted-foreground); }
+.vi-text { width: 100%; resize: vertical; font: inherit; padding: 10px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--background); color: var(--foreground); }
+.vi-partial { color: var(--muted-foreground); font-style: italic; }
+.vi-note { font-size: 12px; color: var(--muted-foreground); margin: 0; }
+.vi-warn { font-size: 13px; color: var(--destructive); margin: 0; }
+.vi-error { color: var(--destructive); padding: 0 16px 12px; margin: 0; }
+.vi-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.vi-review { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.vi-review > .vi-label, .vi-review > .vi-preview, .vi-review > .vi-warn, .vi-review > .vi-actions { grid-column: 1 / -1; }
+.vi-transcript, .vi-preview {
+  white-space: pre-wrap; line-height: 1.6; padding: 10px; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--background); max-height: 40vh; overflow: auto;
+}
+.vi-spans { max-height: 40vh; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+.vi-spans h4 { margin: 0 0 6px; font-size: 13px; }
+.vi-span { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; margin-bottom: 6px; font-size: 13px; }
+.vi-span-text { margin-bottom: 6px; }
+.vi-span-ctrl { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.vi-repl { flex: 1; min-width: 140px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--background); color: var(--foreground); }
+.vi-mark { border-radius: 4px; padding: 0 2px; background: oklch(0.85 0.12 85 / 55%); color: inherit; }
+.vi-mark.vi-organization { background: oklch(0.8 0.1 240 / 45%); }
+.vi-mark.vi-contact { background: oklch(0.8 0.1 150 / 45%); }
+.vi-mark.vi-sensitive_fact { background: oklch(0.75 0.14 25 / 40%); }
+.vi-mark.vi-keep { background: transparent; outline: 1px dashed var(--muted-foreground); }
+.vi-check { display: flex; gap: 8px; align-items: flex-start; line-height: 1.5; }
+.vi-check.disabled { opacity: .6; }
+@media (max-width: 720px) {
+  .vi-review { grid-template-columns: 1fr; }
+  .vi-jobs li { grid-template-columns: 1fr; }
+}
