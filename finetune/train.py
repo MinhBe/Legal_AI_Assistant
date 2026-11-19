@@ -122,7 +122,9 @@ def main() -> None:
         learning_rate=2e-4,
         lr_scheduler_type="linear",
         warmup_steps=5,
-        fp16=True,  # T4 không có bf16
+        # không AMP: GradScaler fp16 báo lỗi unscale bf16 trên ảnh Kaggle (smoke v2–v5) dù tham số
+        # học là fp32; phép nhân 4-bit vẫn chạy fp16 qua bitsandbytes
+        fp16=False,
         bf16=False,
         logging_steps=10,
         save_steps=CKPT_EVERY,
