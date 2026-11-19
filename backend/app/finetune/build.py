@@ -380,7 +380,7 @@ def build_dataset(
             if row.get("items"):  # nguồn lỗi (rỗng) được thử lại ở lượt sau
                 done[row["source"]] = row["items"]
     todo = [r for r in generatable[:calls] if _source_id(r) not in done]
-    failed = made = 0
+    failed = made = streak = 0
     started = time.monotonic()
     with raw_path.open("a", encoding="utf-8") as raw:
         for i, rec in enumerate(todo, 1):
@@ -399,8 +399,16 @@ def build_dataset(
                         break
                     time.sleep(60 * 2 ** attempt)  # mọi key đang nghỉ / 429: đợi rồi thử lại
             made += 1
-            if not items:
-                failed += 1
+            if items:
+                streak = 0
+            else:
+                streak += 1
+                if streak >= 3:  # nhiều nguồn rỗng liền nhau = Dahl hết chỗ, không phải nguồn hỏng
+                    wait = min(900, 60 * 2 ** (streak - 3))
+                    logger.info("{} nguồn rỗng liền nhau: đợi {} s cho key Dahl hồi", streak, wait)
+                    time.sleep(wait)
+                else:
+                    failed += 1
             row = {"source": _source_id(rec), "items": items}
             raw.write(json.dumps(row, ensure_ascii=False) + "\n")
             raw.flush()
