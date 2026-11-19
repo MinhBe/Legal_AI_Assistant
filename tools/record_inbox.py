@@ -54,7 +54,13 @@ def wait(kernel: str, every: int = 120, limit_s: int = 6 * 3600) -> str:
 
 def push_new() -> list[str]:
     INBOX.mkdir(parents=True, exist_ok=True)
-    state = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {"done": []}
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from fb_dyi import import_inbox  # bản xuất DYI Facebook của chính Minh -> video vào inbox
+
+    fb = import_inbox(INBOX)
+    if fb:
+        print(f"facebook DYI: +{len(fb)} video")
+    state =json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {"done": []}
     done = set(state["done"]) | {stem_of(p) for p in DS_REC.glob("*") if p.suffix.lower() in EXTS}
     new = [p for p in sorted(INBOX.iterdir()) if p.suffix.lower() in EXTS and stem_of(p) not in done]
     if not new:
