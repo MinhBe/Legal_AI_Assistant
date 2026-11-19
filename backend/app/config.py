@@ -33,7 +33,15 @@ def load_key_dir(path: str) -> tuple[str, ...]:
     if not path or not root.is_dir():
         return ()
     keys: list[str] = []
-    for f in sorted(p for p in root.iterdir() if p.is_file() and not p.name.startswith(".")):
+
+    # Chỉ tệp key Dahl: thư mục keys/ còn chứa kaggle*.json; trước 19/11/2026 chúng bị đọc như key
+    # Dahl (key #5–#8 trả 401) tức là thông tin Kaggle đã bị gửi tới Dahl làm bearer token.
+    def _is_dahl_key_file(p) -> bool:
+        name = p.name.lower()
+        return (p.is_file() and not name.startswith(".") and "dahl" in name
+                and not name.endswith((".json", ".bak")))
+
+    for f in sorted(p for p in root.iterdir() if _is_dahl_key_file(p)):
         try:
             lines = f.read_text(encoding="utf-8-sig").splitlines()
         except (OSError, UnicodeDecodeError):
