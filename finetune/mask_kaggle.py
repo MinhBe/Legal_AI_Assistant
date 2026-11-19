@@ -39,11 +39,17 @@ class HFRouter:
                                                           dtype=torch.float16)
 
     def chat(self, messages, task="route", temperature=0.0):
-        ids = self.tok.apply_chat_template(messages, add_generation_prompt=True,
-                                           return_tensors="pt").to(self.model.device)
-        with self.torch.no_grad():
-            out = self.model.generate(ids, max_new_tokens=512, do_sample=False)
-        text = self.tok.decode(out[0][ids.shape[1]:], skip_special_tokens=True)
+        # transformers 5: apply_chat_template(return_tensors=…) trả BatchEncoding, không phải tensor
+        # (lượt che 1 lỗi im lặng ở mọi lời gọi): dựng chuỗi prompt rồi token hoá rõ ràng
+        try:
+            prompt = self.tok.apply_chat_template(messages, add_generation_prompt=True,
+                                                  tokenize=False)
+            enc = self.tok(prompt, return_tensors="pt").to(self.model.device)
+            with self.torch.no_grad():
+                out = self.model.generate(**enc, max_new_tokens=512, do_sample=False)
+            text = self.tok.decode(out[0][enc["input_ids"].shape[1]:], skip_special_tokens=True)
+        except Exception as exc:  # noqa: BLE001 — ner_values chỉ in str(exc): đưa repr ra cho rõ
+            raise RuntimeError(repr(exc)) from exc
         return type("R", (), {"text": text})()
 
 
