@@ -409,7 +409,8 @@ def build_dataset(
                     time.sleep(wait)
                 else:
                     failed += 1
-            row = {"source": _source_id(rec), "items": items}
+            row = {"source": _source_id(rec), "items": items,
+                   "provider": getattr(router, "last_provider", "") if items else ""}
             raw.write(json.dumps(row, ensure_ascii=False) + "\n")
             raw.flush()
             done[row["source"]] = items

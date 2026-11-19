@@ -401,3 +401,26 @@ def test_key_values_never_logged(router, tmp_path, monkeypatch):
         logger.remove(sink)
     text = "".join(out)
     assert "key #0" in text and "key-bare" not in text and "key-0" not in text
+
+
+def test_gemini_keys_spread_evenly_with_pacing(monkeypatch):
+    rt = r.LLMRouter.__new__(r.LLMRouter)
+    rt._gemini_keys = ["g1", "g2", "g3"]
+    rt._gemini_idx = 0
+    monkeypatch.setattr(r.settings, "gemini_key_min_interval_s", 0.0)
+    monkeypatch.setattr(r.settings, "gemini_key_daily_cap", 2)
+    got = [rt._next_gemini_key() for _ in range(6)]
+    assert got == ["g1", "g2", "g3", "g1", "g2", "g3"]
+    assert rt.gemini_usage() == [2, 2, 2]
+    with pytest.raises(r.LLMError):
+        rt._next_gemini_key()  # mọi key chạm hạn mức ngày
+
+
+def test_gemini_429_cools_that_key_only(monkeypatch):
+    rt = r.LLMRouter.__new__(r.LLMRouter)
+    rt._gemini_keys = ["g1", "g2"]
+    rt._gemini_idx = 0
+    monkeypatch.setattr(r.settings, "gemini_key_min_interval_s", 0.0)
+    assert rt._next_gemini_key() == "g1"
+    rt._gemini_cooldown(HTTPErr(429))
+    assert [rt._next_gemini_key() for _ in range(2)] == ["g2", "g2"]

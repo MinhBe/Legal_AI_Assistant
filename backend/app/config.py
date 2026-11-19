@@ -106,6 +106,9 @@ class Settings(BaseSettings):
     cloud_llm_reasoning_effort: str = "low"  # rỗng = không gửi tham số này
     cloud_llm_min_tokens: int = 8192  # model có suy nghĩ cần chỗ cho phần nghĩ + câu trả lời
     cloud_llm_timeout: float = 45  # lời gọi treo trên Dahl không bao giờ về; đổi key sớm thay vì chờ
+    gemini_key_min_interval_s: float = 12.0  # ~50 % của 10 lời/phút (gói miễn phí)
+    gemini_key_daily_cap: int = 120  # ~50 % của 250 lời/ngày (gói miễn phí)
+    gemini_for_c: bool = False  # true = mức C xen kẽ Gemini với tuyến đám mây (chỉ văn bản công khai)
     no_local_for_c: bool = False  # true = mức C chỉ đám mây (việc nền dài, không chiếm máy nhà)
     cloud_first_for_c: bool = False  # true = mức C gọi đám mây trước, mô hình trong máy làm dự phòng
     # DEEPSEEK_*: tên cũ, chỉ để tương thích; chỉ dùng khi biến chứa key CLOUD_LLM chưa có giá trị

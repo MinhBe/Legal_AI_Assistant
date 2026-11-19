@@ -40,6 +40,7 @@ settings = get_settings()
 
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 _MAX_ATTEMPTS = 4
+_GEM_LOCK = threading.Lock()
 _BASE_DELAY = 1.0
 
 # Dò mô hình trong máy (Ollama): nhớ kết quả 60 s, không dò lúc import.
@@ -281,6 +282,12 @@ class LLMRouter:
         plan = cloud + [local] if (get_cloud_first() or settings.cloud_first_for_c) else [local] + cloud
         if settings.no_local_for_c and cloud:
             plan = cloud
+        if settings.gemini_for_c and self._gemini_keys:
+            gem = [("gemini", settings.gemini_model), ("gemini", settings.gemini_model_lite)]
+            self._alt = getattr(self, "_alt", 0) + 1  # xen kẽ ai đi trước để chia tải
+            plan = [x for x in plan if x[0] != "local"]
+            plan = (gem + plan if self._alt % 2 else plan + gem) + (
+                [] if settings.no_local_for_c else [local])
         return [(p, m) for (p, m) in plan if self._available(p)]
 
     def _legacy_plan(self, task: str) -> list[tuple[str, str]]:
@@ -309,6 +316,8 @@ class LLMRouter:
 
     def available_providers(self) -> dict[str, bool]:
         providers = {"local": local_reachable(), "cloud": settings.cloud_route() is not None}
+        if settings.gemini_for_c:
+            providers["gemini"] = bool(self._gemini_keys)
         if settings.llm_legacy_race:
             providers |= {
                 "dahl": bool(self._dahl_keys and settings.dahl_model_list),
@@ -325,9 +334,49 @@ class LLMRouter:
         return OpenAI(base_url=base_url, api_key=api_key, max_retries=0, timeout=timeout)
 
     def _next_gemini_key(self) -> str:
-        key = self._gemini_keys[self._gemini_idx % len(self._gemini_keys)]
-        self._gemini_idx += 1
-        return key
+        """Dàn trải đều mọi key Gemini (Minh 20/11/2026: không để một tài khoản gánh tải).
+
+        Xoay vòng; mỗi key cách nhau ít nhất GEMINI_KEY_MIN_INTERVAL_S (mặc định 12 s, khoảng
+        50 % hạn mức 10 lời/phút của gói miễn phí), tối đa GEMINI_KEY_DAILY_CAP lời/ngày, key dính
+        429 nghỉ 120 s. Hết key rảnh thì đợi key sớm nhất."""
+        n = len(self._gemini_keys)
+        st = self.__dict__.setdefault("_gem", {"last": [0.0] * n, "cool": [0.0] * n,
+                                               "count": [0] * n, "day": time.strftime("%Y%m%d")})
+        with _GEM_LOCK:
+            if st["day"] != time.strftime("%Y%m%d"):
+                st["count"], st["day"] = [0] * n, time.strftime("%Y%m%d")
+            while True:
+                now = time.monotonic()
+                ready, soonest = None, None
+                for j in range(n):
+                    i = (self._gemini_idx + j) % n
+                    if st["count"][i] >= settings.gemini_key_daily_cap:
+                        continue
+                    at = max(st["last"][i] + settings.gemini_key_min_interval_s, st["cool"][i])
+                    if at <= now:
+                        ready = i
+                        break
+                    soonest = at if soonest is None else min(soonest, at)
+                if ready is not None:
+                    break
+                if soonest is None:
+                    raise LLMError("mọi key Gemini đã hết hạn mức ngày")
+                time.sleep(max(0.5, soonest - now))
+            self._gemini_idx = ready + 1
+            st["last"][ready] = time.monotonic()
+            st["count"][ready] += 1
+            self._gem_last = ready
+            logger.info("gemini key #{} lời thứ {}", ready + 1, st["count"][ready])
+        return self._gemini_keys[ready]
+
+    def gemini_usage(self) -> list[int]:
+        """Số lời gọi hôm nay theo từng key (theo thứ tự, không lộ giá trị)."""
+        return list(self.__dict__.get("_gem", {}).get("count", []))
+
+    def _gemini_cooldown(self, exc: Exception) -> None:
+        i = getattr(self, "_gem_last", None)
+        if i is not None and _status(exc) == 429 and "_gem" in self.__dict__:
+            self._gem["cool"][i] = time.monotonic() + 120
 
     def _next_dahl_key(self) -> str:
         key = self._dahl_keys[self._dahl_idx % len(self._dahl_keys)]
@@ -367,6 +416,7 @@ class LLMRouter:
                 if parse:
                     res.data = parse(res.text)
                 metrics.mark_winner(res.call_id)
+                self.last_provider = f"{provider}:{model}"
                 return res
             except Exception as exc:  # noqa: BLE001 — thử nhà cung cấp kế tiếp
                 logger.warning("LLM {} ({}) lỗi ở mức {}: {}", provider, model,
@@ -389,8 +439,14 @@ class LLMRouter:
         if provider == "cloud":
             return self._call_cloud(model, messages, temperature, max_tokens, task=task)
         base_url, api_key = self._endpoint(provider)
-        return self._call_openai(provider, base_url, api_key, model, messages, temperature, max_tokens,
-                                 task=task)
+        try:
+            return self._call_openai(provider, base_url, api_key, model, messages, temperature,
+                                     max_tokens, task=task,
+                                     retry=not (provider == "gemini" and settings.gemini_for_c))
+        except Exception as exc:
+            if provider == "gemini":
+                self._gemini_cooldown(exc)
+            raise
 
     def _call_local(self, model, messages, temperature, max_tokens, task: str = "answer") -> LLMResult:
         return self._call_openai("local", settings.ollama_base_url, "ollama", model, messages,
