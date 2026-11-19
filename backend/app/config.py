@@ -141,6 +141,12 @@ class Settings(BaseSettings):
     audio_compute: str = "int8"          # kiểu tính của faster-whisper
     audio_language: str = "vi"
     audio_max_bytes: int = 600_000_000   # 600 MB; bản ghi 3 giờ thường dưới 200 MB
+    stt_live_model: str = "small"       # chép lời tức thì (voice intake): model nhỏ, int8
+    stt_live_threads: int = 2            # giới hạn luồng CPU cho chép lời tức thì
+    stt_silence_ms: int = 700            # im lặng bao lâu thì chốt một câu
+    stt_max_segment_s: float = 12.0      # câu dài nhất trước khi chốt
+    stt_partial_every_s: float = 1.5     # chép thử phần đang nói mỗi bao lâu
+    stt_file_max_s: float = 1200.0       # tệp dài hơn: đưa lên Kaggle chạy nền
     audio_chunk_minutes: int = 5         # độ dài mỗi đoạn đưa vào node
 
     # Đăng nhập demo (AUTH1). Tắt khi chạy test; bật trên máy chạy thật.

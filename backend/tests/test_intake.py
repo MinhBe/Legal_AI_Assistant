@@ -1,0 +1,120 @@
+"""Voice intake: phát hiện và áp làm mờ, lưu theo đồng ý, chép lời tức thì (model giả)."""
+
+import numpy as np
+import pytest
+
+from app.intake import redact
+from app.intake.stt import RATE, LiveSession
+
+TEXT = ("Tôi là Nguyễn Văn An, làm ở Công ty TNHH Hoà Bình. Chị Lan bị ung thư nên nghỉ việc. "
+        "Số điện thoại 0912345678. Anh An bị sa thải.")
+
+
+def _by(spans, t):
+    return [s for s in spans if s["type"] == t]
+
+
+def test_detect_groups_and_gendered_pseudonyms():
+    spans = redact.detect(TEXT)
+    names = {s["text"]: s["suggestion"] for s in _by(spans, "TÊN")}
+    assert names["Nguyễn Văn An"] == "Nguyễn Văn B"
+    assert names["An"] == "Nguyễn Văn B"  # cùng một người
+    assert names["Lan"].startswith("Nguyễn Thị")  # "Chị Lan"
+    assert _by(spans, "TỔ_CHỨC")[0]["text"] == "Công ty TNHH Hoà Bình"
+    assert _by(spans, "TÌNH_TIẾT")[0]["group"] == "sensitive_fact"
+    assert _by(spans, "SĐT")[0]["suggestion"] == "[số đã ẩn]"
+
+
+def test_apply_default_masks_everything():
+    out = redact.apply(TEXT, redact.detect(TEXT))
+    for leak in ("Nguyễn Văn An", "Hoà Bình", "ung thư", "0912345678", " An "):
+        assert leak not in out["text"]
+    assert out["kept"] == 0
+
+
+def test_apply_keep_fact_but_mask_names_inside():
+    spans = redact.detect(TEXT)
+    fact = _by(spans, "TÌNH_TIẾT")[0]["id"]
+    out = redact.apply(TEXT, spans, {fact: {"action": "keep"}})
+    assert "bị ung thư" in out["text"] and "Lan" not in out["text"]
+    assert out["kept"] == 1
+
+
+def test_custom_replacement_is_consistent_per_person():
+    spans = redact.detect(TEXT)
+    sid = next(s["id"] for s in spans if s["text"] == "Nguyễn Văn An")
+    out = redact.apply(TEXT, spans, {sid: {"action": "pseudonym", "replacement": "Ông K"}})
+    assert out["text"].count("Ông K") == 2
+
+
+def test_spoken_lowercase():
+    t = "em tên là trần thị hoa làm ở công ty may việt tiến bị nợ lương ba tháng"
+    out = redact.apply(t, redact.detect(t))["text"]
+    assert out == "em tên là Nguyễn Thị B làm ở Công ty X bị nợ lương ba tháng"
+
+
+def test_bad_action_rejected():
+    spans = redact.detect(TEXT)
+    with pytest.raises(ValueError):
+        redact.apply(TEXT, spans, {spans[0]["id"]: {"action": "publish"}})
+
+
+def _tone(sec, amp=0.3):
+    t = np.arange(int(RATE * sec)) / RATE
+    return (amp * np.sin(2 * np.pi * 220 * t) * 32767).astype(np.int16).tobytes()
+
+
+def _silence(sec):
+    return np.zeros(int(RATE * sec), dtype=np.int16).tobytes()
+
+
+def test_live_session_partial_then_final():
+    calls = []
+
+    def fake(audio):
+        calls.append(len(audio) / RATE)
+        return f"câu {len(calls)}"
+
+    s = LiveSession(transcribe=fake, silence_ms=600, max_segment_s=12, partial_every_s=1.0)
+    ev = []
+    for chunk in (_silence(0.5), _tone(2.5), _silence(1.0), _tone(1.0)):
+        ev += s.feed(chunk)
+    ev += s.close()
+    kinds = [e["type"] for e in ev]
+    assert "partial" in kinds and kinds.count("final") == 2
+    first = next(e for e in ev if e["type"] == "final")
+    assert 0.4 <= first["start"] <= 0.6 and first["end"] > 3.0
+
+
+def test_live_session_ignores_short_noise():
+    s = LiveSession(transcribe=lambda a: "x", silence_ms=300, partial_every_s=9)
+    ev = s.feed(_tone(0.1) + _silence(1.0))
+    assert ev == []
+
+
+@pytest.mark.db
+def test_submit_requires_consent_and_stores_masked(db, tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.db.models import IntakeRecord
+    from app.intake import routes
+    from app.main import app
+
+    monkeypatch.setattr(routes, "POOL", tmp_path / "pool.jsonl")
+    with TestClient(app) as client:
+        rid = _submit(client)
+    assert (tmp_path / "pool.jsonl").read_text(encoding="utf-8").count(rid) == 1
+    db.query(IntakeRecord).filter_by(id=rid).delete()
+    db.commit()
+
+
+def _submit(client):
+    r = client.post("/api/intake/submit", json={"text": TEXT})
+    assert r.status_code == 400
+    r = client.post("/api/intake/submit", json={"text": TEXT, "consent_case": True,
+                                                "consent_training": True, "source": "text"})
+    assert r.status_code == 200
+    body = r.json()
+    assert "Nguyễn Văn An" not in body["text"] and body["data_class"] == "C"
+    assert body["consent_training"] is True
+    return body["intake_id"]

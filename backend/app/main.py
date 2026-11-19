@@ -13,6 +13,7 @@ from loguru import logger
 from sqlalchemy import text
 
 from app.api.routes import router
+from app.intake.routes import router as intake_router
 from app.auth import accounts
 from app.config import get_settings
 from app.db.base import Base, SessionLocal, engine
@@ -79,3 +80,4 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(intake_router)

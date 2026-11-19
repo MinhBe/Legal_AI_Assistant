@@ -615,3 +615,26 @@ class DocMeta(Base):
     consolidates: Mapped[str | None] = mapped_column(Text)  # VBHN: các văn bản được hợp nhất
     source_url: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class IntakeRecord(Base):
+    """Bản chép lời / lời kể khách đã tự duyệt làm mờ và đồng ý (voice intake, 20/11/2026).
+
+    Không lưu bản thô, không lưu giá trị gốc của đoạn đã che. `kept_spans` > 0 nghĩa là khách
+    giữ nguyên ít nhất một đoạn nhạy cảm: bản này là mức B, chỉ mô hình trong máy được xử lý.
+    """
+
+    __tablename__ = "intake_record"
+
+    id: Mapped[str] = mapped_column(String(16), primary_key=True)  # uuid4 hex[:16]
+    username: Mapped[str | None] = mapped_column(String(64))
+    client_id: Mapped[str | None] = mapped_column(String(64))
+    source: Mapped[str] = mapped_column(String(16), default="text")  # live | file | text
+    text: Mapped[str] = mapped_column(Text)
+    kept_spans: Mapped[int] = mapped_column(Integer, default=0)
+    span_counts: Mapped[str] = mapped_column(Text, default="{}")  # JSON {loại: {lựa chọn: n}}
+    consent_case: Mapped[bool] = mapped_column(default=False)
+    consent_training: Mapped[bool] = mapped_column(default=False)
+    data_class: Mapped[str] = mapped_column(String(1), default="C")
+    status: Mapped[str] = mapped_column(String(16), default="new")  # new | analysed | closed
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
