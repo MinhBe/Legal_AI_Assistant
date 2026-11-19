@@ -208,11 +208,25 @@ def replace_known(text: str, mapping: dict[str, str]) -> str:
     return text
 
 
+_ITEM = re.compile(r'\{[^{}]*?"text"\s*:\s*"(?P<text>[^"\\]+)"[^{}]*?\}')
+_TYPE = re.compile(r'"type"\s*:\s*"(?P<type>[^"\\]+)"')
+
+
+def salvage_items(raw: str) -> list[dict]:
+    """Các mục {"text":…, "type":…} hoàn chỉnh trong một chuỗi JSON hỏng hoặc bị cắt."""
+    out = []
+    for m in _ITEM.finditer(raw or ""):
+        t = _TYPE.search(m.group(0))
+        out.append({"text": m.group("text"), "type": t.group("type") if t else "TÊN"})
+    return out
+
+
 def ner_values(router, text: str) -> list[tuple[str, str]]:
     """Mô hình trong máy (mức A) liệt kê PII; lỗi thì trả [] và chỉ dựa vào luật."""
     from app.llm.context import data_class_scope
     from app.llm.router import parse_json
 
+    raw = ""
     try:
         with data_class_scope("A"):
             raw = router.chat(
@@ -221,8 +235,10 @@ def ner_values(router, text: str) -> list[tuple[str, str]]:
             ).text
         items = parse_json(raw).get("items") or []
     except Exception as exc:  # noqa: BLE001 — thiếu lớp NER vẫn còn các lớp luật
-        logger.warning("NER che PII lỗi: {}", exc)
-        return []
+        items = salvage_items(raw)  # JSON bị cắt giữa chừng (hết max_new_tokens): lấy các mục đủ
+        logger.warning("NER che PII lỗi: {} (cứu được {} mục)", exc, len(items))
+        if not items:
+            return []
     out = []
     for it in items:
         if not (isinstance(it, dict) and isinstance(it.get("text"), str)):

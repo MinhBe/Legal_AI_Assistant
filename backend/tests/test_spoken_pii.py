@@ -188,3 +188,12 @@ def test_new_placeholder_never_overwrites_with_gaps():
     m = {"[TÊN_1]": "an", "[TÊN_3]": "bình"}  # lỗ ở số 2 sau khi lọc
     ph = _new_placeholder(m, "TÊN", "cường")
     assert ph == "[TÊN_4]" and m["[TÊN_3]"] == "bình" and len(m) == 3
+
+
+def test_salvage_items_from_truncated_json():
+    from app.audio.spoken_pii import salvage_items
+
+    raw = '{"items": [{"text": "Nguyễn Văn An", "type": "TÊN"}, {"type": "TỔ_CHỨC", "text": "Công ty X"}, {"text": "Trần Th'
+    assert salvage_items(raw) == [{"text": "Nguyễn Văn An", "type": "TÊN"},
+                                  {"text": "Công ty X", "type": "TỔ_CHỨC"}]
+    assert salvage_items("") == []

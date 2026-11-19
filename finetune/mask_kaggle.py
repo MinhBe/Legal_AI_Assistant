@@ -46,7 +46,7 @@ class HFRouter:
                                                   tokenize=False)
             enc = self.tok(prompt, return_tensors="pt").to(self.model.device)
             with self.torch.no_grad():
-                out = self.model.generate(**enc, max_new_tokens=512, do_sample=False)
+                out = self.model.generate(**enc, max_new_tokens=1536, do_sample=False)
             text = self.tok.decode(out[0][enc["input_ids"].shape[1]:], skip_special_tokens=True)
         except Exception as exc:  # noqa: BLE001 — ner_values chỉ in str(exc): đưa repr ra cho rõ
             raise RuntimeError(repr(exc)) from exc
