@@ -144,6 +144,15 @@ papers such as sổ hộ khẩu.
 documents in the corpus list.
 - Keep every [?x/y] and [?] mark exactly, in the field where it occurs AND under \
 "uncertain" with a short explanation. Do not resolve them.
+- DURATIONS / DEADLINES: when the lawyer gives a processing time that differs from the legal \
+maximum you can see in the corpus, do NOT call it an error or a discrepancy. Lawyers often give \
+a shorter, experience-based planning figure because of delays, cumbersome procedures or \
+sensitive cases. Put both in "suggestions": (a) the practical recommendation = the lawyer's \
+figure and why to plan with it, and (b) the legal maximum with its exact citation (e.g. \
+"NĐ 101/2024/NĐ-CP Điều 22 khoản 4: không quá 15 ngày làm việc"), plus what to do if the office \
+exceeds the legal maximum (ask for the reason in writing, request a new appointment slip, then \
+complain). Set needs_lawyer_review true ONLY when the lawyer's figure is LONGER than the legal \
+maximum in a way that suggests outdated law.
 - All values are strings (or lists of strings); "start"/"end" are "mm:ss" strings.
 - Do not repeat the same sentence in suggestions and practical_tactics.
 - "practical_tactics": lawful steps only. Never give tips for evading the law, hiding assets, \
@@ -271,8 +280,21 @@ def enforce(result: dict[str, Any], corpus_docs: list[str]) -> list[str]:
                 changes.append(f"unit {i}: xoá số điều từ trí nhớ '{c['article']}'")
                 c["article"] = ""
         for s in u["suggestions"]:
-            s["needs_lawyer_review"] = True
+            # ghi chú thời hạn (mức nên dự trù theo luật sư + mức tối đa luật định) là thông tin
+            # thủ tục, Minh duyệt 19/11/2026 không cần luật sư duyệt lại; mọi gợi ý khác thì cần
+            if not (s.get("needs_lawyer_review") is False and is_deadline_note(s["text"])):
+                s["needs_lawyer_review"] = True
     return changes
+
+
+_DEADLINE = re.compile(r"tối đa|không quá", re.IGNORECASE)
+_WORKDAYS = re.compile(r"\d+\s*ngày(?:\s+làm việc)?", re.IGNORECASE)
+
+
+def is_deadline_note(text: str) -> bool:
+    """Gợi ý dạng "nên dự trù N ngày (luật sư) — tối đa M ngày làm việc theo … Điều …"."""
+    return bool(_DEADLINE.search(text) and _WORKDAYS.search(text)
+                and re.search(r"Điều\s+\d+", text))
 
 
 _NUM = re.compile(r"\d+(?:/\d+)*")

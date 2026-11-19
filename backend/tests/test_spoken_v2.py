@@ -66,3 +66,18 @@ def test_enforce_downgrades_and_strips_memory_articles():
     assert c2["status"] == "verified_in_corpus" and c2["article"] == "Điều 35"
     assert result["units"][0]["suggestions"][0]["needs_lawyer_review"] is True
     assert len(changes) == 2
+
+
+def test_deadline_rule_in_prompt_and_enforce_keeps_planning_note():
+    """Minh 19/11/2026: con số luật sư ngắn hơn mức tối đa là ước tính kinh nghiệm, không phải lỗi."""
+    assert "DURATIONS / DEADLINES" in spoken_v2.STAGE2_SYSTEM
+    assert "do NOT call it an error" in spoken_v2.STAGE2_SYSTEM
+    note = ("Tách thửa: nên dự trù khoảng 12 ngày làm việc như luật sư khuyên. Mức tối đa: không quá "
+            "15 ngày làm việc (NĐ 101/2024/NĐ-CP Điều 22 khoản 4).")
+    other = "Nên kiểm tra quy hoạch trước khi tách thửa."
+    result = {"units": [_unit(suggestions=[{"text": note, "needs_lawyer_review": False},
+                                           {"text": other, "needs_lawyer_review": False}])]}
+    spoken_v2.enforce(result, CORPUS)
+    s = result["units"][0]["suggestions"]
+    assert s[0]["needs_lawyer_review"] is False and s[1]["needs_lawyer_review"] is True
+    assert spoken_v2.is_deadline_note(note) and not spoken_v2.is_deadline_note(other)
