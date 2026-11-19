@@ -31,16 +31,16 @@ def main() -> None:
     ap.add_argument("--out", default="/kaggle/working")
     args = ap.parse_args()
 
-    from peft import PeftModel
+    import torch
     from unsloth import FastLanguageModel
 
     out = Path(args.out)
+    # Nạp THẲNG thư mục adapter (Unsloth tự lấy model gốc trong adapter_config.json). Gắn adapter
+    # bằng peft.PeftModel.from_pretrained thì Unsloth từ chối gộp (lỗi lượt train v0, 19/11/2026).
     model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=MODEL_NAME, max_seq_length=NUM_CTX, dtype=None, load_in_4bit=True
+        model_name=args.adapter, max_seq_length=NUM_CTX, dtype=torch.float16, load_in_4bit=True
     )
-    model = PeftModel.from_pretrained(model, args.adapter)
-
-    model.save_pretrained_merged(str(out / "merged-16bit"), tokenizer, save_method="merged_16bit")
+    # save_pretrained_gguf tự gộp LoRA; không lưu thêm bản 16-bit (tốn ~15 GB đĩa Kaggle)
     model.save_pretrained_gguf(str(out / "gguf"), tokenizer, quantization_method="q4_k_m")
 
     gguf = next(iter((out / "gguf").glob("*.gguf")), None)
