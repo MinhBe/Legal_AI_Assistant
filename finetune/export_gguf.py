@@ -52,8 +52,9 @@ def main() -> None:
     # save_pretrained_gguf tự gộp LoRA; không lưu thêm bản 16-bit
     model.save_pretrained_gguf(str(work), tokenizer, quantization_method="q4_k_m")
 
-    found = sorted(work.rglob("*.gguf"),
-                   key=lambda p: ("q4_k_m" not in p.name.lower(), p.stat().st_size))
+    # Unsloth ghi vào "<work>_gguf/" (thêm hậu tố), không phải <work>/ (export v4, 19/11/2026)
+    hits = [p for d in (work, Path(f"{work}_gguf")) if d.exists() for p in d.rglob("*.gguf")]
+    found = sorted(hits, key=lambda p: ("q4_k_m" not in p.name.lower(), p.stat().st_size))
     if not found:
         raise SystemExit(f"không thấy tệp .gguf trong {work}")
     (out / "gguf").mkdir(parents=True, exist_ok=True)
