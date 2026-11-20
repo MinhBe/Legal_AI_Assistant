@@ -36,7 +36,8 @@ print(len(rows), "prompt")
 t0 = time.time()
 texts, engine = None, ""
 try:
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "vllm"], check=True, timeout=1500)
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "vllm", "nvidia-cutlass-dsl"],
+                   check=True, timeout=1500)
     from vllm import LLM, SamplingParams
     llm = LLM(MODEL, tensor_parallel_size=2, dtype="half", max_model_len=8192,
               gpu_memory_utilization=0.90, enforce_eager=True)
@@ -46,6 +47,7 @@ try:
 except Exception as exc:
     print("vLLM không chạy được:", repr(exc)[:300])
 if texts is None:
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-U", "bitsandbytes>=0.46.1"], timeout=900)
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
     name = MODEL.replace("-AWQ", "")
