@@ -71,3 +71,6 @@ data/embed_out/
 data/embed_queue/
 data/intake/
 data/scenarios/
+
+# model tải về (PhoWhisper nén…), không đưa vào git
+data/models/

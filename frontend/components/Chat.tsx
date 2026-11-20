@@ -75,7 +75,7 @@ export default function Chat({ demo = false }: { demo?: boolean }) {
             <a className="demo-chip" href="/demo/ghi-am-mau.wav" download title="Tải về rồi kéo thả vào ô chat để thử phần ghi âm">⬇ Ghi âm mẫu</a>
           </div>
         )}
-        <Composer value={input} placeholder={text.placeholder} onChange={setInput} onSubmit={() => ask(input)} busy={chat.busy} />
+        <Composer value={input} placeholder={text.placeholder} onChange={setInput} onSend={(t) => ask(t)} busy={chat.busy} />
       </main>
     </div>
   );

@@ -4,6 +4,9 @@ Cắt theo năng lượng (VAD đơn giản, không cần thêm gói): một câ
 >= STT_SILENCE_MS sau khi đã có tiếng nói, hoặc khi câu dài quá STT_MAX_SEGMENT_S. Trong lúc nói,
 cứ STT_PARTIAL_EVERY_S thì chép thử phần đang có (partial). Model nhỏ, int8, ít luồng CPU, mỗi lúc
 một luồng trực tiếp (máy nhà chạy song song việc khác).
+
+Model: PhoWhisper-large nén (STT_LIVE_MODEL); GPU khi có (STT_LIVE_DEVICE=auto), giải phóng sau
+5 phút không có phiên. Sau khi chép, sửa thuật ngữ pháp lý hay nghe nhầm bằng code (legal_fixes).
 """
 
 from __future__ import annotations
@@ -25,17 +28,71 @@ _MODEL_LOCK = threading.Lock()
 LIVE_LOCK = threading.Lock()  # một luồng trực tiếp mỗi lúc
 
 
+def _device() -> tuple[str, str]:
+    """(thiết bị, kiểu tính). auto: có GPU thì dùng GPU (chỉ lúc có phiên micro, tự giải phóng)."""
+    want = settings.stt_live_device
+    if want in ("auto", "cuda"):
+        try:
+            import ctranslate2
+
+            if ctranslate2.get_cuda_device_count() > 0:
+                return "cuda", "int8_float16"
+        except Exception:  # noqa: BLE001 — không có CUDA thì về CPU
+            pass
+        if want == "cuda":
+            raise RuntimeError("STT_LIVE_DEVICE=cuda nhưng không thấy GPU")
+    return "cpu", "int8"
+
+
+def _load():
+    from pathlib import Path
+
+    from faster_whisper import WhisperModel
+
+    device, compute = _device()
+    name = settings.stt_live_model if Path(settings.stt_live_model).exists() else settings.stt_live_fallback
+    return WhisperModel(name, device=device, compute_type=compute, cpu_threads=settings.stt_live_threads)
+
+
 def _whisper(audio: np.ndarray) -> str:
     global _MODEL
     with _MODEL_LOCK:
         if _MODEL is None:
-            from faster_whisper import WhisperModel
-
-            _MODEL = WhisperModel(settings.stt_live_model, device="cpu", compute_type="int8",
-                                  cpu_threads=settings.stt_live_threads)
+            _MODEL = _load()
         segs, _ = _MODEL.transcribe(audio, language=settings.audio_language, beam_size=1,
                                     vad_filter=False, condition_on_previous_text=False)
-        return " ".join((s.text or "").strip() for s in segs).strip()
+        return legal_fixes(" ".join((s.text or "").strip() for s in segs).strip())
+
+
+def _fix_pairs() -> list[tuple[str, str]]:
+    """Cặp nghe nhầm thuật ngữ pháp lý của prompt v2.1 (KNOWN_FIXES), sửa bằng code, không gọi AI.
+    Chỉ lấy cặp một-đích rõ ràng ("a -> b"); cặp có điều kiện ("… or …", "(when …)") để model sửa."""
+    from app.problems.spoken_v2 import KNOWN_FIXES
+
+    out = []
+    for part in KNOWN_FIXES.split(";"):
+        if "->" not in part or "(" in part or " or " in part or "'" in part:
+            continue
+        srcs, dst = part.split("->", 1)
+        for src in srcs.split("/"):
+            src = src.strip()
+            if src and dst.strip():
+                out.append((src, dst.strip()))
+    return out
+
+
+_FIXES: list[tuple[str, str]] | None = None
+
+
+def legal_fixes(text: str) -> str:
+    import re
+
+    global _FIXES
+    if _FIXES is None:
+        _FIXES = _fix_pairs()
+    for src, dst in _FIXES:
+        text = re.sub(rf"(?<!\w){re.escape(src)}(?!\w)", dst, text, flags=re.IGNORECASE)
+    return text
 
 
 _IDLE = {"gen": 0}

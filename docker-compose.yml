@@ -40,6 +40,15 @@ services:
       - modelcache:/root/.cache
       # key mô hình đám mây (CLOUD_LLM_KEYS_DIR), chỉ đọc; keys/ nằm trong .gitignore và .dockerignore
       - ./keys:/keys:ro
+    # GPU chỉ dùng cho chép lời tức thì khi có người bấm micro (STT_LIVE_DEVICE=auto), model tự
+    # giải phóng sau 5 phút; đặt STT_LIVE_DEVICE=cpu trong .env để không đụng GPU
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     depends_on:
       postgres:
         condition: service_healthy

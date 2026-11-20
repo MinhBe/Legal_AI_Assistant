@@ -1832,3 +1832,12 @@ a.calc-chip:hover { color: var(--foreground); background: var(--muted); }
 .coach-hint { color: oklch(0.6 0.15 60); font-size: 13px; }
 .coach-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 @media (prefers-reduced-motion: reduce) { .coach-spot { animation: none; } }
+
+/* ---- đọc bằng giọng nói trong ô hỏi ---- */
+.mic-btn { width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--foreground); cursor: pointer; flex-shrink: 0; font-size: 16px; }
+.mic-btn:hover { background: var(--muted); }
+.mic-btn.on { background: var(--destructive); border-color: var(--destructive); color: #fff; animation: mic-pulse 1.2s ease-in-out infinite; }
+@keyframes mic-pulse { 50% { box-shadow: 0 0 0 6px oklch(0.577 0.245 27.325 / 25%); } }
+@media (prefers-reduced-motion: reduce) { .mic-btn.on { animation: none; } }
+.dictation-partial { color: var(--muted-foreground); font-style: italic; font-size: 13px; padding: 0 0 6px; }
+.dictation-error { color: var(--destructive); font-size: 12px; padding: 0 0 6px; }

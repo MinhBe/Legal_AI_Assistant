@@ -21,6 +21,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir "faster-whisper==1.1.1"
+# Chép lời tức thì trên GPU (PhoWhisper nén, chỉ khi bấm micro): ctranslate2 cần cuBLAS/cuDNN
+# của CUDA 12; image slim không có, nên lấy bánh xe pip của NVIDIA và chỉ đường dẫn thư viện.
+RUN pip install --no-cache-dir nvidia-cublas-cu12 "nvidia-cudnn-cu12==9.*"
+ENV LD_LIBRARY_PATH=/usr/local/lib/python3.12/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.12/site-packages/nvidia/cudnn/lib
 
 # LI2: trình duyệt headless để đọc trang JS (anle.toaan.gov.vn) và form tra cứu của
 # vanban.chinhphu.vn (Minh đồng ý 16/11/2026). Chỉ Chromium, chạy CPU, không dùng GPU.

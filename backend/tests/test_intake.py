@@ -182,3 +182,10 @@ def test_embed_defer_writes_queue_not_vectors(tmp_path, monkeypatch):
     path = up.queue_embeddings("d1", rows)
     lines = path.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2 and '"node_id": "d1-s1"' in lines[0]
+
+
+def test_legal_fixes_corrects_misheard_terms():
+    from app.intake.stt import legal_fixes
+
+    assert legal_fixes("lợi sư nói về số đỏ và quyền sở đất") == "luật sư nói về sổ đỏ và quyền sử dụng đất"
+    assert legal_fixes("đất ẩm") == "đất ở"

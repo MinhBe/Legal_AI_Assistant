@@ -144,7 +144,11 @@ class Settings(BaseSettings):
     audio_language: str = "vi"
     audio_max_bytes: int = 600_000_000   # 600 MB; bản ghi 3 giờ thường dưới 200 MB
     embed_defer: bool = False  # true = nạp văn bản không tạo embedding trong máy; tools/kaggle_embed.py làm trên Kaggle
-    stt_live_model: str = "small"       # chép lời tức thì (voice intake): model nhỏ, int8
+    # chép lời tức thì: PhoWhisper-large nén int8_float16 (1,5 GB, lệch 1,9 % so với bản gốc, đo
+    # trên Kaggle 20/11/2026); không có thư mục này thì dùng model nhỏ đa ngôn ngữ
+    stt_live_model: str = "/app/data/models/phowhisper-large-int8f16"
+    stt_live_fallback: str = "small"
+    stt_live_device: str = "auto"        # auto | cuda | cpu (cuda: GPU chỉ khi đang bấm micro)
     stt_live_threads: int = 2            # giới hạn luồng CPU cho chép lời tức thì
     stt_silence_ms: int = 700            # im lặng bao lâu thì chốt một câu
     stt_max_segment_s: float = 12.0      # câu dài nhất trước khi chốt
