@@ -81,8 +81,12 @@ WANTED: list[dict] = [
     {"domain": "dan_su", "number": "46/2024/QH15", "title": "Luật Công chứng 2024"},
     {"domain": "hon_nhan_gia_dinh", "number": "126/2014/NĐ-CP",
      "title": "Nghị định 126/2014/NĐ-CP hướng dẫn Luật Hôn nhân và gia đình"},
-    {"domain": "to_tung", "number": "92/2015/QH13", "title": "Bộ luật Tố tụng dân sự 2015"},
-    {"domain": "to_tung", "number": "101/2015/QH13", "title": "Bộ luật Tố tụng hình sự 2015"},
+    # bản gốc không có tệp khớp trên Công báo: lấy văn bản hợp nhất mới nhất
+    {"domain": "to_tung", "number": "92/2015/QH13", "lookup": "99/VBHN-VPQH",
+     "title": "Bộ luật Tố tụng dân sự (VBHN 99/VBHN-VPQH)", "consolidates": "VBHN 99/VBHN-VPQH"},
+    {"domain": "to_tung", "number": "101/2015/QH13", "lookup": "104/VBHN-VPQH",
+     "page": CB + "van-ban-hop-nhat-so-104vbhnvpqh-46029.htm",  # số VBHN lặp lại theo năm
+     "title": "Bộ luật Tố tụng hình sự (VBHN 104/VBHN-VPQH)", "consolidates": "VBHN 104/VBHN-VPQH"},
 ]
 OUT = Path("data/corpus_ext")
 
@@ -92,7 +96,13 @@ def probe_wanted(render, done: set[str]) -> list[dict]:
     for w in WANTED:
         if w["number"] in done:
             continue
-        hit = official.congbao_lookup(w["number"], render)
+        if w.get("page"):  # trang đã biết: chỉ đọc tệp của trang đó
+            html = render(w["page"])
+            files = official.parse_files(html, w["page"], w.get("lookup", w["number"]))
+            hit = {"page_url": w["page"], "files": files,
+                   "effective_date": official.effective_date(html)} if files else None
+        else:
+            hit = official.congbao_lookup(w.get("lookup", w["number"]), render)
         if hit is None:
             print(json.dumps({"number": w["number"], "status": "not_found"}, ensure_ascii=False), flush=True)
             continue
