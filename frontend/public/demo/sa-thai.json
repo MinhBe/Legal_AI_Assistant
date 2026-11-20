@@ -1,0 +1,186 @@
+{
+ "id": "sa-thai",
+ "question": "Tôi bị sa thải ngay trong ngày vì đi làm muộn 2 lần, công ty không họp xử lý kỷ luật, không có công đoàn tham gia. Việc sa thải này có đúng luật không và tôi được bồi thường những gì?",
+ "events": [
+  {
+   "event": "step",
+   "data": {
+    "name": "retrieve",
+    "label": "Đang tra cứu văn bản"
+   }
+  },
+  {
+   "event": "step",
+   "data": {
+    "name": "generate",
+    "label": "Đang soạn câu trả lời có trích dẫn"
+   }
+  },
+  {
+   "event": "facts",
+   "data": {
+    "facts": {
+     "act": {
+      "value": "sa_thai",
+      "source": "câu hỏi",
+      "confidence": 1.0
+     },
+     "notice_given_days": {
+      "value": 0,
+      "source": "câu hỏi",
+      "confidence": 0.8
+     },
+     "procedure": {
+      "value": "công ty không họp xử lý kỷ luật, không có công đoàn tham gia",
+      "source": "câu hỏi",
+      "confidence": 1.0
+     }
+    },
+    "follow_ups": [
+     "Hợp đồng lao động của bạn thuộc loại nào: không xác định thời hạn, xác định thời hạn hay thử việc?",
+     "Bạn bắt đầu làm việc từ ngày nào?"
+    ]
+   }
+  },
+  {
+   "event": "token",
+   "data": {
+    "text": "Việc sa thải ngay trong ngày vì đi muộn 2 lần, không họp xử lý kỷ luật và không có sự tham gia của tổ chức đại diện người lao động là trái pháp luật; bạn có quyền khiếu nại, yêu cầu giải quyết tranh chấp lao động và được bồi thường, khôi phục quyền lợi theo Điều 41 Bộ luật Lao động 2019. "
+   }
+  },
+  {
+   "event": "section",
+   "data": {
+    "title": "Trình tự xử lý kỷ luật không đúng quy định",
+    "detail": "Xử lý kỷ luật lao động phải được tiến hành qua cuộc họp có các thành phần tham dự theo quy định. Khi nhận được thông báo, các thành phần phải xác nhận tham dự; nếu vắng mặt, người sử dụng lao động vẫn tiến hành họp xử lý theo quy định của pháp luật (nd145_2020-d71-k2-b, nd145_2020-d71-k2-c). Việc công ty không tổ chức họp xử lý kỷ luật là không tuân thủ trình tự. Ngoài ra, người bị xử lý kỷ luật có quyền khiếu nại với người sử dụng lao động, cơ quan có thẩm quyền, hoặc yêu cầu giải quyết tranh chấp lao động cá nhân theo trình tự tại Mục 2 Chương XIV Bộ luật Lao động (nd145_2020-d73).",
+    "citations": [
+     {
+      "node_id": "nd145_2020-d71-k2-b",
+      "display": "Điều 71 Khoản 2 Điểm b (Nghị định 145/2020/NĐ-CP)",
+      "text": "Khi nhận được thông báo của người sử dụng lao động, các thành phần phải tham dự họp quy định tại điểm a khoản này phải xác nhận tham dự cuộc họp với người sử dụng lao động. Trường hợp một trong các thành phần không thể tham dự họp theo thời gian, địa điểm đã thông báo thì người lao động và người sử dụng lao động thỏa thuận việc thay đổi thời gian, địa điểm họp; trường hợp hai bên không thỏa thuận được thì người sử dụng lao động quyết định thời gian, địa điểm họp;"
+     },
+     {
+      "node_id": "nd145_2020-d71-k2-c",
+      "display": "Điều 71 Khoản 2 Điểm c (Nghị định 145/2020/NĐ-CP)",
+      "text": "Người sử dụng lao động tiến hành họp xử lý bồi thường thiệt hại theo thời gian, địa điểm đã thông báo quy định tại điểm a, điểm b khoản này. Trường hợp một trong các thành phần phải tham dự họp quy định tại điểm a khoản này không xác nhận tham dự hoặc vắng mặt thì người sử dụng lao động vẫn tiến hành họp xử lý bồi thường thiệt hại theo quy định của pháp luật."
+     },
+     {
+      "node_id": "nd145_2020-d73",
+      "display": "Điều 73 (Nghị định 145/2020/NĐ-CP)",
+      "text": "Người bị xử lý kỷ luật lao động, bị tạm đình chỉ công việc hoặc phải bồi thường theo chế độ trách nhiệm vật chất nếu thấy không thỏa đáng thì có quyền khiếu nại với người sử dụng lao động, với cơ quan có thẩm quyền theo quy định của Chính phủ về giải quyết khiếu nại trong lĩnh vực lao động hoặc yêu cầu giải quyết tranh chấp lao động cá nhân theo trình tự quy định tại Mục 2 Chương XIV của Bộ luật Lao động. Trường hợp người sử dụng lao động quyết định xử lý kỷ luật lao động theo hình thức sa thải trái quy định của pháp luật thì ngoài nghĩa vụ, trách nhiệm theo quy định của Chính phủ về giải quyết khiếu nại trong lĩnh vực lao động hoặc giải quyết tranh chấp lao động cá nhân theo trình tự quy định tại Mục 2 Chương XIV của Bộ luật Lao động thì người sử dụng lao động có nghĩa vụ thực hiện quy định tại Điều 41 của Bộ luật Lao động."
+     }
+    ]
+   }
+  },
+  {
+   "event": "section",
+   "data": {
+    "title": "Sa thải trái pháp luật và quyền được bồi thường",
+    "detail": "Đơn phương chấm dứt hợp đồng lao động trái pháp luật là trường hợp chấm dứt không đúng quy định tại các điều 35, 36 và 37 của Bộ luật Lao động (blld2019-d39). Nếu quyết định sa thải của công ty trái quy định của pháp luật, người sử dụng lao động có nghĩa vụ thực hiện quy định tại Điều 41 của Bộ luật Lao động — tức nghĩa vụ nhận người lao động trở lại làm việc, phải trả tiền lương, đóng bảo hiểm xã hội, bảo hiểm y tế, bảo hiểm thất nghiệp trong những ngày người lao động không được làm việc, và phải bồi thường thêm ít nhất 02 tháng tiền lương (nd145_2020-d73).",
+    "citations": [
+     {
+      "node_id": "blld2019-d39",
+      "display": "Điều 39 (Bộ luật Lao động 2019)",
+      "text": "Đơn phương chấm dứt hợp đồng lao động trái pháp luật là trường hợp chấm dứt hợp đồng lao động không đúng quy định tại các điều 35, 36 và 37 của Bộ luật này."
+     },
+     {
+      "node_id": "nd145_2020-d73",
+      "display": "Điều 73 (Nghị định 145/2020/NĐ-CP)",
+      "text": "Người bị xử lý kỷ luật lao động, bị tạm đình chỉ công việc hoặc phải bồi thường theo chế độ trách nhiệm vật chất nếu thấy không thỏa đáng thì có quyền khiếu nại với người sử dụng lao động, với cơ quan có thẩm quyền theo quy định của Chính phủ về giải quyết khiếu nại trong lĩnh vực lao động hoặc yêu cầu giải quyết tranh chấp lao động cá nhân theo trình tự quy định tại Mục 2 Chương XIV của Bộ luật Lao động. Trường hợp người sử dụng lao động quyết định xử lý kỷ luật lao động theo hình thức sa thải trái quy định của pháp luật thì ngoài nghĩa vụ, trách nhiệm theo quy định của Chính phủ về giải quyết khiếu nại trong lĩnh vực lao động hoặc giải quyết tranh chấp lao động cá nhân theo trình tự quy định tại Mục 2 Chương XIV của Bộ luật Lao động thì người sử dụng lao động có nghĩa vụ thực hiện quy định tại Điều 41 của Bộ luật Lao động."
+     }
+    ]
+   }
+  },
+  {
+   "event": "citation",
+   "data": {
+    "n": 1,
+    "node_id": "nd145_2020-d71-k2-b",
+    "display": "Điều 71 Khoản 2 Điểm b (Nghị định 145/2020/NĐ-CP)",
+    "text": "Khi nhận được thông báo của người sử dụng lao động, các thành phần phải tham dự họp quy định tại điểm a khoản này phải xác nhận tham dự cuộc họp với người sử dụng lao động. Trường hợp một trong các thành phần không thể tham dự họp theo thời gian, địa điểm đã thông báo thì người lao động và người sử dụng lao động thỏa thuận việc thay đổi thời gian, địa điểm họp; trường hợp hai bên không thỏa thuận được thì người sử dụng lao động quyết định thời gian, địa điểm họp;"
+   }
+  },
+  {
+   "event": "citation",
+   "data": {
+    "n": 2,
+    "node_id": "nd145_2020-d71-k2-c",
+    "display": "Điều 71 Khoản 2 Điểm c (Nghị định 145/2020/NĐ-CP)",
+    "text": "Người sử dụng lao động tiến hành họp xử lý bồi thường thiệt hại theo thời gian, địa điểm đã thông báo quy định tại điểm a, điểm b khoản này. Trường hợp một trong các thành phần phải tham dự họp quy định tại điểm a khoản này không xác nhận tham dự hoặc vắng mặt thì người sử dụng lao động vẫn tiến hành họp xử lý bồi thường thiệt hại theo quy định của pháp luật."
+   }
+  },
+  {
+   "event": "citation",
+   "data": {
+    "n": 3,
+    "node_id": "nd145_2020-d73",
+    "display": "Điều 73 (Nghị định 145/2020/NĐ-CP)",
+    "text": "Người bị xử lý kỷ luật lao động, bị tạm đình chỉ công việc hoặc phải bồi thường theo chế độ trách nhiệm vật chất nếu thấy không thỏa đáng thì có quyền khiếu nại với người sử dụng lao động, với cơ quan có thẩm quyền theo quy định của Chính phủ về giải quyết khiếu nại trong lĩnh vực lao động hoặc yêu cầu giải quyết tranh chấp lao động cá nhân theo trình tự quy định tại Mục 2 Chương XIV của Bộ luật Lao động. Trường hợp người sử dụng lao động quyết định xử lý kỷ luật lao động theo hình thức sa thải trái quy định của pháp luật thì ngoài nghĩa vụ, trách nhiệm theo quy định của Chính phủ về giải quyết khiếu nại trong lĩnh vực lao động hoặc giải quyết tranh chấp lao động cá nhân theo trình tự quy định tại Mục 2 Chương XIV của Bộ luật Lao động thì người sử dụng lao động có nghĩa vụ thực hiện quy định tại Điều 41 của Bộ luật Lao động."
+   }
+  },
+  {
+   "event": "citation",
+   "data": {
+    "n": 4,
+    "node_id": "blld2019-d39",
+    "display": "Điều 39 (Bộ luật Lao động 2019)",
+    "text": "Đơn phương chấm dứt hợp đồng lao động trái pháp luật là trường hợp chấm dứt hợp đồng lao động không đúng quy định tại các điều 35, 36 và 37 của Bộ luật này."
+   }
+  },
+  {
+   "event": "hints",
+   "data": {
+    "precedents": [],
+    "problems": []
+   }
+  },
+  {
+   "event": "verifier",
+   "data": {
+    "ok": true,
+    "checked": 4,
+    "problems": [],
+    "dropped": []
+   }
+  },
+  {
+   "event": "timeframe",
+   "data": {
+    "event_date": null,
+    "event_date_source": "không nêu — dùng ngày tư vấn",
+    "advice_date": "2026-11-20",
+    "as_of": "2026-11-20",
+    "applicable": [
+     {
+      "doc_id": "blld2019",
+      "title": "Bộ luật Lao động 2019",
+      "number": "45/2019/QH14"
+     },
+     {
+      "doc_id": "nd145_2020",
+      "title": "Nghị định 145/2020/NĐ-CP hướng dẫn Bộ luật Lao động về điều kiện lao động và quan hệ lao động",
+      "number": "145/2020/NĐ-CP"
+     }
+    ],
+    "changes_after": [],
+    "upcoming": [],
+    "transition_rules": [],
+    "verify": [],
+    "flags": []
+   }
+  },
+  {
+   "event": "done",
+   "data": {
+    "confidence": 0.85,
+    "uses_uploads": false,
+    "language": "vi",
+    "domain": "lao_dong",
+    "domain_label": "Lao động",
+    "question_domains": [
+     "lao_dong"
+    ]
+   }
+  }
+ ]
+}

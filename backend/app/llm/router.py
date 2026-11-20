@@ -33,7 +33,7 @@ from typing import Any
 from loguru import logger
 
 from app.config import get_settings
-from app.llm.context import get_answer_lang, get_cloud_first, get_data_class
+from app.llm.context import get_answer_lang, get_cloud_first, get_data_class, get_no_local
 from app.obs import metrics
 
 settings = get_settings()
@@ -284,7 +284,7 @@ class LLMRouter:
                 self._spin = (getattr(self, "_spin", -1) + 1) % len(cloud)
             cloud = cloud[self._spin:] + cloud[:self._spin]
         plan = cloud + [local] if (get_cloud_first() or settings.cloud_first_for_c) else [local] + cloud
-        if settings.no_local_for_c and cloud:
+        if (settings.no_local_for_c or get_no_local()) and cloud:
             plan = cloud
         if settings.gemini_for_c and self._gemini_keys:
             gem = [("gemini", settings.gemini_model), ("gemini", settings.gemini_model_lite)]

@@ -103,6 +103,7 @@ export type Hints = { precedents: PrecedentHint[]; problems: ProblemHint[] };
 export type Msg = {
   role: "user" | "ai";
   content: string;
+  prerecorded?: boolean;  // trang /demo: đám mây chậm quá 8 s, phát lại câu trả lời ghi sẵn
   step?: string;
   citations?: Citation[];
   steps_log?: string[];

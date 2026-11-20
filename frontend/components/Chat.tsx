@@ -13,9 +13,11 @@ import Sidebar from "@/components/chat/Sidebar";
 import { useChat, useTheme } from "@/lib/chat/useChat";
 import { currentMode, type Mode, MODE_TEXT } from "@/lib/mode";
 
-export default function Chat() {
+import cases from "@/lib/demo/cases.json";
+
+export default function Chat({ demo = false }: { demo?: boolean }) {
   const [mode, setMode] = useState<Mode>("law");
-  const chat = useChat(mode);
+  const chat = useChat(mode, { demo });
   const { theme, toggleTheme } = useTheme();
   const [input, setInput] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -43,6 +45,7 @@ export default function Chat() {
             <IconMenu />
           </button>
           <span className="title">{text.title}</span>
+          {demo && <span className="demo-badge" title="Câu hỏi mẫu; máy chủ AI chậm quá 8 giây thì hiện câu trả lời ghi sẵn">Chế độ Demo</span>}
           <Link href="/graph" className="graph-nav-btn" title="Knowledge Graph">
             <IconGraph />
           </Link>
@@ -60,6 +63,15 @@ export default function Chat() {
           onEscalate={chat.escalate}
           onDeny={chat.denyEscalate} />
 
+        {demo && (
+          <div className="demo-bar">
+            <span>Thử ngay:</span>
+            {cases.map((c) => (
+              <button key={c.id} className="demo-chip" disabled={chat.busy} onClick={() => ask(c.question)}>{c.title}</button>
+            ))}
+            <a className="demo-chip" href="/demo/ghi-am-mau.wav" download title="Tải về rồi kéo thả vào ô chat để thử phần ghi âm">⬇ Ghi âm mẫu</a>
+          </div>
+        )}
         <Composer value={input} placeholder={text.placeholder} onChange={setInput} onSubmit={() => ask(input)} busy={chat.busy} />
       </main>
     </div>

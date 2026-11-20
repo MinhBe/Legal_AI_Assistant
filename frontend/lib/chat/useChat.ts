@@ -31,11 +31,24 @@ export function lastAnswerUsedUploads() {
 
 // deferred: replaceState during render makes the Next router warn
 function setUrl(id: string | null) {
-  const url = id ? `/?t=${id}` : "/";
+  const base = window.location.pathname || "/";  // giữ /demo khi đồng bộ ?t=
+  const url = id ? `${base}?t=${id}` : base;
   setTimeout(() => window.history.replaceState(null, "", url), 0);
 }
 
-export function useChat(mode: Mode = "law") {
+/** Trang /demo: câu hỏi mẫu; đám mây chậm quá DEMO_FALLBACK_MS thì phát lại bản ghi sẵn. */
+export type ChatOptions = { demo?: boolean };
+const DEMO_FALLBACK_MS = 8000;
+
+async function demoRecording(q: string): Promise<{ event: string; data: any }[] | null> {
+  const { default: cases } = await import("@/lib/demo/cases.json");
+  const hit = (cases as { id: string; question: string }[]).find((c) => c.question.trim() === q.trim());
+  if (!hit) return null;
+  const r = await fetch(`/demo/${hit.id}.json`).catch(() => null);
+  return r?.ok ? (await r.json()).events : null;
+}
+
+export function useChat(mode: Mode = "law", opts: ChatOptions = {}) {
   const { user, refresh: refreshAuth } = useAuth();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [convos, setConvos] = useState<Conversation[]>([]);
@@ -184,8 +197,11 @@ export function useChat(mode: Mode = "law") {
     const update = (fn: (ai: Msg) => Msg) =>
       setMessages((m) => m.map((x, i) => (i === m.length - 1 && x.role === "ai" ? fn(x) : x)));
 
-    try {
-      await streamChat(API_BASE, { message: q, thread_id: threadId.current, history, mode, use_uploads: useUploads }, (event, data) => {
+    let gotToken = false;
+    let replayed = false;
+    const ctrl = new AbortController();
+    const timer = opts.demo ? setTimeout(() => { if (!gotToken) ctrl.abort(); }, DEMO_FALLBACK_MS) : null;
+    const onEvent = (event: string, data: any) => {
         if (event === "start") threadId.current = threadId.current || data.thread_id;
         else if (event === "step")
           update((ai) => ({
@@ -232,13 +248,34 @@ export function useChat(mode: Mode = "law") {
           });
         }
         scrollDown();
-      });
+    };
+    try {
+      await streamChat(API_BASE, {
+        message: q, thread_id: threadId.current, history, mode, use_uploads: useUploads,
+        ...(opts.demo ? { demo: true } : {}),
+      }, (event, data) => {
+        if (event === "token") gotToken = true;
+        onEvent(event, data);
+      }, ctrl.signal);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Lỗi không xác định";
-      // 429: hết lượt hỏi trong ngày — hiện nguyên văn thông báo hạn mức (AUTH1)
-      const quota = msg.includes("câu hỏi hôm nay");
-      update((ai) => ({ ...ai, content: ai.content + (quota ? `\n\n⚠️ ${msg}` : `\n\n⚠️ Lỗi kết nối: ${msg}`) }));
+      // /demo: đám mây chậm hoặc lỗi trước khi có chữ -> phát lại câu trả lời thật đã ghi sẵn
+      const events = opts.demo && !gotToken ? await demoRecording(q) : null;
+      if (events) {
+        replayed = true;
+        update((ai) => ({ ...ai, content: "", citations: [], sections: [], steps_log: [], prerecorded: true }));
+        for (const ev of events) {
+          onEvent(ev.event, ev.data);
+          await new Promise((r) => setTimeout(r, ev.event === "token" ? 25 : 300));
+        }
+      }
+      if (!replayed) {
+        const msg = e instanceof Error ? e.message : "Lỗi không xác định";
+        // 429: hết lượt hỏi trong ngày — hiện nguyên văn thông báo hạn mức (AUTH1)
+        const quota = msg.includes("câu hỏi hôm nay");
+        update((ai) => ({ ...ai, content: ai.content + (quota ? `\n\n⚠️ ${msg}` : `\n\n⚠️ Lỗi kết nối: ${msg}`) }));
+      }
     } finally {
+      if (timer) clearTimeout(timer);
       setBusy(false);
       void refreshAuth();  // cập nhật số câu còn lại cho thanh bên
       setMessages((m) => {

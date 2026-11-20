@@ -77,3 +77,20 @@ if not getattr(_metrics, "_copies_full_context", False):
 
     _metrics.submit = _submit
     _metrics._copies_full_context = True
+
+
+# Cấm mô hình trong máy cho một lượt (trang /demo: không nạp Qwen trên máy nhà)
+current_no_local: contextvars.ContextVar[bool] = contextvars.ContextVar("no_local", default=False)
+
+
+@contextmanager
+def no_local_scope(on: bool) -> Iterator[None]:
+    token = current_no_local.set(bool(on))
+    try:
+        yield
+    finally:
+        current_no_local.reset(token)
+
+
+def get_no_local() -> bool:
+    return current_no_local.get()

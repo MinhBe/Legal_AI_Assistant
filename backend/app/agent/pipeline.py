@@ -19,7 +19,13 @@ from app.agent.lang import choose_reading, detect, is_unaccented
 from app.db.base import SessionLocal
 from app.gateway.classify import gate
 from app.gateway.pii import unmask
-from app.llm.context import answer_lang_scope, cloud_first_scope, data_class_scope, get_data_class
+from app.llm.context import (
+    answer_lang_scope,
+    cloud_first_scope,
+    data_class_scope,
+    get_data_class,
+    no_local_scope,
+)
 from app.llm.router import LLMError, LocalModelUnavailable, get_router
 from app.obs import metrics
 
@@ -84,7 +90,7 @@ def _unmask_data(data: object, mapping: dict[str, str]) -> object:
 
 def run_chat(
     message: str, history: list[dict[str, str]] | None = None, mode: str = "law",
-    use_uploads: bool = False, cloud_first: bool = False,
+    use_uploads: bool = False, cloud_first: bool = False, no_local: bool = False,
 ) -> Iterator[tuple[str, object]]:
     """mode="pv": chế độ ẩn, trả lời từ bộ câu hỏi phỏng vấn thay vì kho luật.
 
@@ -133,7 +139,7 @@ def run_chat(
         **{"use_uploads": True} if use_uploads else {},
     )
     while True:
-        with data_class_scope(g.data_class), answer_lang_scope(lang), cloud_first_scope(cloud_first):
+        with data_class_scope(g.data_class), answer_lang_scope(lang), cloud_first_scope(cloud_first),                 no_local_scope(no_local):
             try:
                 event, data = next(it)
             except StopIteration:

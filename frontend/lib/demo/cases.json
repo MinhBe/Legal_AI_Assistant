@@ -1,0 +1,8 @@
+[
+ {"id": "luong-cham", "title": "Lương trả chậm",
+  "question": "Công ty trả lương chậm 20 ngày so với ngày ghi trong hợp đồng lao động. Tôi có được đòi thêm tiền lãi không, và tôi có thể đơn phương chấm dứt hợp đồng không?"},
+ {"id": "sa-thai", "title": "Sa thải trái luật",
+  "question": "Tôi bị sa thải ngay trong ngày vì đi làm muộn 2 lần, công ty không họp xử lý kỷ luật, không có công đoàn tham gia. Việc sa thải này có đúng luật không và tôi được bồi thường những gì?"},
+ {"id": "thai-san", "title": "Thai sản",
+  "question": "Tôi đang mang thai tháng thứ 5, công ty báo sẽ không gia hạn hợp đồng lao động khi hết hạn vào tháng sau. Công ty làm vậy có đúng không, và chế độ thai sản của tôi được tính thế nào?"}
+]

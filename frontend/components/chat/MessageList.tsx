@@ -110,6 +110,12 @@ export default function MessageList({
                   <SectionAccordion sections={m.sections!} />
                 )}
 
+                {m.role === "ai" && m.prerecorded && (
+                  <div className="domain-badge prerecorded" title="Máy chủ AI đang chậm: hiện câu trả lời đã chạy thật trước đó">
+                    Bản ghi sẵn
+                  </div>
+                )}
+
                 {m.role === "ai" && m.domain_label && !m.refusal && (
                   <div className="domain-badge" title="Lĩnh vực của văn bản được trích dẫn">
                     Lĩnh vực: {m.domain_label}

@@ -1,0 +1,165 @@
+{
+ "id": "luong-cham",
+ "question": "Công ty trả lương chậm 20 ngày so với ngày ghi trong hợp đồng lao động. Tôi có được đòi thêm tiền lãi không, và tôi có thể đơn phương chấm dứt hợp đồng không?",
+ "events": [
+  {
+   "event": "step",
+   "data": {
+    "name": "retrieve",
+    "label": "Đang tra cứu văn bản"
+   }
+  },
+  {
+   "event": "step",
+   "data": {
+    "name": "generate",
+    "label": "Đang soạn câu trả lời có trích dẫn"
+   }
+  },
+  {
+   "event": "facts",
+   "data": {
+    "facts": {
+     "act": {
+      "value": "don_phuong_cham_dut_nld",
+      "source": "câu hỏi",
+      "confidence": 0.8
+     }
+    },
+    "follow_ups": [
+     "Hợp đồng lao động của bạn thuộc loại nào: không xác định thời hạn, xác định thời hạn hay thử việc?",
+     "Bạn bắt đầu làm việc từ ngày nào?"
+    ]
+   }
+  },
+  {
+   "event": "token",
+   "data": {
+    "text": "Công ty trả lương chậm 20 ngày (từ 15 ngày trở lên) nên người lao động có quyền đòi tiền lãi bồi thường, đồng thời việc trả lương không đúng thời hạn cũng là một trong các căn cứ cho phép người lao động đơn phương chấm dứt hợp đồng lao động. "
+   }
+  },
+  {
+   "event": "section",
+   "data": {
+    "title": "Quyền đòi tiền lãi do trả lương chậm",
+    "detail": "Theo Điều 97 Khoản 4, nếu trả lương chậm từ 15 ngày trở lên mà không phải do lý do bất khả kháng đã tìm mọi biện pháp khắc phục, người sử dụng lao động phải đền bù cho người lao động một khoản tiền ít nhất bằng số tiền lãi của số tiền trả chậm, tính theo lãi suất huy động tiền gửi có kỳ hạn 01 tháng do ngân hàng nơi người sử dụng lao động mở tài khoản trả lương công bố tại thời điểm trả lương. Với mức chậm 20 ngày (≥ 15 ngày), người lao động hoàn toàn có căn cứ đòi khoản bồi thường lãi này.",
+    "citations": [
+     {
+      "node_id": "blld2019-d97-k4",
+      "display": "Điều 97 Khoản 4 (Bộ luật Lao động 2019)",
+      "text": "Trường hợp vì lý do bất khả kháng mà người sử dụng lao động đã tìm mọi biện pháp khắc phục nhưng không thể trả lương đúng hạn thì không được chậm quá 30 ngày; nếu trả lương chậm từ 15 ngày trở lên thì người sử dụng lao động phải đền bù cho người lao động một khoản tiền ít nhất bằng số tiền lãi của số tiền trả chậm tính theo lãi suất huy động tiền gửi có kỳ hạn 01 tháng do ngân hàng nơi người sử dụng lao động mở tài khoản trả lương cho người lao động công bố tại thời điểm trả lương."
+     }
+    ]
+   }
+  },
+  {
+   "event": "section",
+   "data": {
+    "title": "Quyền đơn phương chấm dứt hợp đồng lao động",
+    "detail": "Điều 35 Khoản 2 Điểm b quy định người lao động có quyền đơn phương chấm dứt hợp đồng lao động khi bị trả lương không đúng thời hạn, trừ trường hợp quy định tại khoản 4 Điều 97 (tức trường hợp bất khả kháng đã tìm mọi biện pháp khắc phục nhưng không thể trả đúng hạn). Do công ty trả lương chậm 20 ngày mà không có căn cứ bất khả kháng nêu trên, người lao động có quyền đơn phương chấm dứt hợp đồng lao động theo Điều 35 Khoản 2 Điểm b. Cần lưu ý về thủ tục và thời hạn báo trước theo quy định tại Điều 36 (thuộc phạm vi Bộ luật Lao động 2019, không liệt kê chi tiết trong kho điều luật này).",
+    "citations": [
+     {
+      "node_id": "blld2019-d35-k2-b",
+      "display": "Điều 35 Khoản 2 Điểm b (Bộ luật Lao động 2019)",
+      "text": "Không được trả đủ lương hoặc trả lương không đúng thời hạn, trừ trường hợp quy định tại khoản 4 Điều 97 của Bộ luật này;"
+     },
+     {
+      "node_id": "blld2019-d36",
+      "display": "Điều 36 (Bộ luật Lao động 2019)",
+      "text": "Quyền đơn phương chấm dứt hợp đồng lao động của người sử dụng lao động"
+     }
+    ]
+   }
+  },
+  {
+   "event": "citation",
+   "data": {
+    "n": 1,
+    "node_id": "blld2019-d97-k4",
+    "display": "Điều 97 Khoản 4 (Bộ luật Lao động 2019)",
+    "text": "Trường hợp vì lý do bất khả kháng mà người sử dụng lao động đã tìm mọi biện pháp khắc phục nhưng không thể trả lương đúng hạn thì không được chậm quá 30 ngày; nếu trả lương chậm từ 15 ngày trở lên thì người sử dụng lao động phải đền bù cho người lao động một khoản tiền ít nhất bằng số tiền lãi của số tiền trả chậm tính theo lãi suất huy động tiền gửi có kỳ hạn 01 tháng do ngân hàng nơi người sử dụng lao động mở tài khoản trả lương cho người lao động công bố tại thời điểm trả lương."
+   }
+  },
+  {
+   "event": "citation",
+   "data": {
+    "n": 2,
+    "node_id": "blld2019-d35-k2-b",
+    "display": "Điều 35 Khoản 2 Điểm b (Bộ luật Lao động 2019)",
+    "text": "Không được trả đủ lương hoặc trả lương không đúng thời hạn, trừ trường hợp quy định tại khoản 4 Điều 97 của Bộ luật này;"
+   }
+  },
+  {
+   "event": "citation",
+   "data": {
+    "n": 3,
+    "node_id": "blld2019-d36",
+    "display": "Điều 36 (Bộ luật Lao động 2019)",
+    "text": "Quyền đơn phương chấm dứt hợp đồng lao động của người sử dụng lao động"
+   }
+  },
+  {
+   "event": "hints",
+   "data": {
+    "precedents": [
+     {
+      "number": "21/2018/AL",
+      "title": "Án lệ số 21/2018/AL về lỗi và thiệt hại trong trường hợp đơn phương chấm dứt hợp đồng cho thuê tài sản",
+      "status": "dang_ap_dung",
+      "url": "https://anle.toaan.gov.vn/webcenter/portal/anle/chitietanle?dDocName=TAND057542",
+      "similarity": 0.479
+     }
+    ],
+    "problems": []
+   }
+  },
+  {
+   "event": "verifier",
+   "data": {
+    "ok": true,
+    "checked": 3,
+    "problems": [],
+    "dropped": []
+   }
+  },
+  {
+   "event": "timeframe",
+   "data": {
+    "event_date": null,
+    "event_date_source": "không nêu — dùng ngày tư vấn",
+    "advice_date": "2026-11-20",
+    "as_of": "2026-11-20",
+    "applicable": [
+     {
+      "doc_id": "blld2019",
+      "title": "Bộ luật Lao động 2019",
+      "number": "45/2019/QH14"
+     },
+     {
+      "doc_id": "nd145_2020",
+      "title": "Nghị định 145/2020/NĐ-CP hướng dẫn Bộ luật Lao động về điều kiện lao động và quan hệ lao động",
+      "number": "145/2020/NĐ-CP"
+     }
+    ],
+    "changes_after": [],
+    "upcoming": [],
+    "transition_rules": [],
+    "verify": [],
+    "flags": []
+   }
+  },
+  {
+   "event": "done",
+   "data": {
+    "confidence": 0.95,
+    "uses_uploads": false,
+    "language": "vi",
+    "domain": "lao_dong",
+    "domain_label": "Lao động",
+    "question_domains": [
+     "lao_dong"
+    ]
+   }
+  }
+ ]
+}

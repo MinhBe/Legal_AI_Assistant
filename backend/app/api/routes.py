@@ -365,6 +365,15 @@ class ChatRequest(BaseModel):
     history: list[ChatMessage] = []
     mode: Literal["law", "pv"] = "law"  # "pv": chế độ ẩn, nguồn là bộ câu hỏi phỏng vấn
     use_uploads: bool = False  # dùng văn bản đã duyệt; chạy mức A, chỉ trong máy
+    demo: bool = False  # trang /demo: câu hỏi mẫu (không dữ liệu cá nhân) đi đám mây trước
+
+
+def _demo_questions() -> set[str]:
+    p = Path("data/demo/cases.json")
+    try:
+        return {c["question"].strip() for c in json.loads(p.read_text(encoding="utf-8"))}
+    except (OSError, ValueError):
+        return set()
 
 
 @router.post("/api/chat")
@@ -377,6 +386,9 @@ def chat(
     # Hạn mức ngày (AUTH1) tính trước khi mở luồng; quá hạn -> HTTP 429 ngay.
     remaining = quota.check_and_count(db, user)
     cloud_first = ROLES.get(user["role"], ROLES["anonymous"])["cloud_first"]
+    demo = req.demo and req.message.strip() in _demo_questions()
+    if demo:
+        cloud_first = True  # không nạp mô hình trong máy cho buổi demo
 
     def gen():
         thread_id = req.thread_id or uuid.uuid4().hex
@@ -392,7 +404,7 @@ def chat(
             for event, data in metrics.traced(
                 run_chat(
                     req.message, history, req.mode,
-                    cloud_first=cloud_first,
+                    cloud_first=cloud_first, no_local=demo,
                     **{"use_uploads": True} if req.use_uploads else {},
                 ),
                 ctx,

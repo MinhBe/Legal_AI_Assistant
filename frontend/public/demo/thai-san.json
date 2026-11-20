@@ -1,0 +1,206 @@
+{
+ "id": "thai-san",
+ "question": "Tôi đang mang thai tháng thứ 5, công ty báo sẽ không gia hạn hợp đồng lao động khi hết hạn vào tháng sau. Công ty làm vậy có đúng không, và chế độ thai sản của tôi được tính thế nào?",
+ "events": [
+  {
+   "event": "step",
+   "data": {
+    "name": "retrieve",
+    "label": "Đang tra cứu văn bản"
+   }
+  },
+  {
+   "event": "step",
+   "data": {
+    "name": "generate",
+    "label": "Đang soạn câu trả lời có trích dẫn"
+   }
+  },
+  {
+   "event": "facts",
+   "data": {
+    "facts": {
+     "act": {
+      "value": "khac",
+      "source": "câu hỏi",
+      "confidence": 0.6
+     }
+    },
+    "follow_ups": []
+   }
+  },
+  {
+   "event": "token",
+   "data": {
+    "text": "Công ty không được phép từ chối gia hạn hợp đồng lao động với lao động nữ đang mang thai; hành vi này là đơn phương chấm dứt HĐLĐ trái pháp luật. "
+   }
+  },
+  {
+   "event": "token",
+   "data": {
+    "text": "Về chế độ thai sản, trong kho luật này chỉ có quy định về thời gian nghỉ và quyền được bảo đảm việc làm, không có thông tin về mức hưởng cụ thể. "
+   }
+  },
+  {
+   "event": "section",
+   "data": {
+    "title": "Công ty không được từ chối gia hạn hợp đồng lao động khi lao động nữ đang mang thai",
+    "detail": "Theo Điều 137 Khoản 3 Bộ luật Lao động 2019, người sử dụng lao động không được đơn phương chấm dứt hợp đồng lao động đối với người lao động vì lý do mang thai. Đặc biệt, trường hợp hợp đồng lao động hết hạn trong thời gian lao động nữ mang thai thì được ưu tiên giao kết hợp đồng lao động mới. Do đó, việc công ty thông báo không gia hạn hợp đồng khi chị đang mang thai tháng thứ 5 là vi phạm pháp luật lao động. Hành vi này thuộc trường hợp đơn phương chấm dứt hợp đồng lao động trái pháp luật theo Điều 89 Khoản 1 Điểm đ Nghị định 145/2020/NĐ-CP, và người sử dụng lao động có nghĩa vụ thực hiện quy định tại Điều 41 Bộ luật Lao động.",
+    "citations": [
+     {
+      "node_id": "blld2019-d137-k3",
+      "display": "Điều 137 Khoản 3 (Bộ luật Lao động 2019)",
+      "text": "Người sử dụng lao động không được sa thải hoặc đơn phương chấm dứt hợp đồng lao động đối với người lao động vì lý do kết hôn, mang thai, nghỉ thai sản, nuôi con dưới 12 tháng tuổi, trừ trường hợp người sử dụng lao động là cá nhân chết, bị Tòa án tuyên bố mất năng lực hành vi dân sự, mất tích hoặc đã chết hoặc người sử dụng lao động không phải là cá nhân chấm dứt hoạt động hoặc bị cơ quan chuyên môn về đăng ký kinh doanh thuộc Ủy ban nhân dân cấp tỉnh ra thông báo không có người đại diện theo pháp luật, người được ủy quyền thực hiện quyền và nghĩa vụ của người đại diện theo pháp luật. Trường hợp hợp đồng lao động hết hạn trong thời gian lao động nữ mang thai hoặc nuôi con dưới 12 tháng tuổi thì được ưu tiên giao kết hợp đồng lao động mới."
+     },
+     {
+      "node_id": "nd145_2020-d89-k1-đ",
+      "display": "Điều 89 Khoản 1 Điểm đ (Nghị định 145/2020/NĐ-CP)",
+      "text": "Đơn phương chấm dứt hợp đồng lao động trái pháp luật là trường hợp đơn phương chấm dứt hợp đồng lao động không đúng quy định tại điểm d khoản này. Khi đơn phương chấm dứt hợp đồng lao động trái pháp luật thì người lao động có nghĩa vụ thực hiện quy định tại Điều 40, người sử dụng lao động có nghĩa vụ thực hiện quy định tại Điều 41 của Bộ luật Lao động. Trường hợp người sử dụng lao động vi phạm thời hạn báo trước theo điểm d khoản này thì phải trả cho người lao động một khoản tiền tương ứng với tiền lương theo hợp đồng lao động trong những ngày không báo trước;"
+     }
+    ]
+   }
+  },
+  {
+   "event": "section",
+   "data": {
+    "title": "Quyền được bảo đảm việc làm cũ sau khi nghỉ thai sản",
+    "detail": "Theo Điều 140 Bộ luật Lao động 2019, lao động được bảo đảm việc làm cũ khi trở lại làm việc sau khi nghỉ hết thời gian thai sản mà không bị cắt giảm tiền lương và quyền, lợi ích so với trước khi nghỉ thai sản. Trường hợp việc làm cũ không còn thì người sử dụng lao động phải bố trí việc làm khác cho họ với mức lương không thấp hơn mức lương trước khi nghỉ thai sản.",
+    "citations": [
+     {
+      "node_id": "blld2019-d140",
+      "display": "Điều 140 (Bộ luật Lao động 2019)",
+      "text": "Lao động được bảo đảm việc làm cũ khi trở lại làm việc sau khi nghỉ hết thời gian theo quy định tại các khoản 1, 3 và 5 Điều 139 của Bộ luật này mà không bị cắt giảm tiền lương và quyền, lợi ích so với trước khi nghỉ thai sản; trường hợp việc làm cũ không còn thì người sử dụng lao động phải bố trí việc làm khác cho họ với mức lương không thấp hơn mức lương trước khi nghỉ thai sản."
+     }
+    ]
+   }
+  },
+  {
+   "event": "section",
+   "data": {
+    "title": "Quyền nghỉ thêm không hưởng lương sau thời gian nghỉ thai sản",
+    "detail": "Theo Điều 139 Khoản 3 Bộ luật Lao động 2019, hết thời gian nghỉ thai sản theo quy định tại khoản 1 Điều này, nếu có nhu cầu, lao động nữ có thể nghỉ thêm một thời gian không hưởng lương sau khi thỏa thuận với người sử dụng lao động.",
+    "citations": [
+     {
+      "node_id": "blld2019-d139-k3",
+      "display": "Điều 139 Khoản 3 (Bộ luật Lao động 2019)",
+      "text": "Hết thời gian nghỉ thai sản theo quy định tại khoản 1 Điều này, nếu có nhu cầu, lao động nữ có thể nghỉ thêm một thời gian không hưởng lương sau khi thỏa thuận với người sử dụng lao động."
+     }
+    ]
+   }
+  },
+  {
+   "event": "section",
+   "data": {
+    "title": "Về mức hưởng chế độ thai sản cụ thể",
+    "detail": "Trong các điều luật được cung cấp, Điều 139 chỉ nêu tên điều nhưng không có nội dung chi tiết về thời gian nghỉ thai sản cụ thể (bao nhiêu ngày) hay mức hưởng chế độ thai sản (tỷ lệ lương, điều kiện hưởng...). Để biết mức hưởng cụ thể, cần tham khảo các văn bản pháp luật khác như Luật Bảo hiểm xã hội 2014 và các nghị định, thông tư hướng dẫn về chế độ thai sản.",
+    "citations": [
+     {
+      "node_id": "blld2019-d139",
+      "display": "Điều 139 (Bộ luật Lao động 2019)",
+      "text": "Nghỉ thai sản"
+     }
+    ]
+   }
+  },
+  {
+   "event": "citation",
+   "data": {
+    "n": 1,
+    "node_id": "blld2019-d137-k3",
+    "display": "Điều 137 Khoản 3 (Bộ luật Lao động 2019)",
+    "text": "Người sử dụng lao động không được sa thải hoặc đơn phương chấm dứt hợp đồng lao động đối với người lao động vì lý do kết hôn, mang thai, nghỉ thai sản, nuôi con dưới 12 tháng tuổi, trừ trường hợp người sử dụng lao động là cá nhân chết, bị Tòa án tuyên bố mất năng lực hành vi dân sự, mất tích hoặc đã chết hoặc người sử dụng lao động không phải là cá nhân chấm dứt hoạt động hoặc bị cơ quan chuyên môn về đăng ký kinh doanh thuộc Ủy ban nhân dân cấp tỉnh ra thông báo không có người đại diện theo pháp luật, người được ủy quyền thực hiện quyền và nghĩa vụ của người đại diện theo pháp luật. Trường hợp hợp đồng lao động hết hạn trong thời gian lao động nữ mang thai hoặc nuôi con dưới 12 tháng tuổi thì được ưu tiên giao kết hợp đồng lao động mới."
+   }
+  },
+  {
+   "event": "citation",
+   "data": {
+    "n": 2,
+    "node_id": "nd145_2020-d89-k1-đ",
+    "display": "Điều 89 Khoản 1 Điểm đ (Nghị định 145/2020/NĐ-CP)",
+    "text": "Đơn phương chấm dứt hợp đồng lao động trái pháp luật là trường hợp đơn phương chấm dứt hợp đồng lao động không đúng quy định tại điểm d khoản này. Khi đơn phương chấm dứt hợp đồng lao động trái pháp luật thì người lao động có nghĩa vụ thực hiện quy định tại Điều 40, người sử dụng lao động có nghĩa vụ thực hiện quy định tại Điều 41 của Bộ luật Lao động. Trường hợp người sử dụng lao động vi phạm thời hạn báo trước theo điểm d khoản này thì phải trả cho người lao động một khoản tiền tương ứng với tiền lương theo hợp đồng lao động trong những ngày không báo trước;"
+   }
+  },
+  {
+   "event": "citation",
+   "data": {
+    "n": 3,
+    "node_id": "blld2019-d140",
+    "display": "Điều 140 (Bộ luật Lao động 2019)",
+    "text": "Lao động được bảo đảm việc làm cũ khi trở lại làm việc sau khi nghỉ hết thời gian theo quy định tại các khoản 1, 3 và 5 Điều 139 của Bộ luật này mà không bị cắt giảm tiền lương và quyền, lợi ích so với trước khi nghỉ thai sản; trường hợp việc làm cũ không còn thì người sử dụng lao động phải bố trí việc làm khác cho họ với mức lương không thấp hơn mức lương trước khi nghỉ thai sản."
+   }
+  },
+  {
+   "event": "citation",
+   "data": {
+    "n": 4,
+    "node_id": "blld2019-d139-k3",
+    "display": "Điều 139 Khoản 3 (Bộ luật Lao động 2019)",
+    "text": "Hết thời gian nghỉ thai sản theo quy định tại khoản 1 Điều này, nếu có nhu cầu, lao động nữ có thể nghỉ thêm một thời gian không hưởng lương sau khi thỏa thuận với người sử dụng lao động."
+   }
+  },
+  {
+   "event": "citation",
+   "data": {
+    "n": 5,
+    "node_id": "blld2019-d139",
+    "display": "Điều 139 (Bộ luật Lao động 2019)",
+    "text": "Nghỉ thai sản"
+   }
+  },
+  {
+   "event": "hints",
+   "data": {
+    "precedents": [],
+    "problems": []
+   }
+  },
+  {
+   "event": "verifier",
+   "data": {
+    "ok": true,
+    "checked": 5,
+    "problems": [],
+    "dropped": []
+   }
+  },
+  {
+   "event": "timeframe",
+   "data": {
+    "event_date": null,
+    "event_date_source": "không nêu — dùng ngày tư vấn",
+    "advice_date": "2026-11-20",
+    "as_of": "2026-11-20",
+    "applicable": [
+     {
+      "doc_id": "blld2019",
+      "title": "Bộ luật Lao động 2019",
+      "number": "45/2019/QH14"
+     },
+     {
+      "doc_id": "nd145_2020",
+      "title": "Nghị định 145/2020/NĐ-CP hướng dẫn Bộ luật Lao động về điều kiện lao động và quan hệ lao động",
+      "number": "145/2020/NĐ-CP"
+     }
+    ],
+    "changes_after": [],
+    "upcoming": [],
+    "transition_rules": [],
+    "verify": [],
+    "flags": []
+   }
+  },
+  {
+   "event": "done",
+   "data": {
+    "confidence": 0.85,
+    "uses_uploads": false,
+    "language": "vi",
+    "domain": "lao_dong",
+    "domain_label": "Lao động",
+    "question_domains": [
+     "lao_dong"
+    ]
+   }
+  }
+ ]
+}

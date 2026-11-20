@@ -1799,3 +1799,11 @@ a.calc-chip:hover { color: var(--foreground); background: var(--muted); }
   .vi-jobs li { grid-template-columns: 1fr; }
 }
 .vi-analysis { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+
+/* ---- /demo ---- */
+.demo-badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--primary); color: var(--primary-foreground); }
+.demo-bar { max-width: 760px; margin: 0 auto; padding: 8px 20px 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--muted-foreground); }
+.demo-chip { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--foreground); cursor: pointer; font: inherit; font-size: 13px; text-decoration: none; }
+.demo-chip:hover { background: var(--muted); }
+.demo-chip:disabled { opacity: .5; cursor: default; }
+.domain-badge.prerecorded { background: oklch(0.85 0.12 85 / 45%); }
