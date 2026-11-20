@@ -29,14 +29,28 @@ Stack miễn phí, phù hợp demo cho nhà tuyển dụng.
 
 ### 2.2 Biến môi trường (Repository → Settings → Variables and Secrets)
 
+Demo chỉ dùng **Dahl** (20/11/2026): không đặt key Gemini hay DeepSeek ở bất kỳ dịch vụ nào.
+Máy chủ demo không có Ollama, nên mọi lời gọi mức C đi đám mây.
+
 | Tên biến | Giá trị | Loại |
 |---|---|---|
 | `DATABASE_URL` | chuỗi Neon bước 1 | **Secret** |
-| `GEMINI_API_KEY_1` | khóa Gemini miễn phí | **Secret** |
+| `DAHL_TOKEN_1` … `DAHL_TOKEN_N` | mỗi biến một key Dahl (tối đa 30, router xoay vòng) | **Secret** |
+| `NO_LOCAL_FOR_C` | `true` | Variable |
+| `CLOUD_FIRST_FOR_C` | `true` | Variable |
+| `CLOUD_SPREAD_MODELS` | `true` | Variable |
 | `EMBEDDER` | `vie-v2` | Variable |
 | `EMBED_DIM` | `1024` | Variable |
 | `DEMO_MODE` | `true` | Variable |
 | `EXTRA_CORS_ORIGINS` | URL Vercel (bước 3) | Variable |
+
+Không đặt: `GEMINI_API_KEY*`, `DEEPSEEK_API_KEY`, `GEMINI_FOR_C`.
+
+Lưu ý:
+- Chép lời tức thì (micro) trên CPU của Space sẽ chậm; phần cứng cho chép lời đang chờ Minh chọn
+  (GPU chỉ khi bấm micro, chỉ CPU, hay máy chủ GPU). Trang `/demo` vẫn chạy đủ vì có bản ghi sẵn.
+- Dữ liệu khách thật (ghi âm, hồ sơ) không đưa lên bản demo công khai; xem Luật Bảo vệ dữ liệu
+  cá nhân 91/2025/QH15 trước khi nhận dữ liệu thật [cần đối chiếu với luật sư].
 
 ### 2.3 Nạp dữ liệu lần đầu
 

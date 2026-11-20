@@ -225,8 +225,13 @@ class Settings(BaseSettings):
         source = self.cloud_llm_keys_dir
         if not keys:
             env = {k.upper(): v.strip() for k, v in os.environ.items()}
+            # máy chủ demo (HF Space, Render…) không có thư mục key: DAHL_TOKEN_1..30 trong secrets
+            many = tuple(env[f"DAHL_TOKEN_{i}"] for i in range(1, 31) if env.get(f"DAHL_TOKEN_{i}"))
             single = env.get(self.cloud_llm_api_key_env.strip().upper(), "")
-            keys, source = ((single,) if single else ()), self.cloud_llm_api_key_env
+            if len(many) > 1:  # một token thì giữ đường cũ (CLOUD_LLM_API_KEY_ENV)
+                keys, source = many, "DAHL_TOKEN_1..30"
+            else:
+                keys, source = ((single,) if single else ()), self.cloud_llm_api_key_env
         if keys:
             models = [self.cloud_llm_model.strip()] + [
                 m.strip() for m in self.cloud_llm_fallback_models.split(",") if m.strip()]
