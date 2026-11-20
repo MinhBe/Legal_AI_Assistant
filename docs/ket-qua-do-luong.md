@@ -155,3 +155,28 @@ Ghi chú:
 | `ae6db55` | BM25, hybrid RRF, reranker sau cờ, mặc định vector |
 
 V3–V5 (metrics, prompts registry, phòng thủ inject, các test mới) chưa commit; chưa push theo luật.
+
+## PhoWhisper nén cho chép lời (Kaggle T4, 20/11/2026)
+
+6 đoạn x 2 phút cắt từ ghi âm tư vấn (12 phút), VAD bật, beam 5 trên GPU, beam 1 trên CPU. WER tính
+so với PhoWhisper-large float16 (chưa có bản chép tay chuẩn), nên là độ lệch so với bản tốt nhất,
+không phải độ đúng tuyệt đối. Kernel minhart/lawvn-asr-bench; bản chép lời không rời Kaggle.
+
+| Model | Lượng tử | Thiết bị | Dung lượng | WER so với large fp16 | Nhanh hơn thời gian thực | VRAM cao nhất |
+|---|---|---|---|---|---|---|
+| large | float16 | T4 | 2.947 MB | 0 (tham chiếu) | 7,5x | 4.535 MB |
+| large | int8_float16 | T4 | 1.482 MB | 1,9 % | 7,9x | 2.935 MB |
+| large | int8 | T4 | 1.490 MB | 2,3 % | 6,2x | 3.991 MB |
+| medium | float16 | T4 | 1.460 MB | 15,6 % | 13,5x | 2.583 MB |
+| medium | int8_float16 | T4 | 737 MB | 13,0 % | 13,0x | 1.655 MB |
+| medium | int8 | T4 | 742 MB | 15,3 % | 10,6x | 2.231 MB |
+| small | float16 | T4 | 464 MB | 19,1 % | 24,9x | 1.113 MB |
+| small | int8_float16 | T4 | 236 MB | 23,9 % | 24,3x | 825 MB |
+| small | int8 | T4 | 240 MB | 23,7 % | 22,8x | 889 MB |
+| small | int8 | CPU 4 lõi | 240 MB | 25,9 % | 3,2x | 0 |
+| medium | int8 | CPU 4 lõi | 742 MB | 12,9 % | 1,5x | 0 |
+
+Kết luận: có GPU thì dùng **large int8_float16** cho cả chép tức thì lẫn lượt chính xác (nhỏ một nửa,
+lệch 1,9 %, vẫn nhanh 7,9x thời gian thực). Chỉ CPU thì medium int8 gần sát thời gian thực (1,5x) và
+lệch 13 % so với large; muốn CPU vừa nhanh vừa sát large cần chưng cất (giữ encoder large, 2–4 tầng
+decoder).
