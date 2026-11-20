@@ -9,11 +9,15 @@ bị loại khỏi truy xuất chat cho tới khi được duyệt.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
+from pathlib import Path
 
-from sqlalchemy import delete, text as sql_text
+from sqlalchemy import delete
+from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db.models import LegalDocument, LegalNode, NodeReference
 from app.ingestion.ingest import _nodes_from_articles
 from app.ingestion.parser import assign_ids, parse_articles, validate
@@ -127,6 +131,20 @@ def delete_upload(db: Session, doc_id: str) -> None:
     db.execute(delete(LegalDocument).where(LegalDocument.doc_id == doc_id))
 
 
+EMBED_QUEUE = Path("data/embed_queue")
+
+
+def queue_embeddings(doc_id: str, rows: list[dict]) -> Path:
+    """Ghi (node_id, chuỗi cần nhúng) ra hàng đợi; node được lưu với embedding NULL cho tới khi
+    tools/kaggle_embed.py tải vector về. Chỉ là văn bản luật công khai."""
+    EMBED_QUEUE.mkdir(parents=True, exist_ok=True)
+    path = EMBED_QUEUE / f"{doc_id}.jsonl"
+    with path.open("w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps({"node_id": r["node_id"], "ctx": r["_ctx"]}, ensure_ascii=False) + "\n")
+    return path
+
+
 def ingest_upload(
     db: Session, *, doc_id: str, title: str, text: str, filename: str
 ) -> dict:
@@ -138,7 +156,11 @@ def ingest_upload(
             status="pending_review", source_url=f"upload://{filename}",
         )
     )
-    vecs = embed([r["_ctx"] for r in rows])
+    if get_settings().embed_defer:  # văn bản lớn: embedding chạy trên Kaggle (tools/kaggle_embed.py)
+        queue_embeddings(doc_id, rows)
+        vecs = [None] * len(rows)
+    else:
+        vecs = embed([r["_ctx"] for r in rows])
     for r, v in zip(rows, vecs, strict=True):
         r.pop("_ctx")
         db.add(LegalNode(**r, text_hash=_hash(r["text"]), embedding=v))

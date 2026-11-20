@@ -172,3 +172,13 @@ def test_live_session_spaces_partials_when_cpu_is_slow():
     ev = s.feed(_tone(2.0))
     # partial cách nhau ít nhất 2 x 0,2 s thay vì mỗi 0,1 s
     assert 1 <= sum(e["type"] == "partial" for e in ev) <= 6
+
+
+def test_embed_defer_writes_queue_not_vectors(tmp_path, monkeypatch):
+    from app.upload import ingest as up
+
+    monkeypatch.setattr(up, "EMBED_QUEUE", tmp_path)
+    rows = [{"node_id": "d1-s1", "_ctx": "Luật X: Điều 1"}, {"node_id": "d1-s2", "_ctx": "Luật X: Điều 2"}]
+    path = up.queue_embeddings("d1", rows)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2 and '"node_id": "d1-s1"' in lines[0]
