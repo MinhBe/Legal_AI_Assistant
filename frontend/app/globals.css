@@ -1841,3 +1841,4 @@ a.calc-chip:hover { color: var(--foreground); background: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .mic-btn.on { animation: none; } }
 .dictation-partial { color: var(--muted-foreground); font-style: italic; font-size: 13px; padding: 0 0 6px; }
 .dictation-error { color: var(--destructive); font-size: 12px; padding: 0 0 6px; }
+.citation-asof { font-size: 12px; color: var(--muted-foreground); padding: 4px 12px 0; }

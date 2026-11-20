@@ -169,7 +169,7 @@ export default function MessageList({
                 )}
 
                 {m.citations && m.citations.length > 0 && (
-                  <CitationList citations={m.citations} />
+                  <CitationList citations={m.citations} asOf={m.timeframe?.as_of} eventDate={m.timeframe?.event_date} />
                 )}
 
                 {m.role === "ai" && m.record_id && (

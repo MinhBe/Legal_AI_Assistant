@@ -221,7 +221,11 @@ export function SuggestRewrite({
 }
 
 /* chip trích dẫn, bấm để mở/đóng nguyên văn */
-export function CitationList({ citations }: { citations: Citation[] }) {
+export function CitationList({ citations, asOf, eventDate }: {
+  citations: Citation[];
+  asOf?: string | null;
+  eventDate?: string | null;
+}) {
   const [open, setOpen] = useState<number | null>(null);
 
   return (
@@ -250,6 +254,12 @@ export function CitationList({ citations }: { citations: Citation[] }) {
         return (
           <div className="citation-panel">
             <div className="citation-panel-head">{c.display || c.node_id}</div>
+            {asOf && (
+              <div className="citation-asof">
+                Áp dụng tại thời điểm {asOf.split("-").reverse().join("/")}
+                {eventDate ? " (ngày xảy ra sự việc)" : " (ngày hỏi)"} · nguyên văn điều khoản trong kho
+              </div>
+            )}
             <div className="citation-panel-body">{c.text || "Không có nội dung."}</div>
           </div>
         );
