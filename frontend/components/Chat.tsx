@@ -52,6 +52,8 @@ export default function Chat({ demo = false }: { demo?: boolean }) {
             <IconGraph />
           </Link>
           <Link href="/upload" className="graph-nav-btn" title="Tải tài liệu lên" data-tour="nav-upload">Tải lên</Link>
+          {/* admin: nguồn thu thập dữ liệu (web scraping) */}
+          <Link href="/thu-thap" className="graph-nav-btn" title="Thu thập dữ liệu (admin)" data-tour="nav-collect">Thu thập</Link>
           <HelpMenu />
           <button className="theme-btn" onClick={toggleTheme} aria-label="Đổi chế độ sáng/tối">
             {theme === "dark" ? <><IconSun /> Sáng</> : <><IconMoon /> Tối</>}

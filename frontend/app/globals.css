@@ -1842,3 +1842,27 @@ a.calc-chip:hover { color: var(--foreground); background: var(--muted); }
 .dictation-partial { color: var(--muted-foreground); font-style: italic; font-size: 13px; padding: 0 0 6px; }
 .dictation-error { color: var(--destructive); font-size: 12px; padding: 0 0 6px; }
 .citation-asof { font-size: 12px; color: var(--muted-foreground); padding: 4px 12px 0; }
+
+/* ---- trang Thu thập dữ liệu ---- */
+.collect-page { max-width: 1100px; margin: 0 auto; padding: 20px 16px 40px; color: var(--foreground); }
+.collect-head h1 { margin: 8px 0 4px; font-size: 22px; }
+.collect-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0; }
+.collect-tabs button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--foreground); cursor: pointer; font: inherit; }
+.collect-tabs button.active { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+.collect-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.collect-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.collect-card-head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.collect-use { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--muted); white-space: nowrap; }
+.collect-use.ok { background: oklch(0.85 0.12 150 / 45%); }
+.collect-use.wip { background: oklch(0.88 0.12 85 / 55%); }
+.collect-use.no { background: oklch(0.8 0.12 25 / 40%); }
+.collect-why { font-size: 13px; margin: 0; line-height: 1.5; }
+.collect-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0; font-size: 13px; }
+.collect-stats dt { color: var(--muted-foreground); font-size: 12px; }
+.collect-stats dd { margin: 0; font-weight: 600; }
+.collect-tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.collect-steps { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.collect-steps li { border-left: 3px solid var(--border); padding-left: 8px; display: flex; flex-direction: column; }
+.collect-steps li.ok { border-color: oklch(0.65 0.15 150); }
+.collect-steps li.fail { border-color: var(--destructive); }
+.collect-steps small { color: var(--muted-foreground); word-break: break-word; }
