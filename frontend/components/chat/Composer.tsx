@@ -52,6 +52,8 @@ export default function Composer({ value, placeholder, onChange, onSubmit, onSen
   };
 
   const onEvent = (e: SttEvent) => {
+    if (e.type === "loading") setPartial("Đang khởi động micro (lần đầu khoảng 30 giây)");
+    if (e.type === "ready") setPartial("");
     if (e.type === "partial") setPartial(e.text || "");
     if (e.type === "final") { setPartial(""); insertFinal(e.text || ""); }
     if (e.type === "error") { setMicError(e.text || "Lỗi chép lời"); setDictating(false); }

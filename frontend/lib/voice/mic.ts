@@ -5,7 +5,7 @@
 */
 import { API_BASE, getToken } from "@/lib/api";
 
-export type SttEvent = { type: "partial" | "final" | "done" | "error"; text?: string; start?: number; end?: number };
+export type SttEvent = { type: "partial" | "final" | "done" | "error" | "loading" | "ready"; text?: string; start?: number; end?: number };
 
 const WORKLET = `
 class Pcm16 extends AudioWorkletProcessor {

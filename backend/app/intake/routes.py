@@ -156,7 +156,7 @@ def _ws_allowed(ws: WebSocket) -> bool:
 @router.websocket("/api/stt/live")
 async def stt_live(ws: WebSocket) -> None:
     """PCM int16 16 kHz mono (nhị phân) vào; JSON partial/final ra. Tin "stop" để chốt."""
-    from app.intake.stt import LIVE_LOCK, LiveSession, unload_when_idle
+    from app.intake.stt import LIVE_LOCK, LiveSession, ensure_loaded, unload_when_idle
 
     await ws.accept()
     if not _ws_allowed(ws):
@@ -168,6 +168,17 @@ async def stt_live(ws: WebSocket) -> None:
         await ws.close()
         return
     sess = LiveSession()
+    if sess.transcribe is not None and sess.transcribe.__name__ == "_whisper":
+        await ws.send_json({"type": "loading"})
+        try:
+            await asyncio.to_thread(ensure_loaded)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("nạp model chép lời lỗi: {}", exc)
+            await ws.send_json({"type": "error", "text": "Không nạp được model chép lời"})
+            LIVE_LOCK.release()
+            await ws.close()
+            return
+    await ws.send_json({"type": "ready"})
     pending = bytearray()
     state = {"stop": False, "gone": False}
     wake = asyncio.Event()
@@ -218,3 +229,4 @@ async def stt_live(ws: WebSocket) -> None:
             await ws.close()
         except RuntimeError:
             pass
+

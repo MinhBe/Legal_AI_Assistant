@@ -54,6 +54,14 @@ def _load():
     return WhisperModel(name, device=device, compute_type=compute, cpu_threads=settings.stt_live_threads)
 
 
+def ensure_loaded() -> None:
+    """Nạp model trước khi nhận âm thanh (lần đầu khoảng 30 s trên GPU) để báo "sẵn sàng"."""
+    global _MODEL
+    with _MODEL_LOCK:
+        if _MODEL is None:
+            _MODEL = _load()
+
+
 def _whisper(audio: np.ndarray) -> str:
     global _MODEL
     with _MODEL_LOCK:
