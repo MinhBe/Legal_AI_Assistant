@@ -56,12 +56,18 @@ def bind(ctx: dict | None):
 
 
 def submit(pool, fn, *args, **kwargs):
+    """Chạy trên luồng của pool với NGUYÊN ngữ cảnh của luồng gọi: mức dữ liệu (A/B/C),
+    cloud_first, no_local… là contextvars, pool không tự chép sang (trước đây guard.classify và
+    facts.extract chạy với mức mặc định thay vì mức của câu hỏi)."""
+    import contextvars
+
     ctx = current()
+    cv = contextvars.copy_context()
 
     def run():
         with bind(ctx):
             return fn(*args, **kwargs)
-    return pool.submit(run)
+    return pool.submit(cv.run, run)
 
 
 def estimate_tokens(text: str) -> int:

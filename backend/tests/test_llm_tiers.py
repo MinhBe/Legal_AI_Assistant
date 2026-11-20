@@ -424,3 +424,15 @@ def test_gemini_429_cools_that_key_only(monkeypatch):
     assert rt._next_gemini_key() == "g1"
     rt._gemini_cooldown(HTTPErr(429))
     assert [rt._next_gemini_key() for _ in range(2)] == ["g2", "g2"]
+
+
+def test_metrics_submit_keeps_data_class_in_pool_thread():
+    from concurrent.futures import ThreadPoolExecutor
+
+    from app.llm.context import data_class_scope, get_data_class, get_no_local, no_local_scope
+    from app.obs import metrics
+
+    pool = ThreadPoolExecutor(1)
+    with data_class_scope("B"), no_local_scope(True):
+        fut = metrics.submit(pool, lambda: (get_data_class(), get_no_local()))
+    assert fut.result() == ("B", True)
