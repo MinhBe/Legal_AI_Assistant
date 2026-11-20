@@ -156,7 +156,7 @@ def _ws_allowed(ws: WebSocket) -> bool:
 @router.websocket("/api/stt/live")
 async def stt_live(ws: WebSocket) -> None:
     """PCM int16 16 kHz mono (nhị phân) vào; JSON partial/final ra. Tin "stop" để chốt."""
-    from app.intake.stt import LIVE_LOCK, LiveSession
+    from app.intake.stt import LIVE_LOCK, LiveSession, unload_when_idle
 
     await ws.accept()
     if not _ws_allowed(ws):
@@ -213,6 +213,7 @@ async def stt_live(ws: WebSocket) -> None:
     finally:
         recv.cancel()
         LIVE_LOCK.release()
+        unload_when_idle()
         try:
             await ws.close()
         except RuntimeError:

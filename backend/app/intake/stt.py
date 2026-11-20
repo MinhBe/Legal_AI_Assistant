@@ -38,6 +38,28 @@ def _whisper(audio: np.ndarray) -> str:
         return " ".join((s.text or "").strip() for s in segs).strip()
 
 
+_IDLE = {"gen": 0}
+
+
+def unload_when_idle(after_s: float = 300.0) -> None:
+    """Giải phóng model chép lời tức thì nếu sau `after_s` giây không có phiên mới (RAM máy nhà)."""
+    _IDLE["gen"] += 1
+    mine = _IDLE["gen"]
+
+    def drop() -> None:
+        global _MODEL
+        if _IDLE["gen"] == mine and not LIVE_LOCK.locked():
+            with _MODEL_LOCK:
+                _MODEL = None
+            import gc
+
+            gc.collect()
+
+    t = threading.Timer(after_s, drop)
+    t.daemon = True
+    t.start()
+
+
 @dataclass
 class LiveSession:
     """Nhận các khối PCM; trả các sự kiện {"type": "partial"|"final", "text", "start", "end"}."""
