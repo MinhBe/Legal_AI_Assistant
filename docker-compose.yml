@@ -30,6 +30,11 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-lawvn}:${POSTGRES_PASSWORD:-lawvn-dev}@postgres:5432/${POSTGRES_DB:-lawvn}
+      # máy nhà không gánh mô hình 7B cho việc nền (theo dõi văn bản mới, phân tích hồ sơ…): dữ liệu
+      # mức C (đã che) đi đám mây; mức A/B vẫn chỉ mô hình trong máy. Đặt false để quay lại trong máy trước.
+      CLOUD_FIRST_FOR_C: ${CLOUD_FIRST_FOR_C:-true}
+      NO_LOCAL_FOR_C: ${NO_LOCAL_FOR_C:-true}
+      CLOUD_SPREAD_MODELS: ${CLOUD_SPREAD_MODELS:-true}
     ports:
       - "8000:8000"
     volumes:

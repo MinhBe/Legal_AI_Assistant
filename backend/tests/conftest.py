@@ -113,3 +113,28 @@ def _intel_side_effects_cleanup(request):
         s.commit()
     finally:
         s.close()
+
+
+@pytest.fixture(autouse=True)
+def _no_real_local_model(request, monkeypatch):
+    """Test không bao giờ gọi Qwen thật trên máy nhà (trước 20/11/2026 test_lang và
+    test_chat_uploads nạp qwen2.5:7b lên GPU). Test tự gắn _call_local trên router vẫn chạy như cũ;
+    test đánh dấu llm thì được gọi thật."""
+    if request.node.get_closest_marker("llm"):
+        yield
+        return
+    from app.llm import router as r
+
+    def blocked(self, model, messages, temperature, max_tokens, task="answer"):
+        raise r.LLMError("mô hình trong máy bị chặn trong test")
+
+    monkeypatch.setattr(r.LLMRouter, "_call_local", blocked)
+    real_stream = r.LLMRouter._stream_openai
+
+    def stream(self, provider, *a, **k):  # đường stream đi thẳng tới Ollama
+        if provider == "local":
+            raise r.LLMError("mô hình trong máy bị chặn trong test")
+        return real_stream(self, provider, *a, **k)
+
+    monkeypatch.setattr(r.LLMRouter, "_stream_openai", stream)
+    yield
