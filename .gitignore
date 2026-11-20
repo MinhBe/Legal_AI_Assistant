@@ -64,3 +64,10 @@ data/.auth_secret
 # Ghi âm tư vấn của Minh (bản gốc) và văn bản Công báo tải về: không vào git
 record/
 data/corpus_ext/
+
+# dữ liệu sinh ra khi chạy (20/11/2026): hồ sơ khách, tình huống, hàng đợi embedding, bản ghi demo thô
+data/demo/
+data/embed_out/
+data/embed_queue/
+data/intake/
+data/scenarios/
