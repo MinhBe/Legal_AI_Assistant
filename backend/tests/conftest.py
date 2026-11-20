@@ -125,6 +125,11 @@ def _no_real_local_model(request, monkeypatch):
         return
     from app.llm import router as r
 
+    # container đặt sẵn các cờ chỉ-đám-mây (docker-compose): test chạy với giá trị mặc định của mã
+    for flag in ("no_local_for_c", "cloud_first_for_c", "cloud_spread_models", "gemini_for_c",
+                 "gemini_fallback_only"):
+        monkeypatch.setattr(r.settings, flag, False)
+
     def blocked(self, model, messages, temperature, max_tokens, task="answer"):
         raise r.LLMError("mô hình trong máy bị chặn trong test")
 
