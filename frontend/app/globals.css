@@ -1807,3 +1807,28 @@ a.calc-chip:hover { color: var(--foreground); background: var(--muted); }
 .demo-chip:hover { background: var(--muted); }
 .demo-chip:disabled { opacity: .5; cursor: default; }
 .domain-badge.prerecorded { background: oklch(0.85 0.12 85 / 45%); }
+
+/* ---- hướng dẫn từng bước + bảng tra cứu ---- */
+.help-wrap { position: relative; }
+.help-btn { width: 30px; height: 30px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--foreground); cursor: pointer; font-weight: 700; }
+.help-btn:hover { background: var(--muted); }
+.help-menu { position: absolute; right: 0; top: 36px; z-index: 60; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 24px oklch(0 0 0 / 18%); display: flex; flex-direction: column; min-width: 190px; overflow: hidden; }
+.help-menu button { text-align: left; padding: 10px 14px; border: none; background: transparent; color: var(--foreground); cursor: pointer; font: inherit; }
+.help-menu button:hover { background: var(--muted); }
+.help-panel { background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: calc(var(--radius) * 1.5); width: min(640px, 100%); max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
+.help-search { width: 100%; padding: 8px 12px; }
+.help-topic { margin: 8px 0 4px; font-size: 13px; color: var(--muted-foreground); }
+.help-entry { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 12px; margin-bottom: 6px; }
+.help-entry summary { cursor: pointer; font-weight: 600; }
+.help-entry p { margin: 8px 0; line-height: 1.55; }
+.coach { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
+.coach-dim { position: fixed; inset: 0; background: oklch(0 0 0 / 55%); }
+.coach-shade { position: fixed; background: oklch(0 0 0 / 55%); }
+.coach-spot { position: fixed; border-radius: 10px; outline: 3px solid oklch(0.85 0.15 85); animation: coach-pulse 1.6s ease-in-out infinite; }
+@keyframes coach-pulse { 50% { outline-color: oklch(0.85 0.15 85 / 35%); } }
+.coach-card { position: fixed; width: 340px; max-width: calc(100vw - 24px); background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; box-shadow: 0 12px 32px oklch(0 0 0 / 30%); pointer-events: auto; }
+.coach-card p { margin: 6px 0; line-height: 1.5; font-size: 14px; }
+.coach-step { font-size: 12px; color: var(--muted-foreground); margin-bottom: 4px; }
+.coach-hint { color: oklch(0.6 0.15 60); font-size: 13px; }
+.coach-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+@media (prefers-reduced-motion: reduce) { .coach-spot { animation: none; } }

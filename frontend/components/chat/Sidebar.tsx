@@ -38,7 +38,7 @@ export default function Sidebar({ open, text, convos, activeId, onNew, onOpen, o
   }, [canReview]);
 
   return (
-    <aside className={`sidebar ${open ? "" : "closed"}`}>
+    <aside data-tour="sidebar" className={`sidebar ${open ? "" : "closed"}`}>
       <div className="brand">
         <div className="logo">L</div>
         <div>

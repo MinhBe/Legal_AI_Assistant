@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
 import Composer from "@/components/chat/Composer";
 import { IconGraph, IconMenu, IconMoon, IconSun } from "@/components/chat/icons";
 import MessageList from "@/components/chat/MessageList";
+import { emit } from "@/components/help/Coach";
+import HelpMenu from "@/components/help/HelpMenu";
 import Sidebar from "@/components/chat/Sidebar";
 import { useChat, useTheme } from "@/lib/chat/useChat";
 import { currentMode, type Mode, MODE_TEXT } from "@/lib/mode";
@@ -31,7 +33,7 @@ export default function Chat({ demo = false }: { demo?: boolean }) {
   // "/pv" is not a question: it opens the hidden interview-practice page
   const ask = (q: string) => {
     if (q.trim().toLowerCase() === "/pv") { setInput(""); router.push("/pv"); return; }
-    if (chat.send(q)) setInput("");
+    if (chat.send(q)) { setInput(""); emit("asked"); }
   };
 
   return (
@@ -46,10 +48,11 @@ export default function Chat({ demo = false }: { demo?: boolean }) {
           </button>
           <span className="title">{text.title}</span>
           {demo && <span className="demo-badge" title="Câu hỏi mẫu; máy chủ AI chậm quá 8 giây thì hiện câu trả lời ghi sẵn">Chế độ Demo</span>}
-          <Link href="/graph" className="graph-nav-btn" title="Knowledge Graph">
+          <Link href="/graph" className="graph-nav-btn" title="Knowledge Graph" data-tour="nav-graph">
             <IconGraph />
           </Link>
-          <Link href="/upload" className="graph-nav-btn" title="Tải tài liệu lên">Tải lên</Link>
+          <Link href="/upload" className="graph-nav-btn" title="Tải tài liệu lên" data-tour="nav-upload">Tải lên</Link>
+          <HelpMenu />
           <button className="theme-btn" onClick={toggleTheme} aria-label="Đổi chế độ sáng/tối">
             {theme === "dark" ? <><IconSun /> Sáng</> : <><IconMoon /> Tối</>}
           </button>

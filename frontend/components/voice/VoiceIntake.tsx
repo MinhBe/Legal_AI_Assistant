@@ -5,6 +5,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { API_BASE, apiFetch, authHeaders } from "@/lib/api";
+import { emit } from "@/components/help/Coach";
 import { LiveMic, type SttEvent } from "@/lib/voice/mic";
 
 type Span = {
@@ -82,6 +83,9 @@ export default function VoiceIntake({ open, initialFiles, onClose, onUseText }: 
   }, []);
 
   useEffect(() => { if (open && initialFiles?.length) addFiles(initialFiles); }, [open, initialFiles, addFiles]);
+  useEffect(() => { if (open) emit("voice-opened"); }, [open]);
+  const hasText = transcript.trim().length > 0;
+  useEffect(() => { if (hasText) emit("transcript-ready"); }, [hasText]);
 
   const onEvent = useCallback((e: SttEvent) => {
     if (e.type === "partial") setPartial(e.text || "");
@@ -115,6 +119,7 @@ export default function VoiceIntake({ open, initialFiles, onClose, onUseText }: 
     setSpans(body.spans);
     setDecisions({});
     setStep("review");
+    emit("review-shown");
   };
 
   // xem trước bản đã làm mờ mỗi khi đổi lựa chọn
@@ -127,7 +132,10 @@ export default function VoiceIntake({ open, initialFiles, onClose, onUseText }: 
     return () => clearTimeout(t);
   }, [decisions, transcript, step]);
 
-  const setAction = (s: Span, action: string) => setDecisions((d) => ({ ...d, [s.id]: { ...d[s.id], action } }));
+  const setAction = (s: Span, action: string) => {
+    setDecisions((d) => ({ ...d, [s.id]: { ...d[s.id], action } }));
+    emit("mask-chosen");
+  };
   const setRepl = (s: Span, replacement: string) => {
     // tên giả nhất quán: đổi một đoạn là đổi mọi đoạn cùng người
     setDecisions((d) => {
@@ -180,7 +188,7 @@ export default function VoiceIntake({ open, initialFiles, onClose, onUseText }: 
 
         {step === "capture" && (
           <div className="vi-body">
-            <div className={`vi-drop ${dragOver ? "over" : ""}`}
+            <div data-tour="voice-drop" className={`vi-drop ${dragOver ? "over" : ""}`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={(e) => { e.preventDefault(); setDragOver(false); addFiles(Array.from(e.dataTransfer.files)); }}>
@@ -210,7 +218,7 @@ export default function VoiceIntake({ open, initialFiles, onClose, onUseText }: 
             {partial && <div className="vi-partial">{partial}…</div>}
             <p className="vi-note">Âm thanh chỉ gửi tới máy chủ LawVN để chép lời, chưa lưu lại. Bước sau bạn chọn phần cần làm mờ.</p>
             <div className="vi-actions">
-              <button className="vi-btn primary" disabled={!transcript.trim() || recording} onClick={goReview}>Tiếp: chọn phần làm mờ</button>
+              <button className="vi-btn primary" data-tour="voice-next" disabled={!transcript.trim() || recording} onClick={goReview}>Tiếp: chọn phần làm mờ</button>
             </div>
           </div>
         )}
@@ -218,7 +226,7 @@ export default function VoiceIntake({ open, initialFiles, onClose, onUseText }: 
         {step === "review" && (
           <div className="vi-body vi-review">
             <div className="vi-transcript">{highlighted}</div>
-            <div className="vi-spans">
+            <div className="vi-spans" data-tour="voice-spans">
               {spans.length === 0 && <p>Không thấy thông tin nhạy cảm. Bạn vẫn có thể sửa nội dung ở bước trước.</p>}
               {Object.entries(grouped).map(([g, list]) => (
                 <section key={g}>
@@ -253,7 +261,7 @@ export default function VoiceIntake({ open, initialFiles, onClose, onUseText }: 
         )}
 
         {step === "consent" && (
-          <div className="vi-body">
+          <div className="vi-body" data-tour="voice-consent">
             <label className="vi-check"><input type="checkbox" checked={consentCase} onChange={(e) => setConsentCase(e.target.checked)} />
               Tôi đồng ý cho LawVN dùng bản đã làm mờ ở trên để xử lý vụ việc và lập hồ sơ.</label>
             <label className={`vi-check ${kept ? "disabled" : ""}`}><input type="checkbox" disabled={kept > 0} checked={consentTrain && kept === 0} onChange={(e) => setConsentTrain(e.target.checked)} />

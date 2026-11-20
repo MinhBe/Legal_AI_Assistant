@@ -3,6 +3,7 @@
 /* Các phần gắn dưới một câu trả lời: thẻ phê duyệt khi từ chối, gợi ý câu hỏi
    chuẩn hơn, luồng tra cứu, các mục trả lời, và trích dẫn. */
 import { useState } from "react";
+import { emit } from "@/components/help/Coach";
 
 import { IconCheck, IconChevron, IconLock, IconRefresh, IconSearch } from "@/components/chat/icons";
 import type { Calc, FactValue, Facts, Citation, EscalateStatus, Hints, Section, TimeFrame, Verifier } from "@/lib/chat/types";
@@ -224,7 +225,7 @@ export function CitationList({ citations }: { citations: Citation[] }) {
   const [open, setOpen] = useState<number | null>(null);
 
   return (
-    <div className="citations">
+    <div className="citations" data-tour="citations">
       <div className="chip-row">
         {citations.map((c, j) => {
           const n = c.n ?? j + 1;
@@ -233,7 +234,7 @@ export function CitationList({ citations }: { citations: Citation[] }) {
             <button
               key={j}
               className={`chip ${isOpen ? "active" : ""}`}
-              onClick={() => setOpen(isOpen ? null : n)}
+              onClick={() => { setOpen(isOpen ? null : n); if (!isOpen) emit("citation-opened"); }}
               aria-expanded={isOpen}
             >
               <span className="n">[{n}]</span> {c.display || c.node_id}

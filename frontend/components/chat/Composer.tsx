@@ -33,9 +33,9 @@ export default function Composer({ value, placeholder, onChange, onSubmit, busy 
         onUseText={(t) => onChange(t)} />
       <div className="composer">
         <div className="composer-tools">
-          <button className="tool-btn" onClick={() => setVoiceOpen(true)} aria-label="Ghi âm hoặc đính kèm ghi âm" title="Ghi âm / đính kèm ghi âm, video">🎙</button>
+          <button className="tool-btn" data-tour="mic" onClick={() => setVoiceOpen(true)} aria-label="Ghi âm hoặc đính kèm ghi âm" title="Ghi âm / đính kèm ghi âm, video">🎙</button>
         </div>
-        <div className="box">
+        <div className="box" data-tour="composer">
           <textarea
             value={value}
             placeholder={placeholder}
