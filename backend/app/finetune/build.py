@@ -8,6 +8,7 @@ giá trị. Ngày tháng và mốc hiệu lực do code quyết, mô hình chỉ
 from __future__ import annotations
 
 import json
+import os
 import random
 import subprocess
 import time
@@ -382,22 +383,33 @@ def build_dataset(
     todo = [r for r in generatable[:calls] if _source_id(r) not in done]
     failed = made = streak = 0
     started = time.monotonic()
-    with raw_path.open("a", encoding="utf-8") as raw:
-        for i, rec in enumerate(todo, 1):
-            items = []
-            for attempt in range(4):
-                try:
-                    items = (
-                        generate.law_pairs(router, rec, pairs)
-                        if rec["kind"] == "law"
-                        else generate.precedent_card(router, rec)
-                    )
+    pause = {"until": 0.0}  # Dahl hết chỗ: mọi luồng cùng nghỉ, không chỉ luồng chính
+
+    def gen_one(rec: dict) -> tuple[list, str]:
+        while time.monotonic() < pause["until"]:
+            time.sleep(min(30.0, pause["until"] - time.monotonic()))
+        items: list = []
+        for attempt in range(4):
+            try:
+                items = (
+                    generate.law_pairs(router, rec, pairs)
+                    if rec["kind"] == "law"
+                    else generate.precedent_card(router, rec)
+                )
+                break
+            except Exception as exc:  # noqa: BLE001 — một bản ghi hỏng không dừng cả lượt
+                logger.warning("Sinh dữ liệu lỗi ở {}: {}", _source_id(rec), exc)
+                if not _cooling(exc) or attempt == 3:
                     break
-                except Exception as exc:  # noqa: BLE001 — một bản ghi hỏng không dừng cả lượt
-                    logger.warning("Sinh dữ liệu lỗi ở {}: {}", _source_id(rec), exc)
-                    if not _cooling(exc) or attempt == 3:
-                        break
-                    time.sleep(60 * 2 ** attempt)  # mọi key đang nghỉ / 429: đợi rồi thử lại
+                time.sleep(60 * 2 ** attempt)  # mọi key đang nghỉ / 429: đợi rồi thử lại
+        return items, getattr(router, "last_provider", "") if items else ""
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    workers = max(1, int(os.environ.get("FT_WORKERS", "1")))  # nhiều key Dahl: gửi song song
+    with raw_path.open("a", encoding="utf-8") as raw, ThreadPoolExecutor(workers) as pool:
+        results = pool.map(lambda r: (r, *gen_one(r)), todo)
+        for i, (rec, items, provider) in enumerate(results, 1):
             made += 1
             if items:
                 streak = 0
@@ -406,11 +418,10 @@ def build_dataset(
                 if streak >= 3:  # nhiều nguồn rỗng liền nhau = Dahl hết chỗ, không phải nguồn hỏng
                     wait = min(900, 60 * 2 ** (streak - 3))
                     logger.info("{} nguồn rỗng liền nhau: đợi {} s cho key Dahl hồi", streak, wait)
-                    time.sleep(wait)
+                    pause["until"] = max(pause["until"], time.monotonic() + wait)
                 else:
                     failed += 1
-            row = {"source": _source_id(rec), "items": items,
-                   "provider": getattr(router, "last_provider", "") if items else ""}
+            row = {"source": _source_id(rec), "items": items, "provider": provider}
             raw.write(json.dumps(row, ensure_ascii=False) + "\n")
             raw.flush()
             done[row["source"]] = items

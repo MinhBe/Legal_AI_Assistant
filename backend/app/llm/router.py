@@ -279,6 +279,10 @@ class LLMRouter:
             return [local]
         route = settings.cloud_route()
         cloud = [("cloud", m) for m in route.models] if route else []
+        if settings.cloud_spread_models and len(cloud) > 1:  # dàn đều lượt đi đầu cho mọi model Dahl
+            with _GEM_LOCK:
+                self._spin = (getattr(self, "_spin", -1) + 1) % len(cloud)
+            cloud = cloud[self._spin:] + cloud[:self._spin]
         plan = cloud + [local] if (get_cloud_first() or settings.cloud_first_for_c) else [local] + cloud
         if settings.no_local_for_c and cloud:
             plan = cloud
@@ -286,7 +290,8 @@ class LLMRouter:
             gem = [("gemini", settings.gemini_model), ("gemini", settings.gemini_model_lite)]
             self._alt = getattr(self, "_alt", 0) + 1  # xen kẽ ai đi trước để chia tải
             plan = [x for x in plan if x[0] != "local"]
-            plan = (gem + plan if self._alt % 2 else plan + gem) + (
+            first = not settings.gemini_fallback_only and self._alt % 2
+            plan = (gem + plan if first else plan + gem) + (
                 [] if settings.no_local_for_c else [local])
         return [(p, m) for (p, m) in plan if self._available(p)]
 
