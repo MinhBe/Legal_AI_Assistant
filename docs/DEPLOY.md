@@ -1,5 +1,20 @@
 # Hướng dẫn Deploy Demo (HF Spaces + Neon + Vercel)
 
+**Cách nhanh (20/11/2026):** Minh tạo tài khoản, lưu hai tệp key, phần còn lại `tools/deploy.py` làm:
+
+1. Neon: tạo project `lawvn`, lưu Connection string vào `keys/neon_url.txt`.
+2. Hugging Face: tạo Access Token quyền write, lưu vào `keys/hf_token.txt`.
+3. `python -X utf8 tools/deploy.py all`: chép kho luật công khai lên Neon (không có tài khoản, hội
+   thoại, hồ sơ khách), tạo/đẩy Space `MinhBe/lawvn-api` (Public, Docker), đợi `/health`.
+4. Trong Space → Settings → Variables and secrets, Minh dán: `DATABASE_URL` (Secret, cùng chuỗi
+   Neon), `DAHL_TOKEN_1` … `DAHL_TOKEN_N` (Secret), `EXTRA_CORS_ORIGINS` (URL Vercel). Các biến khác
+   đã đặt sẵn trong Dockerfile của Space (chỉ Dahl, không mô hình trong máy).
+5. Vercel: Add New → Project → `MinhBe/Legal_AI_Assistant`, Root Directory `frontend`, biến
+   `NEXT_PUBLIC_API_BASE_URL = https://minhbe-lawvn-api.hf.space`. Vercel tự deploy lại mỗi lần push
+   lên `main` (Settings → Git → Production Branch = main).
+
+Link công khai: `https://<project>.vercel.app/demo` (giao diện), `https://minhbe-lawvn-api.hf.space/docs` (API).
+
 Stack miễn phí, phù hợp demo cho nhà tuyển dụng.
 
 ---
