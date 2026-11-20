@@ -41,6 +41,13 @@ kiểm trên Công báo trước khi tải. Không đoán số hiệu.
 | Tố tụng | BLTTDS 2015 (VBHN), BLTTHS 2015 (VBHN) | Công báo có nhiều VBHN BLTTDS, lấy bản mới nhất |
 | Hình sự | BLHS: tải lại bản tách được đủ 234 điều | bản hiện tại thiếu 18 điều do tách PDF |
 
+## Ưu tiên 3: dữ liệu cá nhân (cho chính LawVN: ghi âm, hồ sơ, thu thập dữ liệu)
+
+| Văn bản | Ghi chú |
+|---|---|
+| Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15 | ✔ có trên Công báo; hiệu lực 01/01/2026, thay NĐ 13/2023/NĐ-CP |
+| Nghị định hướng dẫn Luật 91/2025 | (kiểm) số hiệu 356/2025/NĐ-CP chưa thấy khi tra Công báo ngày 20/11/2026 |
+
 ## Cập nhật / hết hiệu lực cần đánh dấu
 
 - Lương tối thiểu vùng: NĐ 293/2025 (đang áp dụng) và NĐ 399/2026 (hiệu lực 01/01/2027, đã nạp

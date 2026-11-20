@@ -98,7 +98,7 @@ Tags: pii, logging, compliance
 Langfuse hoặc log lưu toàn bộ prompt và câu trả lời, trong đó có số CCCD, số điện thoại. Rủi ro và xử lý?
 
 ### Chốt kỹ thuật
-- Rủi ro: vi phạm quy định bảo vệ dữ liệu cá nhân (Nghị định 13/2023 ở Việt Nam), người không có quyền đọc được qua công cụ quan sát, dữ liệu tồn tại sau khi khách yêu cầu xóa.
+- Rủi ro: vi phạm quy định bảo vệ dữ liệu cá nhân (ở Việt Nam: Luật Bảo vệ dữ liệu cá nhân 91/2025/QH15, hiệu lực 01/01/2026, thay Nghị định 13/2023), người không có quyền đọc được qua công cụ quan sát, dữ liệu tồn tại sau khi khách yêu cầu xóa.
 - Xử lý: phát hiện và mask PII trước khi ghi log (regex cho CCCD, số điện thoại, email, số tài khoản; NER cho tên, địa chỉ); lưu bản đầy đủ chỉ khi cần, mã hóa, thời hạn ngắn.
 - Phân quyền xem trace, audit truy cập.
 - Liên kết log với user id để xóa theo yêu cầu.

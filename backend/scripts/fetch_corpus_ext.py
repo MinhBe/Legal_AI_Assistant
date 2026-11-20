@@ -79,6 +79,8 @@ WANTED: list[dict] = [
     {"domain": "dat_dai", "number": "27/2023/QH15", "title": "Luật Nhà ở 2023"},
     {"domain": "dat_dai", "number": "29/2023/QH15", "title": "Luật Kinh doanh bất động sản 2023"},
     {"domain": "dan_su", "number": "46/2024/QH15", "title": "Luật Công chứng 2024"},
+    {"domain": "du_lieu_ca_nhan", "number": "91/2025/QH15", "title": "Luật Bảo vệ dữ liệu cá nhân 2025",
+     "replaces": "13/2023/NĐ-CP"},
     {"domain": "hon_nhan_gia_dinh", "number": "126/2014/NĐ-CP",
      "title": "Nghị định 126/2014/NĐ-CP hướng dẫn Luật Hôn nhân và gia đình"},
     # bản gốc không có tệp khớp trên Công báo: lấy văn bản hợp nhất mới nhất
