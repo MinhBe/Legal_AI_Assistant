@@ -35,7 +35,7 @@ SPACE_URL = "https://" + SPACE.lower().replace("/", "-") + ".hf.space"
 TABLES = ["legal_document", "legal_node", "doc_meta", "node_reference", "node_supersession",
           "document_relation", "provision_version", "legal_link", "transition_rule", "precedent",
           "precedent_catalog", "intel_item", "intel_impact", "intel_run", "intel_doc",
-          "autonomy_level", "uploaded_file", "upload_option"]
+          "autonomy_level", "uploaded_file", "upload_option", "doc_template", "doc_template_version"]
 
 DOCKERFILE = """# Hugging Face Space (Docker, CPU miễn phí): giao diện Next.js + API FastAPI trong MỘT container.
 # Dựng bởi tools/deploy.py. Trình duyệt chỉ thấy cổng 7860 (Next); /api/* được Next chuyển tới uvicorn.
@@ -135,8 +135,7 @@ def _read(path: Path) -> str:
 
 def neon() -> None:
     url = _read(NEON_FILE)
-    if not DUMP.exists():
-        dump()
+    dump()  # luôn lấy dữ liệu mới nhất (văn bản mới duyệt, mẫu vừa khoá)
     env = {**os.environ, "NEON_URL": url}
     # chạy lại được: bỏ các bảng luật (chỉ các bảng trong TABLES) rồi nạp lại từ bản sao
     drops = " ".join(f"DROP TABLE IF EXISTS public.{t} CASCADE;" for t in TABLES)
