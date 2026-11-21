@@ -27,7 +27,7 @@ app = modal.App("lawvn")
 # Secret có tên, khai báo giống nhau ở máy deploy và trong container (khai báo có điều kiện làm
 # container không khởi động được). lawvn-db: DATABASE_URL, tạo bằng `modal secret create lawvn-db
 # --from-dotenv`; lawvn-dahl: DAHL_TOKENS, Minh tạo trên trang Modal (tuỳ chọn, đặt LAWVN_DAHL=1).
-secrets = [modal.Secret.from_name("lawvn-db")]
+secrets = [modal.Secret.from_name("lawvn-db"), modal.Secret.from_name("lawvn-admin")]  # lawvn-admin: LAWVN_ADMIN_PASSWORD
 if os.environ.get("LAWVN_DAHL") == "1":
     secrets.append(modal.Secret.from_name("lawvn-dahl"))
 

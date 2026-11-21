@@ -192,3 +192,18 @@ def test_level_b_stays_local_even_when_cloud_first(monkeypatch):
         assert router._tiered_plan()[0][0] == "cloud"
     with data_class_scope("C"), cloud_first_scope(False):
         assert router._tiered_plan()[0][0] == "local"
+
+
+@pytest.mark.db
+def test_public_admin_password_override(db, monkeypatch):
+    """Bản công khai: admin/dev đổi sang mật khẩu riêng, tài khoản thường giữ nguyên."""
+    monkeypatch.setenv("LAWVN_ADMIN_PASSWORD", "mat-khau-rieng-test")
+    try:
+        accounts.seed(db)
+        assert accounts.verify(db, "admin", "admin") is None
+        assert accounts.verify(db, "admin", "mat-khau-rieng-test") is not None
+        assert accounts.verify(db, "user1", "user1") is not None
+    finally:
+        monkeypatch.delenv("LAWVN_ADMIN_PASSWORD")
+        accounts.seed(db)
+    assert accounts.verify(db, "admin", "admin") is not None

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import os
 import secrets
 
 from sqlalchemy.orm import Session
@@ -12,6 +13,14 @@ from app.auth.roles import ACCOUNTS
 from app.db.models import AppUser
 
 ITERATIONS = 200_000
+# Bản công khai (Modal): admin/dev dùng mật khẩu riêng trong biến này thay cho "mật khẩu = tên";
+# máy nội bộ không đặt biến nên giữ nguyên tài khoản demo.
+PRIVILEGED = {"admin", "dev"}
+
+
+def _password(username: str) -> str:
+    override = os.environ.get("LAWVN_ADMIN_PASSWORD", "").strip()
+    return override if override and username in PRIVILEGED else username
 
 
 def hash_password(password: str, salt: str) -> str:
@@ -29,11 +38,17 @@ def seed(db: Session) -> None:
             salt = secrets.token_hex(16)
             db.add(
                 AppUser(username=username, role=role, salt=salt,
-                        pw_hash=hash_password(username, salt))
+                        pw_hash=hash_password(_password(username), salt))
             )
             changed = True
-        elif row.role != role:
+            continue
+        if row.role != role:
             row.role = role
+            changed = True
+        pw = _password(username)
+        if not hmac.compare_digest(row.pw_hash, hash_password(pw, row.salt)):
+            row.salt = secrets.token_hex(16)
+            row.pw_hash = hash_password(pw, row.salt)
             changed = True
     if changed:
         db.commit()

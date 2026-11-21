@@ -35,6 +35,8 @@ services:
       CLOUD_FIRST_FOR_C: ${CLOUD_FIRST_FOR_C:-true}
       NO_LOCAL_FOR_C: ${NO_LOCAL_FOR_C:-true}
       CLOUD_SPREAD_MODELS: ${CLOUD_SPREAD_MODELS:-true}
+      # model trong máy cho mức A/B: bản fine-tune v1a (Minh 21/11/2026 chọn dùng dù đo 0,636 < gốc 0,691)
+      LOCAL_MODEL: ${LOCAL_MODEL:-lawvn-v1a}
     ports:
       - "8000:8000"
     volumes:
