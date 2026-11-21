@@ -231,6 +231,10 @@ class Settings(BaseSettings):
             env = {k.upper(): v.strip() for k, v in os.environ.items()}
             # máy chủ demo (HF Space, Render…) không có thư mục key: DAHL_TOKEN_1..30 trong secrets
             many = tuple(env[f"DAHL_TOKEN_{i}"] for i in range(1, 31) if env.get(f"DAHL_TOKEN_{i}"))
+            # một secret chứa cả tệp dahl.keys (mỗi dòng một key, hoặc TÊN=key): dán một lần trên Space
+            bulk = [ln.split("=", 1)[-1].strip()
+                    for ln in env.get("DAHL_TOKENS", "").replace(",", "\n").splitlines()]
+            many = many + tuple(k for k in bulk if k and not k.startswith("#"))
             single = env.get(self.cloud_llm_api_key_env.strip().upper(), "")
             if len(many) > 1:  # một token thì giữ đường cũ (CLOUD_LLM_API_KEY_ENV)
                 keys, source = many, "DAHL_TOKEN_1..30"

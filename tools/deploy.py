@@ -27,7 +27,7 @@ BUNDLE = OUT / "hf-space"
 DUMP = OUT / "lawvn_corpus.sql.gz"
 NEON_FILE = ROOT / "keys" / "neon_url.txt"
 HF_FILE = ROOT / "keys" / "hf_token.txt"
-SPACE = os.environ.get("LAWVN_SPACE", "MinhBe/lawvn-api")
+SPACE = os.environ.get("LAWVN_SPACE", "MinhBe/lawvn")
 SPACE_URL = "https://" + SPACE.lower().replace("/", "-") + ".hf.space"
 
 # bảng luật công khai; KHÔNG có app_user, thread, message, answer_record, intake_record, review_case,
@@ -37,26 +37,45 @@ TABLES = ["legal_document", "legal_node", "doc_meta", "node_reference", "node_su
           "precedent_catalog", "intel_item", "intel_impact", "intel_run", "intel_doc",
           "autonomy_level", "uploaded_file", "upload_option"]
 
-DOCKERFILE = """# Hugging Face Space (Docker, CPU miễn phí). Dựng bởi tools/deploy.py.
+DOCKERFILE = """# Hugging Face Space (Docker, CPU miễn phí): giao diện Next.js + API FastAPI trong MỘT container.
+# Dựng bởi tools/deploy.py. Trình duyệt chỉ thấy cổng 7860 (Next); /api/* được Next chuyển tới uvicorn.
+FROM node:20-slim AS web
+WORKDIR /web
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm install --no-audit --no-fund
+COPY frontend/ ./
+ENV NEXT_PUBLIC_API_BASE_URL="" API_INTERNAL_URL=http://127.0.0.1:8000 NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
 FROM python:3.12-slim
 WORKDIR /app
-ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/app PORT=7860 \\
-    EMBEDDER=vie-v2 EMBED_DIM=1024 \\
-    NO_LOCAL_FOR_C=true CLOUD_FIRST_FOR_C=true CLOUD_SPREAD_MODELS=true \\
-    CLOUD_LLM_KEYS_DIR=/nonexistent DEMO_MODE=true HF_HOME=/tmp/hf
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev curl ffmpeg \\
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/app \
+    EMBEDDER=vie-v2 EMBED_DIM=1024 \
+    NO_LOCAL_FOR_C=true CLOUD_FIRST_FOR_C=true CLOUD_SPREAD_MODELS=true \
+    CLOUD_LLM_KEYS_DIR=/nonexistent DEMO_MODE=true HF_HOME=/tmp/hf \
+    API_INTERNAL_URL=http://127.0.0.1:8000 NEXT_TELEMETRY_DISABLED=1
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev curl ffmpeg \
+        nodejs \
     && rm -rf /var/lib/apt/lists/*
-COPY requirements.txt requirements-ml.txt ./
+COPY backend/requirements.txt backend/requirements-ml.txt ./
 RUN pip install --no-cache-dir -r requirements.txt -r requirements-ml.txt "faster-whisper==1.1.1"
-COPY . /app
-RUN useradd -m -u 1000 user && chown -R user /app
+COPY backend/ /app/
+COPY --from=web /web /web
+COPY start.sh /start.sh
+RUN useradd -m -u 1000 user && chown -R user /app /web && chmod +x /start.sh
 USER user
 EXPOSE 7860
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["/start.sh"]
+"""
+
+START = """#!/bin/sh
+# API trong container (chỉ 127.0.0.1), giao diện ra ngoài ở cổng 7860
+uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+cd /web && exec node_modules/.bin/next start -p 7860 -H 0.0.0.0
 """
 
 README = """---
-title: LawVN API
+title: LawVN
 emoji: ⚖️
 colorFrom: blue
 colorTo: indigo
@@ -65,8 +84,9 @@ app_port: 7860
 pinned: false
 ---
 
-API của LawVN (trợ lý pháp luật lao động có trích dẫn). Giao diện chạy trên Vercel.
-Cấu hình: Settings → Variables and secrets (DATABASE_URL, DAHL_TOKEN_1..N, EXTRA_CORS_ORIGINS).
+LawVN: trợ lý pháp luật lao động có trích dẫn đúng phiên bản theo thời gian. Bản demo:
+/demo (3 tình huống mẫu), /hieu-he-thong (bài học tương tác), /docs (API).
+Secrets: DATABASE_URL (đặt tự động bởi tools/deploy.py), DAHL_TOKENS (Minh dán, tuỳ chọn).
 """
 
 SKIP = {"tests", "data", "__pycache__", ".pytest_cache", ".ruff_cache", ".env", ".dahl.env",
@@ -76,18 +96,16 @@ SKIP = {"tests", "data", "__pycache__", ".pytest_cache", ".ruff_cache", ".env", 
 def bundle() -> Path:
     shutil.rmtree(BUNDLE, ignore_errors=True)
     BUNDLE.mkdir(parents=True)
-    src = ROOT / "backend"
-    for item in src.iterdir():
-        if item.name in SKIP or item.name.startswith(".env"):
-            continue
-        dst = BUNDLE / item.name
-        if item.is_dir():
-            shutil.copytree(item, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".env*"))
-        else:
-            shutil.copy2(item, dst)
-    (BUNDLE / "data" / "demo").mkdir(parents=True)
-    shutil.copy2(ROOT / "frontend" / "lib" / "demo" / "cases.json", BUNDLE / "data" / "demo" / "cases.json")
+    ign = shutil.ignore_patterns("__pycache__", "*.pyc", ".env*", "node_modules", ".next", "tests",
+                                 "tsconfig.tsbuildinfo", "Dockerfile*", "data", ".dahl.env")
+    shutil.copytree(ROOT / "backend", BUNDLE / "backend", ignore=ign)
+    shutil.copytree(ROOT / "frontend", BUNDLE / "frontend", ignore=ign)
+    (BUNDLE / "backend" / "data" / "demo").mkdir(parents=True)
+    shutil.copy2(ROOT / "frontend" / "lib" / "demo" / "cases.json", BUNDLE / "backend" / "data" / "demo" / "cases.json")
+    # vercel.json chỉ dùng cho bản tách giao diện; bản gộp không cần
+    (BUNDLE / "frontend" / "vercel.json").unlink(missing_ok=True)
     (BUNDLE / "Dockerfile").write_text(DOCKERFILE, encoding="utf-8")
+    (BUNDLE / "start.sh").write_text(START, encoding="utf-8", newline="\n")
     (BUNDLE / "README.md").write_text(README, encoding="utf-8")
     leaks = [p for p in BUNDLE.rglob("*") if p.is_file() and (p.name.startswith(".env") or "keys" in p.parts
              or p.suffix in (".keys",) or p.name in ("kaggle.json", "auth.json"))]
@@ -144,8 +162,10 @@ def space() -> None:
     if not BUNDLE.exists():
         bundle()
     api.create_repo(SPACE, repo_type="space", space_sdk="docker", private=False, exist_ok=True)
+    if NEON_FILE.exists():  # Space đọc DB từ secret, không ghi chuỗi vào mã
+        api.add_space_secret(SPACE, "DATABASE_URL", _read(NEON_FILE))
     api.upload_folder(folder_path=str(BUNDLE), repo_id=SPACE, repo_type="space",
-                      commit_message="LawVN API (tools/deploy.py)")
+                      commit_message="LawVN (tools/deploy.py)")
     print("đã đẩy lên Space:", f"https://huggingface.co/spaces/{SPACE}")
 
 
@@ -153,9 +173,9 @@ def check(wait_s: int = 1800) -> bool:
     t0 = time.time()
     while time.time() - t0 < wait_s:
         try:
-            with urllib.request.urlopen(SPACE_URL + "/health", timeout=30) as r:
+            with urllib.request.urlopen(SPACE_URL + "/demo", timeout=30) as r:
                 if r.status == 200:
-                    print("Space chạy:", SPACE_URL, "| /docs:", SPACE_URL + "/docs")
+                    print("Space chạy:", SPACE_URL + "/demo", "| bài học:", SPACE_URL + "/hieu-he-thong")
                     return True
         except Exception:  # noqa: BLE001 — đang build
             pass

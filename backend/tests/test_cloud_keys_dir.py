@@ -21,3 +21,12 @@ def test_cloud_route_reads_numbered_dahl_tokens_from_env(tmp_path, monkeypatch):
     s = Settings(cloud_llm_keys_dir=str(tmp_path))  # thư mục trống
     route = s.cloud_route()
     assert route is not None and set(route.api_keys) == {"k1", "k2"}
+
+
+def test_cloud_route_reads_bulk_dahl_tokens(tmp_path, monkeypatch):
+    from app.config import Settings
+
+    monkeypatch.setenv("DAHL_TOKENS", "# ghi chú\nk1\nDAHL_2=k2\n")
+    s = Settings(cloud_llm_keys_dir=str(tmp_path))
+    route = s.cloud_route()
+    assert route is not None and set(route.api_keys) >= {"k1", "k2"}
