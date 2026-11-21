@@ -111,6 +111,12 @@ export default function Sidebar({ open, text, convos, activeId, onNew, onOpen, o
         <Link href="/theo-doi" className="side-quick-btn">
           Theo dõi luật mới
         </Link>
+        <Link href="/soan-thao" className="side-quick-btn">
+          Soạn văn bản
+        </Link>
+        <Link href="/hieu-he-thong" className="side-quick-btn">
+          Hiểu hệ thống
+        </Link>
       </div>
 
       <div className="side-label">Gần đây</div>
