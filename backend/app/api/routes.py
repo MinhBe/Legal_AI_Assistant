@@ -363,7 +363,7 @@ class ChatRequest(BaseModel):
     message: str
     thread_id: str | None = None
     history: list[ChatMessage] = []
-    mode: Literal["law", "pv"] = "law"  # "pv": chế độ ẩn, nguồn là bộ câu hỏi phỏng vấn
+    mode: Literal["law", "pv", "agents"] = "law"  # "pv": chế độ ẩn (bộ câu phỏng vấn); "agents": điều phối nhiều tầng
     use_uploads: bool = False  # dùng văn bản đã duyệt; chạy mức A, chỉ trong máy
     demo: bool = False  # trang /demo: câu hỏi mẫu (không dữ liệu cá nhân) đi đám mây trước
 

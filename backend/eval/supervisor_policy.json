@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "contract_min_clauses": 3,
+  "contract_words": [
+    "hợp đồng lao động",
+    "bên a",
+    "bên b",
+    "người sử dụng lao động",
+    "các bên thoả thuận",
+    "các bên thỏa thuận",
+    "điều khoản"
+  ],
+  "draft_verbs": [
+    "soạn",
+    "viết giúp",
+    "lập giúp",
+    "làm giúp mẫu",
+    "soạn thảo"
+  ],
+  "draft_objects": [
+    "quyết định",
+    "công văn",
+    "thông báo",
+    "tờ trình",
+    "biên bản",
+    "đơn",
+    "hợp đồng"
+  ],
+  "calc_words": [
+    "tính",
+    "bao nhiêu tiền",
+    "bao nhiêu ngày",
+    "được bao nhiêu",
+    "trợ cấp",
+    "bồi thường bao nhiêu"
+  ],
+  "long_case_words": 60
+}
