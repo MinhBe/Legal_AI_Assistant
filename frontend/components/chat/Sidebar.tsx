@@ -78,7 +78,7 @@ export default function Sidebar({ open, text, convos, activeId, onNew, onOpen, o
           </Link>
         )}
         {can("review") && (
-          <Link href="/dashboard" className="side-quick-btn">
+          <Link href="/dashboard" className="side-quick-btn" data-tour="nav-dashboard">
             <IconDash /> Dashboard
           </Link>
         )}
@@ -105,10 +105,10 @@ export default function Sidebar({ open, text, convos, activeId, onNew, onOpen, o
         <Link href="/tinh" className="side-quick-btn">
           Máy tính
         </Link>
-        <Link href="/ra-soat-hop-dong" className="side-quick-btn">
+        <Link href="/ra-soat-hop-dong" className="side-quick-btn" data-tour="nav-contract">
           Rà soát hợp đồng
         </Link>
-        <Link href="/theo-doi" className="side-quick-btn">
+        <Link href="/theo-doi" className="side-quick-btn" data-tour="nav-follow">
           Theo dõi luật mới
         </Link>
       </div>

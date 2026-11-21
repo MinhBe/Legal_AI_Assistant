@@ -9,7 +9,7 @@ import Coach from "@/components/help/Coach";
 import { useAuth } from "@/lib/auth";
 import { HELP, roleGroup, TOURS } from "@/lib/help/content";
 
-const ROLE_LABEL = { guest: "Khách", user: "Người dùng", admin: "Quản trị" } as const;
+const ROLE_LABEL = { guest: "Khách", user: "Người dùng", lawyer: "Luật sư", admin: "Quản trị" } as const;
 const seenKey = (g: string) => `lawvn_tour_seen_${g}`;
 
 export default function HelpMenu() {
