@@ -199,6 +199,7 @@ export function useChat(mode: Mode = "law", opts: ChatOptions = {}) {
 
     let gotToken = false;
     let replayed = false;
+    let noLlm = false;
     const ctrl = new AbortController();
     const timer = opts.demo ? setTimeout(() => { if (!gotToken) ctrl.abort(); }, DEMO_FALLBACK_MS) : null;
     const onEvent = (event: string, data: any) => {
@@ -257,15 +258,17 @@ export function useChat(mode: Mode = "law", opts: ChatOptions = {}) {
         // /demo: máy chủ chưa có nhà cung cấp AI (hoặc mọi nhà cung cấp lỗi) -> phát bản ghi sẵn
         if (opts.demo && !gotToken && event === "token"
             && /Chưa cấu hình nhà cung cấp LLM|Mọi nhà cung cấp đều lỗi/.test(String(data?.text ?? ""))) {
+          noLlm = true;
           ctrl.abort();
           throw new Error("no-llm");
         }
+        if (noLlm) return;
         if (event === "token") gotToken = true;
         onEvent(event, data);
       }, ctrl.signal);
     } catch (e: unknown) {
       // /demo: đám mây chậm hoặc lỗi trước khi có chữ -> phát lại câu trả lời thật đã ghi sẵn
-      const events = opts.demo && !gotToken ? await demoRecording(q) : null;
+      const events = opts.demo && (!gotToken || noLlm) ? await demoRecording(q) : null;
       if (events) {
         replayed = true;
         update((ai) => ({ ...ai, content: "", citations: [], sections: [], steps_log: [], prerecorded: true }));

@@ -46,11 +46,10 @@ export async function streamChat(
       }
       if (dataLines.length) {
         const raw = dataLines.join("\n");
-        try {
-          onEvent(event, JSON.parse(raw));
-        } catch {
-          onEvent(event, raw);
-        }
+        // chỉ bắt lỗi JSON: lỗi ném từ onEvent (vd. /demo dừng luồng) phải đi ra ngoài
+        let data: unknown;
+        try { data = JSON.parse(raw); } catch { data = raw; }
+        onEvent(event, data);
       }
     }
   }
