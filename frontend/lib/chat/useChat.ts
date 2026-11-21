@@ -254,6 +254,12 @@ export function useChat(mode: Mode = "law", opts: ChatOptions = {}) {
         message: q, thread_id: threadId.current, history, mode, use_uploads: useUploads,
         ...(opts.demo ? { demo: true } : {}),
       }, (event, data) => {
+        // /demo: máy chủ chưa có nhà cung cấp AI (hoặc mọi nhà cung cấp lỗi) -> phát bản ghi sẵn
+        if (opts.demo && !gotToken && event === "token"
+            && /Chưa cấu hình nhà cung cấp LLM|Mọi nhà cung cấp đều lỗi/.test(String(data?.text ?? ""))) {
+          ctrl.abort();
+          throw new Error("no-llm");
+        }
         if (event === "token") gotToken = true;
         onEvent(event, data);
       }, ctrl.signal);

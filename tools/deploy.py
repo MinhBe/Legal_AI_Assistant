@@ -41,7 +41,7 @@ DOCKERFILE = """# Hugging Face Space (Docker, CPU miễn phí): giao diện Next
 # Dựng bởi tools/deploy.py. Trình duyệt chỉ thấy cổng 7860 (Next); /api/* được Next chuyển tới uvicorn.
 FROM node:20-slim AS web
 WORKDIR /web
-COPY frontend/package.json frontend/package-lock.json* ./
+COPY frontend/package.json ./
 RUN npm install --no-audit --no-fund
 COPY frontend/ ./
 ENV NEXT_PUBLIC_API_BASE_URL="" API_INTERNAL_URL=http://127.0.0.1:8000 NEXT_TELEMETRY_DISABLED=1
