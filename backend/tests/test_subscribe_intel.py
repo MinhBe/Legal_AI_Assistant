@@ -87,3 +87,11 @@ def test_routes_end_to_end(db):
     assert c.get("/api/intel/subscriptions", headers=h).json()["subscriptions"][0]["unread"] == 1
     assert c.post("/api/intel/subscriptions", json={"domains": []}, headers=h).status_code == 422
     assert c.delete(f"/api/intel/subscriptions/{sid}", headers=h).json() == {"deleted": sid}
+
+
+def test_unrelated_item_is_not_labour():
+    """Tin không khớp lĩnh vực nào (khoáng sản, hải quan) không được rơi vào lĩnh vực lao động."""
+    from app.rag import domain
+
+    assert domain.classify("công nhận kết quả thăm dò khoáng sản mỏ đá", fallback=False) == []
+    assert domain.classify("công nhận kết quả thăm dò khoáng sản mỏ đá") == [domain.LABOUR]

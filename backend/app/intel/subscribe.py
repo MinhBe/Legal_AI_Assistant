@@ -51,7 +51,7 @@ def _clean(domains: list[str], keywords: list[str]) -> tuple[list[str], list[str
 
 def item_domains(item: IntelItem) -> list[str]:
     """Lĩnh vực của một tin. Nguồn đã gắn cờ lao động thì luôn có lao động."""
-    found = domain.classify(f"{item.title} {item.category or ''}")
+    found = domain.classify(f"{item.title} {item.category or ''}", fallback=False)
     if item.labor_hint and domain.LABOUR not in found:
         found.append(domain.LABOUR)
     return found

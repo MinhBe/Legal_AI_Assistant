@@ -48,15 +48,16 @@ _PATTERNS = {d: re.compile(r"(?<!\w)(?:" + "|".join(map(re.escape, kws)) + r")(?
              for d, kws in _KEYWORDS.items()}
 
 
-def classify(message: str) -> list[str]:
-    """Các lĩnh vực của câu hỏi, lĩnh vực chính đứng đầu; không khớp gì = ["lao_dong"].
+def classify(message: str, fallback: bool = True) -> list[str]:
+    """Các lĩnh vực của câu hỏi, lĩnh vực chính đứng đầu; không khớp gì = ["lao_dong"]
+    (hoặc [] khi `fallback=False`, dùng cho tin văn bản mới: tin không rõ lĩnh vực không được coi là lao động).
 
     Lương và thuế TNCN hay đi cùng nhau: câu có cả hai giữ cả hai lĩnh vực.
     """
     hits = {d: len(p.findall(message or "")) for d, p in _PATTERNS.items()}
     found = [d for d, n in sorted(hits.items(), key=lambda kv: -kv[1]) if n]
     if not found:
-        return [LABOUR]
+        return [LABOUR] if fallback else []
     # "công ty"/"lương" xuất hiện trong mọi câu chuyện: lao động không thắng chỉ nhờ từ chung
     if found[0] == LABOUR and len(found) > 1 and hits[LABOUR] <= hits[found[1]]:
         found[0], found[1] = found[1], found[0]
