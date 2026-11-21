@@ -71,6 +71,16 @@ CMD ["/start.sh"]
 START = """#!/bin/sh
 # API trong container (chỉ 127.0.0.1), giao diện ra ngoài ở cổng 7860
 uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+# đợi API sẵn sàng rồi mới mở cổng 7860: Modal chỉ chuyển người dùng vào khi cổng mở, nên lần
+# đánh thức đầu tiên không còn lỗi 500 (trang trống) vì API chưa chạy xong (tối đa 5 phút)
+python -c "
+import time, urllib.request
+for _ in range(300):
+    try:
+        urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2); break
+    except Exception:
+        time.sleep(1)
+"
 cd /web && exec node_modules/.bin/next start -p 7860 -H 0.0.0.0
 """
 
