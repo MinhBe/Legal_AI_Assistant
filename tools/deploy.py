@@ -138,7 +138,13 @@ def neon() -> None:
     if not DUMP.exists():
         dump()
     env = {**os.environ, "NEON_URL": url}
-    sql = ("CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pg_trgm;")
+    # chạy lại được: bỏ các bảng luật (chỉ các bảng trong TABLES) rồi nạp lại từ bản sao
+    drops = " ".join(f"DROP TABLE IF EXISTS public.{t} CASCADE;" for t in TABLES)
+    # Neon để search_path rỗng ở mức role: đặt public cho role này trong DB này (mức role+DB thắng mức
+    # role) để app dùng tên bảng không kèm schema. \$ vì lệnh đi qua sh -c "…"
+    sql = ("CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pg_trgm; "
+           "DO \\$x\\$ BEGIN EXECUTE format('ALTER ROLE %I IN DATABASE %I SET search_path TO public', "
+           "current_user, current_database()); END \\$x\\$; " + drops)
     # chạy psql trong container postgres (có sẵn psql), URL đi qua biến môi trường, không vào dòng lệnh
     base = ["docker", "compose", "exec", "-T", "-e", "NEON_URL", "postgres", "sh", "-c"]
     subprocess.run(base + [f'psql "$NEON_URL" -v ON_ERROR_STOP=1 -q -c "{sql}"'], cwd=ROOT, env=env,
@@ -149,7 +155,7 @@ def neon() -> None:
     if r.returncode != 0:
         msg = r.stderr.decode("utf-8", "replace").replace(url, "<neon>")[-600:]
         raise SystemExit(f"nạp Neon lỗi: {msg}")
-    out = subprocess.run(base + ['psql "$NEON_URL" -At -c "select count(*) from legal_node"'], cwd=ROOT,
+    out = subprocess.run(base + ['psql "$NEON_URL" -At -c "select count(*) from public.legal_node"'], cwd=ROOT,
                          env=env, capture_output=True, text=True)
     print("Neon: legal_node =", out.stdout.strip())
 
@@ -163,7 +169,8 @@ def space() -> None:
         bundle()
     api.create_repo(SPACE, repo_type="space", space_sdk="docker", private=False, exist_ok=True)
     if NEON_FILE.exists():  # Space đọc DB từ secret, không ghi chuỗi vào mã
-        api.add_space_secret(SPACE, "DATABASE_URL", _read(NEON_FILE))
+        # kết nối trực tiếp: pooler của Neon bỏ qua search_path đặt cho role (bảng không kèm schema lỗi)
+        api.add_space_secret(SPACE, "DATABASE_URL", _read(NEON_FILE).replace("-pooler.", "."))
     api.upload_folder(folder_path=str(BUNDLE), repo_id=SPACE, repo_type="space",
                       commit_message="LawVN (tools/deploy.py)")
     print("đã đẩy lên Space:", f"https://huggingface.co/spaces/{SPACE}")
