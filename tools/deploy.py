@@ -128,9 +128,17 @@ def dump() -> None:
 
 
 def _read(path: Path) -> str:
+    """Đọc key, tự cắt phần thừa: BOM, khoảng trắng, dấu ngoặc, chữ dán nhầm quanh key."""
+    import re
+
     if not path.exists():
         raise SystemExit(f"thiếu {path.name}: Minh tạo tài khoản rồi lưu vào {path}")
-    return path.read_text(encoding="utf-8").strip()
+    text = path.read_text(encoding="utf-8-sig", errors="replace")
+    pattern = r"hf_[A-Za-z0-9]{20,}" if path == HF_FILE else r"postgres(?:ql)?://[^\s\"'<>]+"
+    found = re.findall(pattern, text)
+    if not found:
+        raise SystemExit(f"{path.name} không có key hợp lệ (cần dạng {'hf_…' if path == HF_FILE else 'postgresql://…'})")
+    return found[0]
 
 
 def neon() -> None:
