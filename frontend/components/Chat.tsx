@@ -54,6 +54,7 @@ export default function Chat({ demo = false }: { demo?: boolean }) {
           <Link href="/upload" className="graph-nav-btn" title="Tải tài liệu lên" data-tour="nav-upload">Tải lên</Link>
           {/* admin: nguồn thu thập dữ liệu (web scraping) */}
           <Link href="/thu-thap" className="graph-nav-btn" title="Thu thập dữ liệu (admin)" data-tour="nav-collect">Thu thập</Link>
+          <Link href="/soan-thao" className="graph-nav-btn" title="Soạn văn bản từ mẫu" data-tour="nav-docgen">Soạn thảo</Link>
           <HelpMenu />
           <button className="theme-btn" onClick={toggleTheme} aria-label="Đổi chế độ sáng/tối">
             {theme === "dark" ? <><IconSun /> Sáng</> : <><IconMoon /> Tối</>}

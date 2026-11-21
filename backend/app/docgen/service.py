@@ -41,9 +41,12 @@ def placeholders(body: str) -> list[str]:
 def _guess_type(name: str) -> str:
     if name.startswith("ngay") or name.endswith("_ngay"):
         return "date"
-    if any(k in name for k in ("luong", "tien", "muc_phat", "boi_thuong")):
+    # tiền: "muc_luong", "tien_thuong", "muc_phat", "boi_thuong"; không phải "hinh_thuc_tra_luong"
+    money = r"(muc_luong|luong|luong_\w+|tien_\w+|\w+_tien|muc_phat|boi_thuong\w*|phu_cap\w*)$"
+    if re.match(money, name) and not name.startswith(("hinh_thuc", "ky_han")):
         return "money"
-    if name.startswith("so_") and not name.startswith("so_hieu"):
+    # "so_ngay", "so_thang"… là số; "so_hop_dong", "so_quyet_dinh" là số hiệu (chữ)
+    if re.match(r"so_(ngay|thang|nam|gio|luong|lan|nguoi|buoi)(_|$)", name):
         return "number"
     if any(k in name for k in ("ly_do", "noi_dung", "mo_ta", "tinh_tiet")):
         return "long_text"

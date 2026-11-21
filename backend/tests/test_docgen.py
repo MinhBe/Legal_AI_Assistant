@@ -57,3 +57,13 @@ def test_lint_flags_missing_and_expired_basis(db):
     issues = dg.lint(db, "{{a}}", dg.default_fields("{{a}}"), ["khong-co", old])
     codes = {i["code"] for i in issues}
     assert {"basis_missing", "basis_expired"} <= codes
+
+
+def test_document_numbers_are_text_not_numbers():
+    f = {x["name"]: x["type"] for x in dg.default_fields("{{so_hop_dong}} {{so_ngay_nghi}}")}
+    assert f == {"so_hop_dong": "text", "so_ngay_nghi": "number"}
+
+
+def test_money_guess_skips_payment_method_and_period():
+    f = {x["name"]: x["type"] for x in dg.default_fields("{{muc_luong}} {{hinh_thuc_tra_luong}} {{ky_han_tra_luong}} {{tien_thuong}}")}
+    assert f == {"muc_luong": "money", "hinh_thuc_tra_luong": "text", "ky_han_tra_luong": "text", "tien_thuong": "money"}
