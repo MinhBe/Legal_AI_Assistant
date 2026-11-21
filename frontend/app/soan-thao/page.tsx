@@ -18,6 +18,20 @@ const STATUS: Record<string, string> = { proposed: "Đề xuất", draft: "Đang
 const KINDS: Record<string, string> = { hop_dong: "Hợp đồng", quyet_dinh: "Quyết định", don: "Đơn", bien_ban: "Biên bản", thong_bao: "Thông báo", quy_che: "Quy chế", khac: "Khác" };
 const json = { "Content-Type": "application/json" };
 
+// Dữ liệu hư cấu cho buổi demo: một nút điền đủ mọi ô, không phải gõ 16 trường trước khán giả.
+const SAMPLE: Record<string, string> = {
+  so_hop_dong: "15/2026/HĐLĐ", ngay_ky: "01/12/2026", dia_diem_ky: "TP. Hồ Chí Minh",
+  ten_cong_ty: "Công ty TNHH Mẫu Demo", nguoi_dai_dien: "Trần Văn A", chuc_vu_dai_dien: "Giám đốc",
+  ho_ten: "Nguyễn Thị B", ngay_sinh: "12/03/1998", loai_hop_dong: "Hợp đồng lao động xác định thời hạn 24 tháng",
+  ngay_bat_dau: "01/12/2026", mo_ta_cong_viec: "Kế toán tổng hợp: lập chứng từ, theo dõi công nợ, lập báo cáo thuế hằng tháng.",
+  dia_diem_lam_viec: "Văn phòng công ty, Quận 1, TP. Hồ Chí Minh", thoi_gio_lam_viec: "8 giờ/ngày, 40 giờ/tuần, từ thứ Hai đến thứ Sáu",
+  muc_luong: "12500000", hinh_thuc_tra_luong: "Chuyển khoản", ky_han_tra_luong: "Ngày 05 hằng tháng",
+};
+const BY_TYPE: Record<string, string> = { date: "01/12/2026", money: "10000000", number: "1", long_text: "Nội dung mẫu.", text: "Mẫu" };
+function sampleValues(fields: Field[]): Record<string, string> {
+  return Object.fromEntries(fields.map((f) => [f.name, SAMPLE[f.name] ?? BY_TYPE[f.type] ?? "Mẫu"]));
+}
+
 export default function DocGen() {
   const { can } = useAuth();
   const [list, setList] = useState<Tpl[]>([]);
@@ -180,7 +194,10 @@ export default function DocGen() {
                   )}
                 </div>
               ))}
-              <div className="vi-actions"><button className="vi-btn primary" onClick={generate}>Soạn văn bản</button></div>
+              <div className="vi-actions">
+                <button className="vi-btn" onClick={() => setValues(sampleValues(useFields))}>Điền dữ liệu mẫu</button>
+                <button className="vi-btn primary" onClick={generate}>Soạn văn bản</button>
+              </div>
               {gen && (
                 <div className="dg-out">
                   {gen.errors.length > 0 && <ul className="dg-issues">{gen.errors.map((e) => <li key={e} className="error">✖ {e}</li>)}</ul>}
