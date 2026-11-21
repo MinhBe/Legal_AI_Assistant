@@ -202,6 +202,11 @@ def _chat(
             raise LocalModelUnavailable(LOCAL_UNAVAILABLE)
 
     if _data_loaded():
+        if mode == "agents":  # agent điều phối nhiều tầng (app/agent/supervisor.py)
+            from app.agent.supervisor import run as run_agents
+
+            yield from run_agents(message, history, use_uploads=use_uploads)
+            return
         from app.agent.qa import answer_with_citations
 
         yield from answer_with_citations(message, history, use_uploads=use_uploads)

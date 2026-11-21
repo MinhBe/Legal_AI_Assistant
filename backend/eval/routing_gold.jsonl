@@ -1,0 +1,16 @@
+{"message": "Tôi bị công ty sa thải khi đang mang thai thì có đúng luật không?", "agents": ["research"]}
+{"message": "Làm việc 5 năm nghỉ việc thì được trợ cấp thôi việc bao nhiêu tiền?", "agents": ["research", "calc"]}
+{"message": "Thử việc tối đa bao lâu với kỹ sư?", "agents": ["research"]}
+{"message": "Tính giúp tôi số ngày báo trước khi nghỉ việc hợp đồng không xác định thời hạn", "agents": ["research", "calc"]}
+{"message": "Soạn giúp quyết định khen thưởng nhân viên", "agents": ["draft"]}
+{"message": "Viết giúp công văn gửi sở lao động về việc đăng ký nội quy", "agents": ["draft"]}
+{"message": "Soạn thảo thông báo nghỉ Tết cho công ty", "agents": ["draft"]}
+{"message": "Ly hôn thì chia tài sản chung thế nào?", "agents": ["research"]}
+{"message": "Thuế thu nhập cá nhân giảm trừ gia cảnh người phụ thuộc là bao nhiêu?", "agents": ["research", "calc"]}
+{"message": "HỢP ĐỒNG LAO ĐỘNG\nBên A: Công ty X\nBên B: Nguyễn Văn A\nĐiều 1. Công việc\nĐiều 2. Thời hạn 12 tháng\nĐiều 3. Lương 6.000.000 đồng", "agents": ["contract"]}
+{"message": "Hợp đồng lao động giữa bên A và bên B\nĐiều 1. Thử việc 60 ngày\nĐiều 2. Lương thử việc 85%\nĐiều 3. Nghỉ phép 12 ngày\nĐiều 4. Bảo hiểm xã hội", "agents": ["contract"]}
+{"message": "Điều 35 Bộ luật Lao động quy định gì?", "agents": ["research"]}
+{"message": "Công ty nợ lương 3 tháng thì tôi làm gì?", "agents": ["research"]}
+{"message": "Lập giúp biên bản vi phạm kỷ luật lao động", "agents": ["draft"]}
+{"message": "Tranh chấp đất đai với hàng xóm về ranh giới thửa đất", "agents": ["research"]}
+{"message": "Bị đơn phương chấm dứt hợp đồng trái luật thì được bồi thường bao nhiêu?", "agents": ["research", "calc"]}
