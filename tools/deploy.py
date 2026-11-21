@@ -172,6 +172,11 @@ def space() -> None:
     from huggingface_hub import HfApi
 
     api = HfApi(token=token)
+    global SPACE, SPACE_URL
+    if "LAWVN_SPACE" not in os.environ:  # tên Space theo tài khoản của chính token
+        SPACE = f"{api.whoami()['name']}/lawvn"
+        SPACE_URL = "https://" + SPACE.lower().replace("/", "-").replace("_", "-") + ".hf.space"
+        (OUT / "space.txt").write_text(SPACE, encoding="utf-8")
     if not BUNDLE.exists():
         bundle()
     api.create_repo(SPACE, repo_type="space", space_sdk="docker", private=False, exist_ok=True)
@@ -184,6 +189,11 @@ def space() -> None:
 
 
 def check(wait_s: int = 1800) -> bool:
+    global SPACE, SPACE_URL
+    saved = OUT / "space.txt"
+    if "LAWVN_SPACE" not in os.environ and saved.exists():
+        SPACE = saved.read_text(encoding="utf-8").strip()
+        SPACE_URL = "https://" + SPACE.lower().replace("/", "-").replace("_", "-") + ".hf.space"
     t0 = time.time()
     while time.time() - t0 < wait_s:
         try:
