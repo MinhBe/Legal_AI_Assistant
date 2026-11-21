@@ -105,6 +105,9 @@ export default function Sidebar({ open, text, convos, activeId, onNew, onOpen, o
         <Link href="/tinh" className="side-quick-btn">
           Máy tính
         </Link>
+        <Link href="/ra-soat-hop-dong" className="side-quick-btn">
+          Rà soát hợp đồng
+        </Link>
       </div>
 
       <div className="side-label">Gần đây</div>
