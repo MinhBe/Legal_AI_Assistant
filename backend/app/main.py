@@ -16,6 +16,7 @@ from app.api.routes import router
 from app.intake.routes import router as intake_router
 from app.collect.routes import router as collect_router
 from app.contract.routes import router as contract_router
+from app.intel.subscribe_routes import router as intel_sub_router
 from app.auth import accounts
 from app.config import get_settings
 from app.db.base import Base, SessionLocal, engine
@@ -85,3 +86,4 @@ app.include_router(router)
 app.include_router(intake_router)
 app.include_router(collect_router)
 app.include_router(contract_router)
+app.include_router(intel_sub_router)
