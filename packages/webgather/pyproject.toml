@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "webgather"
+version = "0.1.0"
+description = "Lightweight, compliance-first web collection package for coding agents (Claude, Codex, pi.dev). Stdlib-only core: a gate that refuses what it should not fetch, then de-identifies what it may."
+requires-python = ">=3.10"
+dependencies = []  # stdlib only; nothing to install for the core
+
+[project.optional-dependencies]
+# Dynamic pages need a real browser; the core never requires it.
+browser = ["playwright"]
+
+[project.scripts]
+webgather = "webgather.cli:main"
+
+# Sources register here, one entry per adapter. A third-party package adds its
+# own entry in ITS pyproject under this same group; no edit to this file.
+[project.entry-points."webgather.sources"]
+public-html = "webgather.adapters.public_html:PublicHtml"
+user-upload = "webgather.adapters.user_upload:UserUpload"
+
+[tool.setuptools.packages.find]
+where = ["src"]
