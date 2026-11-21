@@ -12,6 +12,8 @@ import { useAuth } from "@/lib/auth";
 const DEMO_ACCOUNTS = [
   { username: "admin", role: "admin", note: "toàn quyền" },
   { username: "dev", role: "dev", note: "toàn quyền + công cụ dev" },
+  { username: "lawyer1", role: "lawyer", note: "luật sư: duyệt câu hỏi chuyển tới, tin luật mới, đề xuất mẫu" },
+  { username: "lawyer2", role: "lawyer", note: "như lawyer1" },
   { username: "user1", role: "user", note: "50 câu/ngày, gửi luật sư" },
   { username: "user2", role: "user", note: "như user1" },
   { username: "user3", role: "user", note: "như user1" },

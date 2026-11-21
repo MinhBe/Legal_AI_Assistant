@@ -11,6 +11,9 @@ ROLES: dict[str, dict] = {
     "guest": {"perms": {"chat", "calc"}, "daily": 20, "history": True, "cloud_first": False},
     "guest_vip": {"perms": {"chat", "calc", "escalate"}, "daily": None, "history": True, "cloud_first": True},
     "user": {"perms": {"chat", "calc", "escalate"}, "daily": 50, "history": True, "cloud_first": False},
+    # Luật sư (21/11/2026): duyệt hàng đợi chuyên gia, tin luật mới, đề xuất mẫu văn bản, soạn từ
+    # mẫu khoá. Không nạp/duyệt văn bản vào kho, không sửa/khoá mẫu (việc của admin).
+    "lawyer": {"perms": {"chat", "calc", "escalate", "review"}, "daily": None, "history": True, "cloud_first": False},
     "admin": {
         "perms": {"chat", "calc", "escalate", "upload", "graph", "review"},
         "daily": None,
@@ -26,7 +29,7 @@ ROLES: dict[str, dict] = {
 }
 
 ACCOUNTS = {
-    "admin": "admin", "dev": "dev", "user1": "user", "user2": "user", "user3": "user",
+    "admin": "admin", "dev": "dev", "lawyer1": "lawyer", "lawyer2": "lawyer", "user1": "user", "user2": "user", "user3": "user",
     "guest1": "guest_vip", "guest2": "guest", "guest3": "guest",
 }  # mật khẩu = tên đăng nhập (demo)
 
