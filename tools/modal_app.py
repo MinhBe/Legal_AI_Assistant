@@ -40,23 +40,3 @@ def web() -> None:
     import subprocess
 
     subprocess.Popen(["/start.sh"])
-
-
-# Giữ máy chủ luôn thức (Minh 21/11/2026): cứ 10 phút gọi GET một lần, ngắn hơn scaledown_window
-# (15 phút) nên container không bao giờ tắt. Chạy ngay trên Modal, không cần máy Minh bật.
-# Tắt: đặt LAWVN_KEEP_WARM=0 khi deploy. Chi phí: container chạy liên tục (2 CPU, 6 GiB).
-PUBLIC_URL = "https://minhbe--lawvn-web.us-east.modal.run"
-
-if os.environ.get("LAWVN_KEEP_WARM", "1") != "0":
-    @app.function(image=modal.Image.debian_slim(), schedule=modal.Period(minutes=10), timeout=660)
-    def keep_warm() -> None:
-        import time
-        import urllib.request
-
-        for path in ("/api/docgen/templates", "/demo"):  # API + Neon cũng thức
-            t = time.time()
-            try:
-                with urllib.request.urlopen(PUBLIC_URL + path, timeout=600) as r:
-                    print(f"GET {path} -> {r.status} ({time.time() - t:.1f}s)")
-            except Exception as e:  # cold start lần đầu có thể chậm; lần sau thử lại
-                print(f"GET {path} lỗi: {e!r} ({time.time() - t:.1f}s)")
