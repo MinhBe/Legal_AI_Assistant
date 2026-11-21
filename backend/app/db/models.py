@@ -638,3 +638,44 @@ class IntakeRecord(Base):
     data_class: Mapped[str] = mapped_column(String(1), default="C")
     status: Mapped[str] = mapped_column(String(16), default="new")  # new | analysed | closed
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DocTemplate(Base):
+    """GenAI soạn văn bản (Minh 20/11/2026): mẫu đi qua đề xuất -> chỉnh -> chốt, khoá có phiên bản.
+
+    status: proposed (luật sư/người dùng đề xuất) | draft (admin đang chỉnh) | locked (có ít nhất một
+    phiên bản đã khoá, dùng được để soạn) | archived.
+    """
+
+    __tablename__ = "doc_template"
+
+    id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    name: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(24))
+    status: Mapped[str] = mapped_column(String(16), default="proposed")
+    proposed_by: Mapped[str | None] = mapped_column(String(64))
+    locked_version: Mapped[int | None] = mapped_column(Integer)  # phiên bản khoá mới nhất
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class DocTemplateVersion(Base):
+    """Một phiên bản nội dung mẫu. Phiên bản đã khoá không bao giờ sửa: sửa tiếp là phiên bản mới."""
+
+    __tablename__ = "doc_template_version"
+    __table_args__ = (UniqueConstraint("template_id", "version"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    template_id: Mapped[str] = mapped_column(ForeignKey("doc_template.id", ondelete="CASCADE"), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    body: Mapped[str] = mapped_column(Text)  # chữ có biến {{ten_bien}}
+    fields: Mapped[str] = mapped_column(Text, default="[]")  # JSON [{name,label,type,required}]
+    legal_basis: Mapped[str] = mapped_column(Text, default="[]")  # JSON [node_id]
+    note: Mapped[str | None] = mapped_column(Text)
+    author: Mapped[str | None] = mapped_column(String(64))
+    locked: Mapped[bool] = mapped_column(default=False)
+    locked_by: Mapped[str | None] = mapped_column(String(64))
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
