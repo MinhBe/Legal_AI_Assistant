@@ -35,7 +35,7 @@ if os.environ.get("LAWVN_DAHL") == "1":
 @app.function(image=image, secrets=secrets, cpu=2.0, memory=6144, timeout=900,
               scaledown_window=900, max_containers=1)
 @modal.concurrent(max_inputs=50)
-@modal.web_server(port=7860, startup_timeout=600)
+@modal.web_server(port=7860, startup_timeout=600, label="tuvanphapluat")
 def web() -> None:
     import subprocess
 
