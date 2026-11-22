@@ -1,0 +1,381 @@
+<title>LawVN: phân tích UI và tính năng</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: tài liệu BA một cột 72ch, mục lục dính bên trái trên màn rộng; bảng và sơ đồ cuộn ngang trong khung riêng */
+:root{
+  --bg:#f6f7f4; --surface:#ffffff; --fg:#1d2420; --muted:#5d6862; --line:#d9ded8;
+  --accent:#1f5f4a; --accent-soft:#e3efe9; --seal:#9b2c2c; --warn:#8a5a00; --warn-soft:#fbf0d9; --ok:#21663f; --ok-soft:#e1f1e6; --bad:#9b2c2c; --bad-soft:#f8e2e0;
+  --display:"Source Serif 4", Georgia, "Times New Roman", serif;
+  --body:"Be Vietnam Pro", "Segoe UI", system-ui, sans-serif;
+  --mono:"JetBrains Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141917; --surface:#1b211e; --fg:#e4e9e5; --muted:#9aa6a0; --line:#2e3833;
+  --accent:#7cc4a6; --accent-soft:#1f3029; --seal:#e08b84; --warn:#e6b860; --warn-soft:#342a14; --ok:#7cc89a; --ok-soft:#1b3125; --bad:#e8897f; --bad-soft:#3a1f1d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141917; --surface:#1b211e; --fg:#e4e9e5; --muted:#9aa6a0; --line:#2e3833;
+  --accent:#7cc4a6; --accent-soft:#1f3029; --seal:#e08b84; --warn:#e6b860; --warn-soft:#342a14; --ok:#7cc89a; --ok-soft:#1b3125; --bad:#e8897f; --bad-soft:#3a1f1d; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.65 var(--body);margin:0}
+.wrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:40px;max-width:1180px;margin:0 auto;padding-block:40px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+nav.toc{position:sticky;top:calc(env(safe-area-inset-top,0px) + 20px);align-self:start;font-size:13px;border-left:2px solid var(--line);padding-left:14px}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:3px 0}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--accent)}
+nav.toc .lab{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+main{min-width:0;max-width:820px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.25}
+h1{font-size:2.1rem;margin:0 0 .4rem}
+h2{font-size:1.5rem;margin:3rem 0 .8rem;padding-top:1rem;border-top:1px solid var(--line)}
+h3{font-size:1.12rem;margin:1.8rem 0 .5rem}
+p,li{max-width:72ch}
+a{color:var(--accent)}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--seal);font-weight:600}
+.meta{color:var(--muted);font-size:13.5px}
+.links{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.links a{font-family:var(--mono);font-size:13px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 10px;text-decoration:none}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin:14px 0}
+.note{border-left:3px solid var(--warn);background:var(--warn-soft);padding:10px 14px;border-radius:0 6px 6px 0;margin:14px 0}
+.tbl{overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:620px}
+th,td{text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{font-weight:600;background:var(--accent-soft);position:sticky;top:0}
+tr:last-child td{border-bottom:0}
+td.c{text-align:center}
+.y{color:var(--ok);font-weight:700}.n{color:var(--muted)}
+.pill{display:inline-block;font-size:11.5px;font-weight:600;border-radius:999px;padding:1px 8px;white-space:nowrap}
+.p-ok{background:var(--ok-soft);color:var(--ok)}.p-warn{background:var(--warn-soft);color:var(--warn)}.p-bad{background:var(--bad-soft);color:var(--bad)}.p-acc{background:var(--accent-soft);color:var(--accent)}
+.diagram{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0}
+pre.mermaid{margin:0;font-family:var(--body)}
+.screen{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:4px 18px 12px;margin:16px 0}
+.screen h3{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
+.screen h3 code{font-family:var(--mono);font-size:13px;color:var(--muted);font-weight:400}
+.screen dl{display:grid;grid-template-columns:130px minmax(0,1fr);gap:4px 14px;margin:8px 0}
+.screen dt{color:var(--muted);font-size:13px}
+.screen dd{margin:0}
+code{font-family:var(--mono);font-size:.9em}
+.qa details{border-bottom:1px solid var(--line);padding:8px 0}
+.qa summary{cursor:pointer;font-weight:600}
+.qa summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:860px){.wrap{grid-template-columns:1fr}nav.toc{display:none}.screen dl{grid-template-columns:1fr}}
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Mục lục">
+  <div class="lab">Mục lục</div>
+  <a href="#tom-tat">1. Tóm tắt</a>
+  <a href="#nguoi-dung">2. Người dùng và vai trò</a>
+  <a href="#so-do">3. Sơ đồ điều hướng</a>
+  <a href="#man-hinh">4. Phân tích từng màn hình</a>
+  <a href="#luong">5. Luồng nghiệp vụ chính</a>
+  <a href="#quy-tac">6. Quy tắc nghiệp vụ</a>
+  <a href="#danh-gia">7. Đánh giá UX hiện tại</a>
+  <a href="#phuong-an">8. Phương án UI đề xuất</a>
+  <a href="#uu-tien">9. Ưu tiên (MoSCoW)</a>
+  <a href="#phong-van">10. Câu hỏi phỏng vấn</a>
+  <a href="#gioi-han">11. Giới hạn của tài liệu</a>
+</nav>
+
+<main>
+<div class="eyebrow">Tài liệu phân tích nghiệp vụ · bản 22/11/2026</div>
+<h1>LawVN: phân tích UI và tính năng hiện tại</h1>
+<p class="meta">Trợ lý pháp luật lao động Việt Nam có trích dẫn đúng điều luật và đúng phiên bản theo thời gian. Tài liệu này kiểm kê toàn bộ màn hình, vai trò, luồng nghiệp vụ và đánh giá UX để chốt phương án giao diện trước buổi demo 24/11.</p>
+<div class="links">
+  <a href="https://minhbe--tuvanphapluat.modal.run/demo">minhbe--tuvanphapluat.modal.run</a>
+  <a href="https://tuvanphapluatvn.vercel.app/demo">tuvanphapluatvn.vercel.app</a>
+</div>
+
+<h2 id="tom-tat">1. Tóm tắt</h2>
+<div class="box">
+<p><strong>Bài toán.</strong> Người lao động và doanh nghiệp nhỏ tra luật lao động mất thời gian. Công cụ AI phổ thông hay trích sai điều luật, hoặc trích văn bản đã hết hiệu lực. Với tư vấn pháp lý, một trích dẫn sai còn tệ hơn không trả lời.</p>
+<p><strong>Giải pháp.</strong> LawVN trả lời câu hỏi lao động kèm trích dẫn tới cấp Điều, Khoản, Điểm. Code kiểm từng trích dẫn trước khi hiện: điều luật phải có thật trong kho và còn hiệu lực tại ngày xảy ra sự việc. Câu ngoài phạm vi thì không đoán, mà chuyển cho luật sư.</p>
+<p><strong>Phạm vi hiện tại.</strong> 18 màn hình, 7 vai trò. Kho gồm 57 văn bản, 22.184 điều–khoản–điểm. Ngoài hỏi đáp còn có: rà soát hợp đồng, soạn văn bản từ mẫu khoá, 6 máy tính lao động, theo dõi văn bản mới, nạp và duyệt tài liệu, bàn duyệt cho luật sư, bản đồ điều luật, nhập liệu bằng giọng nói.</p>
+<p><strong>Trạng thái.</strong> Chạy công khai trên Modal (máy chủ) và Neon (cơ sở dữ liệu), không phụ thuộc máy cá nhân. Giao diện hiện được làm theo kiểu "đủ dùng": nhiều trang dùng style riêng, chưa có hệ thống thiết kế thống nhất. Đây là việc cần chốt.</p>
+</div>
+
+<h2 id="nguoi-dung">2. Người dùng và vai trò</h2>
+<h3>2.1 Persona</h3>
+<div class="tbl"><table>
+<tr><th>Persona</th><th>Nhu cầu chính</th><th>Nỗi đau</th><th>Màn hình dùng nhiều</th></tr>
+<tr><td><strong>Người lao động</strong> (chưa đăng nhập hoặc tài khoản thường)</td><td>Biết quyền lợi của mình trong một tình huống cụ thể: bị sa thải, chậm lương, thai sản</td><td>Không biết thuật ngữ luật; sợ lộ thông tin cá nhân</td><td>Trợ lý (chat), Máy tính, Rà soát hợp đồng</td></tr>
+<tr><td><strong>Nhân sự / chủ doanh nghiệp nhỏ</strong></td><td>Soạn hợp đồng, quyết định đúng luật; kiểm hợp đồng trước khi ký</td><td>Mẫu trên mạng cũ, không biết đã hết hiệu lực</td><td>Soạn văn bản, Rà soát hợp đồng, Theo dõi luật mới</td></tr>
+<tr><td><strong>Luật sư</strong></td><td>Trả lời các ca AI không chắc; theo dõi văn bản mới ảnh hưởng khách hàng</td><td>Mất thời gian đọc lại hồ sơ dài</td><td>Bàn duyệt, Tin pháp luật mới, Bài toán, Biểu mẫu</td></tr>
+<tr><td><strong>Quản trị viên nội dung</strong></td><td>Nạp văn bản mới, duyệt, khoá mẫu văn bản, giám sát hệ thống</td><td>Văn bản sai ngày hiệu lực làm hỏng câu trả lời</td><td>Tải lên, Thu thập dữ liệu, Bản đồ điều luật, Tổng quan</td></tr>
+</table></div>
+
+<h3>2.2 Ma trận quyền theo vai trò</h3>
+<p class="meta">Nguồn: <code>backend/app/auth/roles.py</code>. "Câu/ngày" là hạn mức câu hỏi mỗi ngày.</p>
+<div class="tbl"><table>
+<tr><th>Vai trò</th><th>Câu/ngày</th><th>Lịch sử</th><th>Hỏi đáp, máy tính</th><th>Chuyển chuyên gia</th><th>Duyệt (luật sư)</th><th>Nạp tài liệu</th><th>Bản đồ điều luật</th><th>Dev</th></tr>
+<tr><td>Khách vãng lai</td><td>10</td><td class="c n">–</td><td class="c y">✓</td><td class="c n">–</td><td class="c n">–</td><td class="c n">–</td><td class="c n">–</td><td class="c n">–</td></tr>
+<tr><td>Khách (guest)</td><td>20</td><td class="c y">✓</td><td class="c y">✓</td><td class="c n">–</td><td class="c n">–</td><td class="c n">–</td><td class="c n">–</td><td class="c n">–</td></tr>
+<tr><td>Khách VIP</td><td>không giới hạn</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c n">–</td><td class="c n">–</td><td class="c n">–</td><td class="c n">–</td></tr>
+<tr><td>Người dùng</td><td>50</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c n">–</td><td class="c n">–</td><td class="c n">–</td><td class="c n">–</td></tr>
+<tr><td>Luật sư</td><td>không giới hạn</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c n">–</td><td class="c n">–</td><td class="c n">–</td></tr>
+<tr><td>Quản trị</td><td>không giới hạn</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c n">–</td></tr>
+<tr><td>Dev</td><td>không giới hạn</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td><td class="c y">✓</td></tr>
+</table></div>
+<p class="meta">Rà soát hợp đồng, Soạn văn bản (dùng mẫu đã khoá), Theo dõi luật mới và Hiểu hệ thống mở cho mọi người. Đề xuất, sửa, khoá mẫu văn bản cần quyền duyệt hoặc quản trị.</p>
+
+<h2 id="so-do">3. Sơ đồ điều hướng</h2>
+<p>Trang chủ là khung chat. Mọi tính năng khác đi qua thanh bên trái; mục nào hiện tuỳ vai trò. Có 2 trang đứng riêng: <code>/demo</code> (không cần đăng nhập) và <code>/pv</code> (chế độ ẩn).</p>
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+  subgraph PUB[Mọi người]
+    HOME["/ Trợ lý (chat)"]
+    DEMO["/demo 3 tình huống mẫu"]
+    TINH["/tinh Máy tính lao động"]
+    RS["/ra-soat-hop-dong"]
+    TD["/theo-doi Theo dõi luật mới"]
+    ST["/soan-thao Soạn văn bản"]
+    HHT["/hieu-he-thong 5 bài học"]
+    LOGIN["/login"]
+  end
+  subgraph LS[Luật sư trở lên]
+    DASH["/dashboard Tổng quan + hàng đợi"]
+    REV["/review Bàn duyệt"]
+    TM["/tin-moi Tin pháp luật mới"]
+    BT["/bai-toan Bài toán từ ghi âm"]
+    BM["/bieu-mau Thư viện biểu mẫu"]
+  end
+  subgraph AD[Quản trị]
+    UP["/upload Nạp + duyệt tài liệu"]
+    GR["/graph Bản đồ điều luật"]
+    TT["/thu-thap Thu thập dữ liệu"]
+  end
+  HOME --> TINH & RS & TD & ST & HHT & LOGIN
+  HOME --> DASH & TM & BT & BM
+  HOME --> UP & GR
+  DASH --> REV
+  HOME -. "gõ /pv" .-> PV["/pv Ôn phỏng vấn (ẩn)"]
+</pre></div>
+
+<h2 id="man-hinh">4. Phân tích từng màn hình</h2>
+<p class="meta">Mỗi màn hình: mục đích, người dùng, thành phần chính, trạng thái đặc biệt, và vấn đề UX quan sát được. Mức độ: <span class="pill p-bad">cao</span> ảnh hưởng demo hoặc niềm tin; <span class="pill p-warn">vừa</span> gây khó dùng; <span class="pill p-acc">thấp</span> thẩm mỹ, nhất quán.</p>
+
+<div class="screen"><h3>Trợ lý (chat) <code>/</code></h3><dl>
+<dt>Mục đích</dt><dd>Hỏi đáp pháp luật lao động có trích dẫn. Đây là màn hình chính.</dd>
+<dt>Người dùng</dt><dd>Mọi vai trò; hạn mức câu hỏi theo vai trò.</dd>
+<dt>Thành phần</dt><dd>
+Thanh bên: lịch sử hội thoại, lối tắt tính năng theo quyền, tài khoản, số câu còn lại.<br>
+Ô soạn: gõ hoặc nói (micro cạnh nút Gửi, chèn chữ tại con trỏ), đính kèm tệp, bật "Dùng tài liệu đã duyệt".<br>
+Bước xem lại trước khi gửi: tô sáng thông tin cá nhân sẽ bị che.<br>
+Câu trả lời gồm: tóm tắt; các mục; <em>bảng tình tiết</em> (loại hợp đồng, thời hạn, lương…); <em>khung thời gian</em> (luật áp dụng ngày nào, thay đổi sau sự kiện, điều khoản chuyển tiếp); danh sách trích dẫn bấm ra văn bản gốc; huy hiệu "Đã kiểm tra căn cứ"; "Luồng tra cứu" các bước đã chạy.<br>
+Gợi ý viết lại câu hỏi đúng thuật ngữ ("Dùng câu này"); thẻ chuyển chuyên gia khi câu ngoài kho.<br>
+Tour hướng dẫn theo vai trò, bảng trợ giúp (?), chế độ sáng/tối.</dd>
+<dt>Trạng thái</dt><dd>Đang tìm (hiện từng bước), hết lượt hôm nay (thông báo hạn mức), lỗi kết nối, từ chối (ngoài phạm vi), chờ chuyên gia.</dd>
+<dt>Vấn đề UX</dt><dd>
+<span class="pill p-warn">vừa</span> Một câu trả lời có tới 6 khối (tóm tắt, mục, tình tiết, khung thời gian, trích dẫn, luồng tra cứu). Người dùng phổ thông dễ bị ngợp. Nên mặc định thu gọn khối kỹ thuật.<br>
+<span class="pill p-warn">vừa</span> Thanh bên có tới 10 lối tắt cho quản trị, xếp phẳng, không nhóm theo việc.<br>
+<span class="pill p-acc">thấp</span> Chưa kiểm hiển thị trên điện thoại một cách có hệ thống.</dd></dl></div>
+
+<div class="screen"><h3>Demo <code>/demo</code></h3><dl>
+<dt>Mục đích</dt><dd>Cho người chưa có tài khoản thấy giá trị ngay: 3 tình huống mẫu (Lương trả chậm, Sa thải trái luật, Thai sản), bấm là chạy.</dd>
+<dt>Thành phần</dt><dd>Khung chat như trang chính, 3 nút "Thử ngay", tệp ghi âm mẫu để thử nhập bằng giọng nói. Nếu máy chủ chưa có AI hoặc chậm quá 8 giây, phát câu trả lời thật đã ghi sẵn, gắn nhãn "Bản ghi sẵn".</dd>
+<dt>Vấn đề UX</dt><dd><span class="pill p-bad">cao</span> Lần mở đầu sau khi máy chủ ngủ (15 phút không ai dùng) mất khoảng 1–2 phút. Cần màn hình chờ có thông điệp thay vì trang trắng.<br>
+<span class="pill p-warn">vừa</span> Câu hỏi tự do trên link công khai chỉ chạy khi máy chủ có key AI. Chưa có key thì người dùng không biết vì sao không có câu trả lời.</dd></dl></div>
+
+<div class="screen"><h3>Rà soát hợp đồng <code>/ra-soat-hop-dong</code></h3><dl>
+<dt>Mục đích</dt><dd>Đối chiếu từng điều khoản hợp đồng lao động với BLLĐ 2019 và lương tối thiểu vùng tại ngày áp dụng. Chạy bằng luật lập trình sẵn, không gọi AI, không lưu nội dung.</dd>
+<dt>Thành phần</dt><dd>Nút "Dùng hợp đồng mẫu có lỗi", tải tệp (DOCX, PDF, ảnh) hoặc dán chữ, chọn ngày áp dụng, nút Rà soát. Kết quả: kết luận chung, số điểm trái luật / cần sửa / lưu ý; mỗi điểm có câu trích từ hợp đồng, đề xuất sửa, căn cứ.</dd>
+<dt>Kết quả mẫu</dt><dd>Hợp đồng mẫu: 7 điểm trái luật, 9 điểm cần sửa (thời hạn 48 tháng, thử việc 90 ngày, lương thử việc 70%, lương dưới mức tối thiểu vùng…).</dd>
+<dt>Vấn đề UX</dt><dd><span class="pill p-warn">vừa</span> Kết quả là danh sách dài, chưa lọc được theo mức độ, chưa đặt cạnh văn bản gốc để thấy vị trí lỗi.<br>
+<span class="pill p-acc">thấp</span> Chưa xuất báo cáo (PDF/Word) để gửi khách.</dd></dl></div>
+
+<div class="screen"><h3>Soạn văn bản từ mẫu <code>/soan-thao</code></h3><dl>
+<dt>Mục đích</dt><dd>GenAI soạn văn bản theo quy trình: luật sư đề xuất mẫu → quản trị chỉnh (mỗi lần lưu là một phiên bản) → khoá (code chặn khoá nếu còn chỗ TODO hoặc căn cứ hết hiệu lực) → người dùng soạn từ mẫu đã khoá.</dd>
+<dt>Thành phần</dt><dd>Danh sách mẫu bên trái (trạng thái Đề xuất / Đang chỉnh / Đã khoá / Lưu trữ). Chế độ soạn: form theo kiểu trường (chữ, ngày, tiền, số, đoạn dài), nút "Điền dữ liệu mẫu", nút "Gợi ý câu chữ" cho trường dài, nút "Soạn văn bản". Kết quả: văn bản hoàn chỉnh, tiền tự định dạng ("12.500.000 đồng"), danh sách căn cứ đánh dấu còn hiệu lực, nút Sao chép. Chế độ chỉnh: trình soạn, căn cứ, ghi chú, lịch sử phiên bản.</dd>
+<dt>Vấn đề UX</dt><dd><span class="pill p-warn">vừa</span> Form 16 trường xếp dọc, chưa chia nhóm (Bên A, Bên B, Công việc, Lương). Chưa có xem trước song song khi điền.<br>
+<span class="pill p-warn">vừa</span> Chưa xuất DOCX/PDF từ màn này. Code tự ghi chú "Giao diện tối thiểu; làm đẹp ở bước sau".</dd></dl></div>
+
+<div class="screen"><h3>Máy tính lao động <code>/tinh</code></h3><dl>
+<dt>Mục đích</dt><dd>6 phép tính: thời hạn báo trước, thời gian làm việc, trợ cấp thôi việc, trợ cấp mất việc, sa thải trái luật, thời hiệu. Tự chọn phiên bản luật theo ngày sự kiện.</dd>
+<dt>Vấn đề UX</dt><dd><span class="pill p-acc">thấp</span> Kết quả ghi "cần luật sư đối chiếu" nhưng chưa có nút chuyển sang hỏi trợ lý với số liệu vừa tính.</dd></dl></div>
+
+<div class="screen"><h3>Theo dõi văn bản mới <code>/theo-doi</code></h3><dl>
+<dt>Mục đích</dt><dd>Người dùng chọn lĩnh vực (lao động, đất đai, hình sự, xử phạt hành chính, hôn nhân gia đình, thuế TNCN, dân sự) và từ khoá. Bảng tin hiện văn bản mới khớp, kèm lý do khớp và việc văn bản đã có trong kho chưa.</dd>
+<dt>Vấn đề UX</dt><dd><span class="pill p-warn">vừa</span> Chỉ báo trong ứng dụng; chưa có email hoặc Zalo. Người dùng phải tự quay lại.<br>
+<span class="pill p-acc">thấp</span> Giao diện trang này là bản tối thiểu (checkbox thô, không thẻ tin).</dd></dl></div>
+
+<div class="screen"><h3>Hiểu hệ thống <code>/hieu-he-thong</code></h3><dl>
+<dt>Mục đích</dt><dd>5 bài học tương tác bằng sơ đồ (Hỏi đáp có trích dẫn, Rà soát hợp đồng, Theo dõi văn bản mới, GenAI soạn văn bản, Thu thập dữ liệu). Mỗi bước tô sáng thành phần đang chạy và ghi rõ "Đã có / Đang làm / Lộ trình". Dùng cho khách hàng, nhà đầu tư, buổi phỏng vấn.</dd></dl></div>
+
+<div class="screen"><h3>Tổng quan <code>/dashboard</code> và Bàn duyệt <code>/review</code></h3><dl>
+<dt>Mục đích</dt><dd>Tổng quan: tình trạng hệ thống (kho, nhà cung cấp AI), hàng đợi chờ chuyên gia, hội thoại gần đây. Bàn duyệt: hàng đợi bên trái, gói hồ sơ của ca bên phải; luật sư trả lời hoặc từ chối kèm lý do; khung chat của người hỏi tự cập nhật.</dd>
+<dt>Người dùng</dt><dd>Luật sư, quản trị.</dd>
+<dt>Vấn đề UX</dt><dd><span class="pill p-warn">vừa</span> Hai trang có phần trùng (hàng đợi). Chưa có SLA hiển thị (ca chờ bao lâu), chưa có lọc theo mức rủi ro.</dd></dl></div>
+
+<div class="screen"><h3>Tin pháp luật mới <code>/tin-moi</code></h3><dl>
+<dt>Mục đích</dt><dd>Danh sách văn bản và án lệ mới do luồng nền quét về mỗi ngày từ nguồn chính thức. Mỗi tin có phân tích ảnh hưởng (AI, chỉ dùng dữ liệu công khai). Tin ảnh hưởng cao tạo một ca cho luật sư duyệt.</dd>
+<dt>Vấn đề UX</dt><dd><span class="pill p-acc">thấp</span> Trang dài nhất (665 dòng code), nhiều bộ lọc; cần thống nhất với <code>/theo-doi</code> (một bên cho luật sư, một bên cho người dùng).</dd></dl></div>
+
+<div class="screen"><h3>Bài toán <code>/bai-toan</code> và Biểu mẫu <code>/bieu-mau</code></h3><dl>
+<dt>Mục đích</dt><dd>Bài toán: tình huống rút từ ghi âm hoặc ghi chú nhóm, luật sư phân tích. Biểu mẫu: thư viện mẫu tải lên, tìm, tải về, lưu trữ.</dd>
+<dt>Vấn đề UX</dt><dd><span class="pill p-warn">vừa</span> "Biểu mẫu" (thư viện tệp) và "Soạn văn bản" (mẫu có trường, khoá phiên bản) dễ bị hiểu là một. Cần đổi tên hoặc gộp.</dd></dl></div>
+
+<div class="screen"><h3>Tải lên <code>/upload</code>, Thu thập <code>/thu-thap</code>, Bản đồ điều luật <code>/graph</code></h3><dl>
+<dt>Mục đích</dt><dd>Tải lên: OCR, nạp vào kho, rồi duyệt / loại / xoá; chỉ văn bản đã duyệt mới dùng để trả lời. Thu thập: các nguồn web theo tab, trạng thái robots.txt, lần chạy gần nhất. Bản đồ: đồ thị Văn bản → Chương → Điều → Khoản → Điểm, tìm kiếm, nhóm theo chương hoặc văn bản, bản đồ ontology.</dd>
+<dt>Người dùng</dt><dd>Quản trị, dev.</dd>
+<dt>Vấn đề UX</dt><dd><span class="pill p-acc">thấp</span> Đây là công cụ nội bộ; ưu tiên rõ ràng và an toàn thao tác (xác nhận trước khi xoá) hơn thẩm mỹ.</dd></dl></div>
+
+<div class="screen"><h3>Đăng nhập <code>/login</code> và Ôn phỏng vấn <code>/pv</code></h3><dl>
+<dt>Mục đích</dt><dd>Đăng nhập tài khoản demo. <code>/pv</code>: chế độ ẩn, cùng giao diện chat nhưng nguồn là 221 câu hỏi phỏng vấn AI/RAG, minh hoạ "đổi nguồn dữ liệu là dùng được việc khác".</dd>
+<dt>Vấn đề UX</dt><dd><span class="pill p-bad">cao</span> Chưa có đăng ký tài khoản thật, quên mật khẩu, đăng nhập bằng Google/Zalo. Trên link công khai, admin và dev đã dùng mật khẩu riêng; các tài khoản demo khác vẫn có mật khẩu bằng tên đăng nhập.</dd></dl></div>
+
+<h2 id="luong">5. Luồng nghiệp vụ chính</h2>
+<h3>5.1 Hỏi đáp có trích dẫn</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart TD
+  A[Người dùng gõ hoặc nói câu hỏi] --> B{Có thông tin cá nhân?}
+  B -- Có --> C[Tô sáng phần sẽ bị che; người dùng xem lại rồi Gửi]
+  B -- Không --> D
+  C --> D[Phân mức dữ liệu A / B / C]
+  D --> E[Xác định ngày sự kiện → luật áp dụng]
+  E --> F[Tìm điều luật trong kho, tới cấp Khoản, Điểm]
+  F --> G{Mức dữ liệu}
+  G -- A, B --> H[Model trong máy]
+  G -- C --> I[Model đám mây, key xoay vòng]
+  H --> J[Code kiểm từng trích dẫn: có thật + còn hiệu lực]
+  I --> J
+  J -- Đạt --> K[Hiện câu trả lời + bảng tình tiết + khung thời gian]
+  J -- Ngoài kho / không chắc --> L[Thẻ chuyển chuyên gia]
+  L --> M[Luật sư trả lời trên Bàn duyệt]
+  M --> N[Thẻ trong chat tự cập nhật]
+</pre></div>
+
+<h3>5.2 Soạn văn bản từ mẫu</h3>
+<div class="diagram"><pre class="mermaid">
+stateDiagram-v2
+  [*] --> DeXuat: Luật sư đề xuất mẫu
+  DeXuat --> DangChinh: Quản trị lưu phiên bản
+  DangChinh --> DangChinh: Lưu phiên bản mới
+  DangChinh --> DaKhoa: Khoá (code kiểm: hết TODO, căn cứ còn hiệu lực)
+  DangChinh --> DangChinh: Khoá bị chặn, trả danh sách lỗi
+  DaKhoa --> DaKhoa: Người dùng điền trường → Soạn văn bản
+  DaKhoa --> DangChinh: Sửa tiếp = phiên bản mới, bản khoá vẫn dùng
+  DaKhoa --> LuuTru: Ngừng dùng
+  LuuTru --> [*]
+</pre></div>
+
+<h3>5.3 Rà soát hợp đồng</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+  A[Tải DOCX / PDF / ảnh hoặc dán chữ] --> B[Tách điều khoản, trích số liệu]
+  B --> C[So với luật lập trình sẵn + lương tối thiểu vùng tại ngày áp dụng]
+  C --> D[Báo cáo: trái luật / cần sửa / lưu ý, mỗi điểm có căn cứ]
+  D --> E[Người dùng sửa hợp đồng hoặc hỏi trợ lý / luật sư]
+</pre></div>
+
+<h3>5.4 Nạp văn bản và theo dõi tin mới</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+  S[Nguồn chính thức: Công báo, chinhphu, án lệ] --> Q[Quét hằng ngày, kiểm robots.txt, giãn cách]
+  Q --> P[Phân lĩnh vực bằng từ khoá]
+  Q --> I[AI đánh giá ảnh hưởng, chỉ dữ liệu công khai]
+  P --> F[Bảng tin người đăng ký /theo-doi]
+  I --> R[Tin ảnh hưởng cao → ca cho luật sư]
+  U[Quản trị tải tệp /upload] --> O[OCR, tách điều khoản, đọc ngày hiệu lực bằng code]
+  O --> W[Chờ duyệt] --> K[Kho luật dùng để trả lời]
+</pre></div>
+
+<h2 id="quy-tac">6. Quy tắc nghiệp vụ quan trọng</h2>
+<div class="tbl"><table>
+<tr><th>Mã</th><th>Quy tắc</th><th>Hệ quả trên UI</th></tr>
+<tr><td>BR-01</td><td>Mọi trích dẫn phải có trong kho và còn hiệu lực tại ngày sự kiện; sai thì loại.</td><td>Huy hiệu "Đã kiểm tra căn cứ: n trích dẫn hợp lệ"; trích dẫn bấm ra văn bản gốc.</td></tr>
+<tr><td>BR-02</td><td>Luật áp dụng theo ngày xảy ra sự việc, không theo ngày hỏi. Văn bản sắp có hiệu lực chỉ để tham khảo.</td><td>Khối "Khung thời gian": ngày sự kiện, luật áp dụng, thay đổi sau sự kiện, điều khoản chuyển tiếp.</td></tr>
+<tr><td>BR-03</td><td>Dữ liệu mức A (tệp tải lên) và B (có thông tin cá nhân) không bao giờ gửi ra AI bên ngoài.</td><td>Bước xem lại trước khi gửi; tuỳ chọn "Dùng tài liệu đã duyệt (chỉ xử lý trong máy)".</td></tr>
+<tr><td>BR-04</td><td>Câu ngoài kho hoặc không đủ căn cứ thì không đoán, mà chuyển chuyên gia.</td><td>Thẻ chuyển chuyên gia, trạng thái chờ / đã trả lời / từ chối.</td></tr>
+<tr><td>BR-05</td><td>Mẫu văn bản đã khoá không sửa được; sửa tiếp là phiên bản mới.</td><td>Ổ khoá và số phiên bản cạnh tên mẫu; lịch sử phiên bản.</td></tr>
+<tr><td>BR-06</td><td>Hạn mức câu hỏi theo vai trò (10 / 20 / 50 / không giới hạn).</td><td>Số câu còn lại ở thanh bên; thông báo khi hết.</td></tr>
+<tr><td>BR-07</td><td>Mọi kết quả tự động đều ghi "cần luật sư đối chiếu".</td><td>Dòng cảnh báo dưới ô chat, trong máy tính và báo cáo rà soát.</td></tr>
+</table></div>
+
+<h2 id="danh-gia">7. Đánh giá UX hiện tại</h2>
+<h3>Điểm mạnh</h3>
+<ul>
+<li>Niềm tin được thiết kế vào sản phẩm: trích dẫn bấm được, huy hiệu kiểm căn cứ, khung thời gian, nhãn "Bản ghi sẵn". Đây là điểm khác biệt so với chatbot phổ thông, nên giữ và làm nổi bật.</li>
+<li>Quyền riêng tư hiện ra trên giao diện (tô sáng phần bị che trước khi gửi), không chỉ nằm trong chính sách.</li>
+<li>Có lối vào không cần đăng ký (<code>/demo</code>) và có phương án dự phòng khi AI lỗi.</li>
+<li>Tour hướng dẫn và bảng trợ giúp theo vai trò.</li>
+</ul>
+<h3>Vấn đề, xếp theo ảnh hưởng</h3>
+<div class="tbl"><table>
+<tr><th>#</th><th>Vấn đề</th><th>Mức</th><th>Nơi</th></tr>
+<tr><td>1</td><td>Không có hệ thống thiết kế chung: mỗi trang tự style, nhiều trang tự ghi "giao diện tối thiểu". Người dùng thấy như nhiều sản phẩm ghép lại.</td><td><span class="pill p-bad">cao</span></td><td>Toàn bộ</td></tr>
+<tr><td>2</td><td>Máy chủ ngủ: lần mở đầu chờ 1–2 phút, không có màn hình chờ giải thích.</td><td><span class="pill p-bad">cao</span></td><td>Link công khai</td></tr>
+<tr><td>3</td><td>Câu trả lời quá nhiều khối cho người dùng phổ thông.</td><td><span class="pill p-warn">vừa</span></td><td>Chat</td></tr>
+<tr><td>4</td><td>Điều hướng phẳng: 10 lối tắt không nhóm; tên dễ nhầm (Biểu mẫu và Soạn văn bản; Tin mới và Theo dõi).</td><td><span class="pill p-warn">vừa</span></td><td>Thanh bên</td></tr>
+<tr><td>5</td><td>Thiếu xuất tệp: báo cáo rà soát, văn bản đã soạn chưa tải về được dạng Word/PDF.</td><td><span class="pill p-warn">vừa</span></td><td>Rà soát, Soạn</td></tr>
+<tr><td>6</td><td>Tài khoản: chưa có đăng ký thật, quên mật khẩu, đăng nhập mạng xã hội.</td><td><span class="pill p-warn">vừa</span></td><td>Đăng nhập</td></tr>
+<tr><td>7</td><td>Chưa có thông báo ngoài ứng dụng (email, Zalo) cho tin mới và ca chuyên gia.</td><td><span class="pill p-warn">vừa</span></td><td>Theo dõi, Bàn duyệt</td></tr>
+<tr><td>8</td><td>Chưa kiểm có hệ thống trên điện thoại và về khả năng tiếp cận (độ tương phản, bàn phím, đọc màn hình).</td><td><span class="pill p-acc">thấp</span></td><td>Toàn bộ</td></tr>
+</table></div>
+
+<h2 id="phuong-an">8. Phương án UI đề xuất</h2>
+<h3>8.1 Kiến trúc thông tin mới: 3 không gian</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart TB
+  subgraph H[Hỏi đáp — mọi người]
+    H1[Trợ lý] --- H2[Lịch sử] --- H3[Ca đã chuyển chuyên gia]
+  end
+  subgraph T[Công cụ — mọi người]
+    T1[Rà soát hợp đồng] --- T2[Soạn văn bản] --- T3[Máy tính] --- T4[Theo dõi luật mới]
+  end
+  subgraph W[Làm việc — luật sư, quản trị]
+    W1[Hàng đợi + Bàn duyệt] --- W2[Tin pháp luật mới] --- W3[Mẫu văn bản: đề xuất, chỉnh, khoá] --- W4[Kho: tải lên, thu thập, bản đồ]
+  end
+  H --> T --> W
+</pre></div>
+<ul>
+<li><strong>Gộp</strong> Tổng quan và Bàn duyệt thành một "Hàng đợi"; gộp Biểu mẫu vào "Mẫu văn bản" (một nơi cho cả tệp tham khảo và mẫu có trường).</li>
+<li><strong>Thanh bên</strong> chia 3 nhóm có tiêu đề; người dùng thường chỉ thấy 2 nhóm đầu.</li>
+<li><strong>Câu trả lời 2 tầng:</strong> mặc định hiện kết luận + 3 trích dẫn chính + "Bạn nên làm gì tiếp"; khối tình tiết, khung thời gian, luồng tra cứu thu vào "Xem căn cứ chi tiết". Luật sư mặc định mở hết.</li>
+<li><strong>Nối công cụ với chat:</strong> từ kết quả rà soát hoặc máy tính, nút "Hỏi trợ lý về kết quả này" mang theo dữ liệu.</li>
+</ul>
+
+<h3>8.2 Hệ thống thiết kế tối thiểu</h3>
+<ul>
+<li>Token màu (sáng/tối), thang chữ, khoảng cách, bo góc dùng chung cho mọi trang.</li>
+<li>Thành phần dùng lại: Thẻ trích dẫn, Huy hiệu trạng thái (Đã kiểm / Bản ghi sẵn / Chờ chuyên gia / Đã khoá), Bảng kết quả rà soát, Form theo kiểu trường, Màn hình trống, Màn hình chờ máy chủ thức.</li>
+<li>Màu ngữ nghĩa tách khỏi màu thương hiệu: đỏ = trái luật, vàng = cần sửa, xanh = hợp lệ.</li>
+</ul>
+
+<h3>8.3 Tiêu chí nghiệm thu UI</h3>
+<ul>
+<li>Người dùng mới hỏi được câu đầu tiên trong 30 giây, không cần tour.</li>
+<li>Mọi trang dùng chung token; không còn style riêng lẻ.</li>
+<li>Dùng được ở bề rộng 375 px; độ tương phản chữ đạt WCAG AA.</li>
+<li>Lần mở khi máy chủ ngủ có màn hình chờ báo thời gian ước tính.</li>
+</ul>
+
+<h2 id="uu-tien">9. Ưu tiên (MoSCoW)</h2>
+<div class="tbl"><table>
+<tr><th>Mức</th><th>Hạng mục</th><th>Lý do</th></tr>
+<tr><td><span class="pill p-bad">Must</span></td><td>Token thiết kế chung + áp vào Chat, Demo, Rà soát, Soạn</td><td>4 màn hình xuất hiện trong demo</td></tr>
+<tr><td><span class="pill p-bad">Must</span></td><td>Màn hình chờ khi máy chủ thức dậy</td><td>Rủi ro lớn nhất của buổi demo</td></tr>
+<tr><td><span class="pill p-bad">Must</span></td><td>Câu trả lời 2 tầng (gọn mặc định, chi tiết khi mở)</td><td>Người dùng phổ thông là đa số</td></tr>
+<tr><td><span class="pill p-warn">Should</span></td><td>Thanh bên 3 nhóm; gộp Tổng quan + Bàn duyệt, Biểu mẫu + Mẫu văn bản</td><td>Giảm nhầm lẫn điều hướng</td></tr>
+<tr><td><span class="pill p-warn">Should</span></td><td>Xuất Word/PDF cho văn bản đã soạn và báo cáo rà soát</td><td>Người dùng cần gửi kết quả đi</td></tr>
+<tr><td><span class="pill p-acc">Could</span></td><td>Thông báo email/Zalo cho tin mới và ca chuyên gia</td><td>Tăng quay lại</td></tr>
+<tr><td><span class="pill p-acc">Could</span></td><td>Đăng ký tài khoản thật, đăng nhập Google/Zalo</td><td>Cần khi mở cho người dùng thật</td></tr>
+<tr><td><span class="pill p-acc">Won't (đợt này)</span></td><td>Ứng dụng di động riêng; đa ngôn ngữ</td><td>Ngoài phạm vi trước 24/11</td></tr>
+</table></div>
+
+<h2 id="phong-van">10. Câu hỏi phỏng vấn thường gặp và gợi ý trả lời</h2>
+<div class="qa">
+<details open><summary>Người dùng chính là ai, và anh đo thành công thế nào?</summary><p>Người lao động và doanh nghiệp nhỏ (hỏi đáp, rà soát, soạn), luật sư (duyệt ca khó). Chỉ số: tỷ lệ câu trả lời có trích dẫn hợp lệ; tỷ lệ chuyển chuyên gia; thời gian tới câu trả lời đầu tiên; tỷ lệ quay lại trong 7 ngày. Đo nội bộ trên bộ 50 câu: 88–94% đúng điều luật (nhãn chưa được luật sư duyệt, nói rõ như vậy).</p></details>
+<details><summary>Vì sao cần người duyệt (luật sư) khi đã có AI?</summary><p>Sai trong tư vấn pháp lý có hậu quả thật. Hệ thống chỉ trả lời khi có căn cứ kiểm được; ca ngoài kho hoặc không chắc chuyển luật sư, và câu trả lời của luật sư quay lại đúng khung chat của người hỏi (BR-04).</p></details>
+<details><summary>Xử lý dữ liệu cá nhân thế nào?</summary><p>Phân 3 mức A/B/C bằng code ở điểm vào. A và B không bao giờ ra AI bên ngoài; tên, số điện thoại, CCCD bị che trước mọi bước; người dùng thấy phần bị che trước khi gửi (BR-03).</p></details>
+<details><summary>Luật thay đổi thì sao?</summary><p>Mỗi điều khoản có ngày hiệu lực; câu trả lời dùng luật tại ngày sự kiện (BR-02). Luồng nền quét văn bản mới mỗi ngày, quản trị duyệt trước khi đưa vào kho; tin ảnh hưởng cao tạo ca cho luật sư.</p></details>
+<details><summary>Nếu chỉ được làm một thay đổi UI trước demo, anh chọn gì?</summary><p>Câu trả lời 2 tầng cùng token thiết kế chung cho 4 màn hình demo. Nó tác động trực tiếp tới cảm nhận đầu tiên, và không đụng logic nghiệp vụ.</p></details>
+<details><summary>Rủi ro lớn nhất của sản phẩm hiện nay?</summary><p>Phụ thuộc nhà cung cấp AI miễn phí (giới hạn lượt, lỗi giờ cao điểm) và máy chủ ngủ. Đã giảm bằng xoay vòng nhiều nhà cung cấp, bản ghi sẵn cho demo, và chờ API sẵn sàng rồi mới mở trang.</p></details>
+</div>
+
+<h2 id="gioi-han">11. Giới hạn của tài liệu</h2>
+<ul>
+<li>Kiểm kê từ mã nguồn và các lần chạy thử trên link công khai ngày 21–22/11; chưa có phiên thử với người dùng thật.</li>
+<li>Các trang chỉ dành cho luật sư và quản trị được phân tích từ mã nguồn, chưa chụp lại từng trạng thái trên link công khai.</li>
+<li>Chỉ số chất lượng là đo nội bộ, nhãn chưa được luật sư duyệt.</li>
+</ul>
+</main>
+</div>
