@@ -1,6 +1,6 @@
 # Kịch bản demo LawVN (24/11/2026)
 
-Link công khai: https://tuvanphapluatvn.vercel.app (Vercel, chuyển tiếp tới Modal https://minhbe--tuvanphapluat.us-east.modal.run). Không cần máy nhà bật. Tên tuvanphapluat.vercel.app đã thuộc người khác.
+Link công khai (2 link, cùng một hệ thống): https://minhbe--tuvanphapluat.modal.run (Modal) và https://tuvanphapluatvn.vercel.app (Vercel, chuyển tiếp tới Modal). Không cần máy nhà bật. Tên tuvanphapluat.vercel.app đã thuộc người khác.
 
 ## Trước giờ demo
 
