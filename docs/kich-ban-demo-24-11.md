@@ -1,6 +1,6 @@
 # Kịch bản demo LawVN (24/11/2026)
 
-Link công khai: https://minhbe--lawvn-web.us-east.modal.run. Không cần máy nhà bật.
+Link công khai: https://minhbe--tuvanphapluat.us-east.modal.run (link cũ minhbe--lawvn-web ngừng sau lần deploy này). Không cần máy nhà bật.
 
 ## Trước giờ demo
 
