@@ -9,3 +9,7 @@ Cách bật (chỉ làm một lần):
 4. Link: https://tuvanphapluat.vercel.app
 
 Nếu tên `tuvanphapluat` đã có người dùng, Vercel sẽ báo; chọn tên khác như `tuvanphapluat-vn`.
+
+
+## Trạng thái (22/11/2026)
+Project `tuvanphapluat` đã tạo trên tài khoản Vercel của Minh. Tên `tuvanphapluat.vercel.app` đã thuộc một site khác, nên Vercel cấp `tuvanphapluat-silk.vercel.app`; đã gắn thêm tên ngắn `tuvanphapluatvn.vercel.app` vào project (`vercel domains add`). Kiểm: /demo, /soan-thao, /api/docgen/templates đều 200.
