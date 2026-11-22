@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
-    { "source": "/(.*)", "destination": "https://minhbe--tuvanphapluat.us-east.modal.run/$1" }
+    { "source": "/(.*)", "destination": "https://minhbe--tuvanphapluat.modal.run/$1" }
   ]
 }
