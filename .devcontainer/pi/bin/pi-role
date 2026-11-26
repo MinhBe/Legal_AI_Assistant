@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# pi-role <lead|review|dev> [tham số pi]: bản bash của pi-dev\bin\pi-role.ps1 cho Codespaces.
+# Cả 3 vai chạy trên CÙNG agent dir ($PI_HOME/agent): một lần đăng nhập ChatGPT/Codex, chung key.
+# Cấu hình vai: $PI_HOME/profiles/roles.json.
+set -euo pipefail
+PI_HOME="${PI_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+role="${1:-}"
+if [ -z "$role" ]; then echo "Dùng: pi-role lead|review|dev [tham số pi]"; exit 1; fi
+shift
+roles="$PI_HOME/profiles/roles.json"
+if [ "$(jq -r --arg r "$role" '.[$r] | type' "$roles")" != "object" ]; then
+  echo "Không có vai '$role' trong $roles"; exit 1
+fi
+export PI_HOME PI_CODING_AGENT_DIR="$PI_HOME/agent"
+export PATH="$PI_HOME/agent/bin:$PATH"
+
+a=(--no-extensions --no-skills)
+while IFS= read -r e; do [ -n "$e" ] && a+=(-e "$PI_HOME/$e"); done < <(jq -r --arg r "$role" '.[$r].extensions[]?' "$roles")
+while IFS= read -r s; do [ -n "$s" ] && a+=(--skill "$PI_HOME/$s"); done < <(jq -r --arg r "$role" '.[$r].skills[]?' "$roles")
+ex="$(jq -r --arg r "$role" '(.[$r].excludeTools // []) | join(",")' "$roles")"
+[ -n "$ex" ] && a+=(--exclude-tools "$ex")
+
+# lệnh con (auth, list…) không nhận tham số phiên làm việc
+case "${1:-}" in
+  auth|install|remove|update|list|config|mcp) a=() ;;
+  *)
+    [[ " $* " == *" --model "* ]] || a+=(--model "$(jq -r --arg r "$role" '.[$r].model' "$roles")")
+    [[ " $* " == *" --thinking "* ]] || a+=(--thinking "$(jq -r --arg r "$role" '.[$r].thinking' "$roles")")
+    # chỉ tin cấu hình riêng của dự án (.pi/…) với thư mục nằm trong trustedProjects
+    here="$(pwd)/"
+    while IFS= read -r t; do
+      if [ -n "$t" ] && [[ "$here" == "$t"* ]]; then a+=(--approve); break; fi
+    done < <(jq -r '.trustedProjects[]?' "$roles")
+    ;;
+esac
+exec "$PI_HOME/bin/pi-rr" "${a[@]}" "$@"

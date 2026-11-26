@@ -1,0 +1,16 @@
+{
+  "defaultProvider": "free",
+  "defaultModel": "dev",
+  "defaultThinkingLevel": "high",
+  "enabledModels": [
+    "free/dev",
+    "free/auto"
+  ],
+  "packages": [
+    "npm:@gotgenes/pi-permission-system@42.0.0",
+    "npm:@juicesharp/rpiv-ask-user-question@2.15.0",
+    "npm:@narumitw/pi-cache-hit-monitor@0.1.4",
+    "npm:@gotgenes/pi-subagents@25.0.5",
+    "npm:pi-codex-accounts@0.3.0"
+  ]
+}

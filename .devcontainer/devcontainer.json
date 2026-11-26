@@ -1,0 +1,56 @@
+{
+  "name": "LawVN (nhẹ: Python + Node + Pi, LLM qua Dahl)",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" }
+  },
+  "hostRequirements": { "cpus": 2, "memory": "8gb", "storage": "32gb" },
+
+  "containerEnv": {
+    "PI_HOME": "/workspaces/.pi-dev",
+    "PYTHONPATH": "${containerWorkspaceFolder}/backend",
+    "EMBED_DIM": "1024",
+    "CLOUD_LLM_KEYS_DIR": "/workspaces/.app-keys",
+    "CLOUD_FIRST_FOR_C": "true",
+    "NO_LOCAL_FOR_C": "true",
+    "CLOUD_SPREAD_MODELS": "true",
+    "OLLAMA_BASE_URL": "http://127.0.0.1:1/v1",
+    "API_INTERNAL_URL": "http://127.0.0.1:8000",
+    "NEXT_PUBLIC_API_BASE_URL": "",
+    "NEXT_TELEMETRY_DISABLED": "1"
+  },
+
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "bash .devcontainer/pi/write-keys.sh",
+
+  "forwardPorts": [3000, 8000],
+  "portsAttributes": {
+    "3000": { "label": "Web (Next.js)", "onAutoForward": "notify" },
+    "8000": { "label": "API (FastAPI)", "onAutoForward": "silent" }
+  },
+
+  "secrets": {
+    "DATABASE_URL": { "description": "Chuỗi kết nối Neon (nên dùng nhánh dev của Neon, không phải nhánh demo)." },
+    "DAHL_TOKENS": { "description": "Các key Dahl, mỗi dòng một key (hoặc cách nhau bằng dấu phẩy). App và Pi cùng dùng." },
+    "OPENROUTER_KEYS": { "description": "Key OpenRouter cho Pi (dev phụ), mỗi dòng một key." },
+    "SCALEROUTER_KEYS": { "description": "Key ScaleRouter cho Pi (dev phụ). Có thể bị chặn từ cloud." },
+    "EMBEDDER": { "description": "hashing (mặc định, nhẹ) hoặc vie-v2 (model thật, tải ~2 GB, cần cho tìm kiếm vector trên Neon)." }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "dbaeumer.vscode-eslint"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.cwd": "${workspaceFolder}/backend",
+        "python.testing.pytestArgs": ["tests"]
+      }
+    }
+  }
+}

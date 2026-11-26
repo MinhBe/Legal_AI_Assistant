@@ -1,0 +1,127 @@
+{
+  "$schema": "https://pi.dev/schemas/models.schema.json",
+  "providers": {
+    "dahl": {
+      "name": "Dahl Inference",
+      "baseUrl": "https://inference.dahl.global/v1",
+      "api": "openai-completions",
+      "apiKey": "$DAHL_API_KEY",
+      "authHeader": true,
+      "models": [
+        {
+          "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "MiniMaxAI/MiniMax-M2.7",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "zai-org/GLM-5.3-Flash",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        }
+      ]
+    },
+    "scalerouter": {
+      "name": "ScaleRouter",
+      "baseUrl": "https://api.scalerouter.net/api/v1/v1",
+      "api": "openai-completions",
+      "apiKey": "$SCALEROUTER_API_KEY",
+      "authHeader": true,
+      "models": [
+        {
+          "id": "deepseek-v4.1-flash-free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "beam-free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "mimo-v2.6-flash-free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "hy4-flash-free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "nemotron-3.5-super-vl-free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "tidepool-alpha-free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "iceman-free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "flint-40b-free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "longcat-2.5-free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "nemotron-3.5-lightning-free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        }
+      ]
+    },
+    "openrouter": {
+      "models": [
+        {
+          "id": "baidu/ernie-5.5-flash-preview:free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "inclusionai/ling-3.2-flash:free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "nvidia/nemotron-3.5-super-vl:free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "particle-ai/particle-1:free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        },
+        {
+          "id": "google/gemma-4-31b-it:free",
+          "contextWindow": 128000,
+          "maxTokens": 8192
+        }
+      ]
+    }
+  }
+}
