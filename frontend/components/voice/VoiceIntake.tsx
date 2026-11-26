@@ -216,7 +216,7 @@ export default function VoiceIntake({ open, initialFiles, onClose, onUseText }: 
             <textarea className="vi-text" value={transcript} onChange={(e) => { setTranscript(e.target.value); if (source !== "live" && source !== "file") setSource("text"); }}
               placeholder="Chữ sẽ hiện ở đây khi bạn nói, hoặc dán nội dung vào" rows={8} />
             {partial && <div className="vi-partial">{partial}…</div>}
-            <p className="vi-note">Âm thanh chỉ gửi tới máy chủ LawVN để chép lời, chưa lưu lại. Bước sau bạn chọn phần cần làm mờ.</p>
+            <p className="vi-note">Âm thanh chỉ gửi tới máy chủ Legal Agentic để chép lời, chưa lưu lại. Bước sau bạn chọn phần cần làm mờ.</p>
             <div className="vi-actions">
               <button className="vi-btn primary" data-tour="voice-next" disabled={!transcript.trim() || recording} onClick={goReview}>Tiếp: chọn phần làm mờ</button>
             </div>
@@ -252,7 +252,7 @@ export default function VoiceIntake({ open, initialFiles, onClose, onUseText }: 
             </div>
             <label className="vi-label">Bản sẽ được gửi</label>
             <div className="vi-preview">{preview}</div>
-            {kept > 0 && <p className="vi-warn">Bạn giữ nguyên {kept} đoạn nhạy cảm: bản này chỉ được xử lý trong máy chủ LawVN, không gửi tới AI bên ngoài, và không dùng làm dữ liệu huấn luyện.</p>}
+            {kept > 0 && <p className="vi-warn">Bạn giữ nguyên {kept} đoạn nhạy cảm: bản này chỉ được xử lý trong máy chủ Legal Agentic, không gửi tới AI bên ngoài, và không dùng làm dữ liệu huấn luyện.</p>}
             <div className="vi-actions">
               <button className="vi-btn" onClick={() => setStep("capture")}>Quay lại</button>
               <button className="vi-btn primary" onClick={() => setStep("consent")}>Tiếp: đồng ý</button>
@@ -263,7 +263,7 @@ export default function VoiceIntake({ open, initialFiles, onClose, onUseText }: 
         {step === "consent" && (
           <div className="vi-body" data-tour="voice-consent">
             <label className="vi-check"><input type="checkbox" checked={consentCase} onChange={(e) => setConsentCase(e.target.checked)} />
-              Tôi đồng ý cho LawVN dùng bản đã làm mờ ở trên để xử lý vụ việc và lập hồ sơ.</label>
+              Tôi đồng ý cho Legal Agentic dùng bản đã làm mờ ở trên để xử lý vụ việc và lập hồ sơ.</label>
             <label className={`vi-check ${kept ? "disabled" : ""}`}><input type="checkbox" disabled={kept > 0} checked={consentTrain && kept === 0} onChange={(e) => setConsentTrain(e.target.checked)} />
               Tôi đồng ý góp bản đã làm mờ (không còn thông tin nhạy cảm) vào dữ liệu cải thiện trợ lý.
               {kept > 0 && <small> Không áp dụng vì bạn giữ nguyên đoạn nhạy cảm.</small>}</label>

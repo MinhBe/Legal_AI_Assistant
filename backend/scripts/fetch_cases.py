@@ -24,7 +24,7 @@ from pathlib import Path
 import httpx
 
 BASE = "https://congbobanan.toaan.gov.vn"
-UA = "LawVN-research-bot/0.1 (nghien cuu phap ly; gian cach 5s)"
+UA = "LegalAgentic-research-bot/0.1 (nghien cuu phap ly; gian cach 5s)"
 OUT = Path(__file__).resolve().parents[2] / "data/raw/cases/congbobanan"
 PACE = 5.0
 _last = 0.0

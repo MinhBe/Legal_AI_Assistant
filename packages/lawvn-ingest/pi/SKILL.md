@@ -1,6 +1,6 @@
 ---
 name: lawvn-ingest
-description: Bring media (videos, audio) from a registered source adapter into the LawVN recording inbox, then send it through the Kaggle transcription and PII-masking pipeline. Use when asked to import, fetch or queue recordings or videos for LawVN.
+description: Bring media (videos, audio) from a registered source adapter into the Legal Agentic recording inbox, then send it through the Kaggle transcription and PII-masking pipeline. Use when asked to import, fetch or queue recordings or videos for Legal Agentic.
 ---
 
 # lawvn-ingest

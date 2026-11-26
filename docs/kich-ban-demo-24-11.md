@@ -1,4 +1,4 @@
-# Kịch bản demo LawVN (24/11/2026)
+# Kịch bản demo Legal Agentic (24/11/2026)
 
 Link công khai (cùng một hệ thống): https://minhbe--tuvanphapluat.modal.run (Modal) và https://tuvanphapluat-vn.vercel.app (Vercel, chuyển tiếp tới Modal; tên phụ tuvanphapluatvn.vercel.app). Không cần máy nhà bật. Tên tuvanphapluat.vercel.app đã thuộc người khác; Vercel không cho tên có dấu chấm như tuvanphapluat.vn.vercel.app.
 
@@ -22,7 +22,7 @@ câu tự do trước khán giả thì demo bằng máy nhà (`docker compose up
 
 ### 1. Vấn đề (1 phút)
 Người lao động và doanh nghiệp nhỏ tra luật lao động mất thời gian. AI chung chung hay trích sai điều
-luật, hoặc trích luật đã hết hiệu lực. LawVN trả lời có trích dẫn, và code kiểm từng trích dẫn trước khi hiện.
+luật, hoặc trích luật đã hết hiệu lực. Legal Agentic trả lời có trích dẫn, và code kiểm từng trích dẫn trước khi hiện.
 
 ### 2. Hỏi đáp có trích dẫn: `/demo` (3 phút)
 - Bấm "Thai sản". Chỉ ra: câu trả lời chia mục, bảng tình tiết, khung thời gian (luật nào áp dụng ngày

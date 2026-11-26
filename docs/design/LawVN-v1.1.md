@@ -1,4 +1,4 @@
-# Tài liệu thiết kế LawVN (bản hợp nhất): tư vấn pháp luật lao động có AI hỗ trợ, một luật sư chịu trách nhiệm
+# Tài liệu thiết kế Legal Agentic (bản hợp nhất): tư vấn pháp luật lao động có AI hỗ trợ, một luật sư chịu trách nhiệm
 
 Phiên bản 1.1 · 12/11/2026 · Trạng thái: bản chốt để triển khai theo giai đoạn, đã hợp nhất phần 7B/7C và các đề xuất chốt
 
@@ -31,7 +31,7 @@ thảo. Một luật sư giữ ba việc: ký và đại diện, duyệt ca rủ
 tự chủ của AI tăng dần theo từng loại ca dựa trên số liệu đo được, và tụt ngay khi có lỗi
 nghiêm trọng.
 
-**Điểm xuất phát.** Hệ thống hiện tại (LawVN v0) còn nhỏ: hàm `law_as_of(date)`, ba văn bản
+**Điểm xuất phát.** Hệ thống hiện tại (Legal Agentic v0) còn nhỏ: hàm `law_as_of(date)`, ba văn bản
 (BLLĐ 2019, BLLĐ 2012, NĐ 145/2020), 18 câu mẫu, 146 test, 150 bản án, embedding tự host và
 cơ chế gửi một câu hỏi tới nhiều LLM cùng lúc. Tài liệu này coi v0 là nền. Mọi thứ khác là
 phần cần thêm, xếp theo thứ tự ưu tiên để một người xây được từng bước (xem mục 12).
@@ -571,7 +571,7 @@ kiện.
 | Phiên tòa phát trực tiếp | Cao hơn, đối chiếu bản án | Tìm đầu mối, tìm bản án thật | Trích lời làm sự kiện | C (kiểm PII người ngoài cuộc) |
 | Luật sư bình luận | Trung bình, là ý kiến | Gợi ý mẫu và cách lập luận | Làm căn cứ | C |
 | Người dân kể, hỏi đáp diễn đàn | Thấp, một phía | Phát hiện mẫu câu hỏi và hành vi | Làm sự kiện | C sau khi che |
-| Log tư vấn của chính LawVN | Cao về thực tế, nhạy về bí mật | Golden set, ca bẫy, huấn luyện bộ chấm rủi ro | Gửi ra ngoài | A, chỉ nội bộ |
+| Log tư vấn của chính Legal Agentic | Cao về thực tế, nhạy về bí mật | Golden set, ca bẫy, huấn luyện bộ chấm rủi ro | Gửi ra ngoài | A, chỉ nội bộ |
 
 ### 7C.3 Điều kiện trước khi thu
 
@@ -592,7 +592,7 @@ không theo ngày đăng → Verifier và bộ lọc ranh giới (7B.8) → lu�
 nói/vai trò; hash nội dung/mốc thời gian; trạng thái PII; ngày sự kiện được kể và độ chắc; độ
 tin cậy/số nguồn độc lập; trạng thái (chờ duyệt, đã duyệt, bị loại kèm lý do).
 
-### 7C.5 Dữ liệu tư vấn của chính LawVN
+### 7C.5 Dữ liệu tư vấn của chính Legal Agentic
 
 Nguồn giá trị nhất và nhạy nhất. Chỉ dùng bản đã che, lưu nội bộ, không gửi nhà cung cấp ngoài
 để huấn luyện. Ca bị luật sư sửa nhiều hoặc từ chối (9.3) là nguồn chính sinh ca golden set

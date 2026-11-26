@@ -1,4 +1,4 @@
-"""Máy chủ MCP chỉ-đọc của LawVN.
+"""Máy chủ MCP chỉ-đọc của Legal Agentic.
 
 Chạy:
     python -m app.mcp_server.server                       # stdio (Claude Desktop, Cursor)
@@ -17,7 +17,7 @@ from typing import Any
 from app.mcp_server import tools
 
 INSTRUCTIONS = (
-    "LawVN: kho văn bản pháp luật Việt Nam (lao động là chính) có hiệu lực theo thời điểm, "
+    "Legal Agentic: kho văn bản pháp luật Việt Nam (lao động là chính) có hiệu lực theo thời điểm, "
     "án lệ/bản án và tin văn bản mới. Chỉ đọc. Luôn trích dẫn đúng `citation`/`doc_name` "
     "trả về, không tự bịa số điều. Dùng `as_of` khi câu hỏi gắn với một ngày cụ thể."
 )
@@ -94,7 +94,7 @@ def build_server(host: str = "127.0.0.1", port: int = 8765):
 
 
 def main(argv: list[str] | None = None) -> None:
-    ap = argparse.ArgumentParser(description="LawVN MCP server (read-only)")
+    ap = argparse.ArgumentParser(description="Legal Agentic MCP server (read-only)")
     ap.add_argument("--transport", default="stdio", choices=["stdio", "sse", "streamable-http"])
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8765)

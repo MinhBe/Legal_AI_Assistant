@@ -17,7 +17,7 @@ from pathlib import Path
 from urllib.parse import urljoin
 from urllib.robotparser import RobotFileParser
 
-UA = "LawVN-research-bot/0.1 (nghien cuu phap ly; gian cach 5s)"
+UA = "LegalAgentic-research-bot/0.1 (nghien cuu phap ly; gian cach 5s)"
 DATA = Path("data")
 
 

@@ -1,6 +1,6 @@
 # Link ngắn tuvanphapluat.vercel.app (miễn phí)
 
-Thư mục này chỉ chứa một luật chuyển tiếp: mọi yêu cầu tới Vercel được chuyển sang app LawVN đang chạy trên Modal. Vercel không chạy code của app, nên không có giới hạn dung lượng và không cần key nào.
+Thư mục này chỉ chứa một luật chuyển tiếp: mọi yêu cầu tới Vercel được chuyển sang app Legal Agentic đang chạy trên Modal. Vercel không chạy code của app, nên không có giới hạn dung lượng và không cần key nào.
 
 Cách bật (chỉ làm một lần):
 1. Vào https://vercel.com, đăng nhập bằng GitHub.

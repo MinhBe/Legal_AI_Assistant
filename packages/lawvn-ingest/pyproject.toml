@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "lawvn-ingest"
 version = "0.1.0"
-description = "Pluggable media ingest for LawVN: adapters -> record/inbox -> Kaggle ASR/PII"
+description = "Pluggable media ingest for Legal Agentic: adapters -> record/inbox -> Kaggle ASR/PII"
 requires-python = ">=3.10"
 dependencies = []  # stdlib only; fb-graph uses `requests` if installed
 

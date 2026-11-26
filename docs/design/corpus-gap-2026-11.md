@@ -41,7 +41,7 @@ kiểm trên Công báo trước khi tải. Không đoán số hiệu.
 | Tố tụng | BLTTDS 2015 (VBHN), BLTTHS 2015 (VBHN) | Công báo có nhiều VBHN BLTTDS, lấy bản mới nhất |
 | Hình sự | BLHS: tải lại bản tách được đủ 234 điều | bản hiện tại thiếu 18 điều do tách PDF |
 
-## Ưu tiên 3: dữ liệu cá nhân (cho chính LawVN: ghi âm, hồ sơ, thu thập dữ liệu)
+## Ưu tiên 3: dữ liệu cá nhân (cho chính Legal Agentic: ghi âm, hồ sơ, thu thập dữ liệu)
 
 | Văn bản | Ghi chú |
 |---|---|

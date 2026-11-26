@@ -3,7 +3,7 @@
 Minh 20/11/2026 đồng ý thêm tình huống thật từ bản án công bố và hỏi đáp pháp luật trên cổng chính
 phủ. Quy tắc:
 - chỉ đường dẫn robots.txt cho phép;
-- giãn cách ≥ 5 s, User-Agent ghi rõ "LawVN-research-bot";
+- giãn cách ≥ 5 s, User-Agent ghi rõ "LegalAgentic-research-bot";
 - không vượt CAPTCHA, cookie thử JS hay đăng nhập;
 - lấy thử tối đa 200 mục mỗi nguồn;
 - vẫn chạy bộ che PII (bản án đã ẩn danh một phần, ví dụ "Tô Đình L");

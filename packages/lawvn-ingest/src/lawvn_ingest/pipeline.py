@@ -1,4 +1,4 @@
-"""LawVN side: put items into record/inbox and hand off to the Kaggle ASR -> Kaggle PII path.
+"""Legal Agentic side: put items into record/inbox and hand off to the Kaggle ASR -> Kaggle PII path.
 
 The heavy work never runs on the home PC: tools/record_inbox.py versions the Kaggle dataset,
 pushes the ASR and PII kernels, and `collect` downloads only the masked transcripts.
@@ -21,7 +21,7 @@ def lawvn_root(start: Path | None = None) -> Path:
     for p in [start or Path.cwd(), *(start or Path.cwd()).parents]:
         if (p / "tools" / "record_inbox.py").exists():
             return p
-    raise FileNotFoundError("LawVN repo not found: set LAWVN_ROOT")
+    raise FileNotFoundError("Legal Agentic repo not found: set LAWVN_ROOT")
 
 
 def inbox(root: Path | None = None) -> Path:
