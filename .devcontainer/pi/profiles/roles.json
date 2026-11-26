@@ -1,0 +1,78 @@
+{
+  "_note": "Bản Codespaces của pi-dev/profiles/roles.json (đồng bộ 26/11/2026). Vai chạy trên CÙNG agent dir ($PI_HOME/agent), dùng chung đăng nhập ChatGPT/Codex và key. Chạy: pi-role <lead|review|dev> [tham số pi].",
+  "trustedProjects": [
+    "/workspaces/"
+  ],
+  "dev": {
+    "model": "free/dev",
+    "thinking": "medium",
+    "skills": [
+      "vendor/agent-skills/skills/incremental-implementation",
+      "vendor/agent-skills/skills/test-driven-development",
+      "vendor/agent-skills/skills/api-and-interface-design",
+      "vendor/agent-skills/skills/frontend-ui-engineering",
+      "vendor/agent-skills/skills/source-driven-development",
+      "vendor/agent-skills/skills/debugging-and-error-recovery",
+      "vendor/agent-skills/skills/git-workflow-and-versioning"
+    ],
+    "extensions": [
+      "agent/extensions/pi-rr.ts",
+      "agent/extensions/free-auto.ts",
+      "agent/extensions/sr-models.ts",
+      "agent/extensions/tps.ts",
+      "agent/npm/node_modules/@gotgenes/pi-permission-system",
+      "agent/npm/node_modules/@narumitw/pi-cache-hit-monitor",
+      "agent/npm/node_modules/pi-codex-accounts"
+    ],
+    "excludeTools": []
+  },
+  "review": {
+    "model": "free/review",
+    "thinking": "medium",
+    "skills": [
+      "vendor/agent-skills/skills/code-review-and-quality",
+      "vendor/agent-skills/skills/doubt-driven-development",
+      "vendor/agent-skills/skills/security-and-hardening",
+      "vendor/agent-skills/skills/code-simplification",
+      "vendor/agent-skills/skills/performance-optimization",
+      "vendor/agent-skills/skills/browser-testing-with-devtools"
+    ],
+    "extensions": [
+      "agent/extensions/pi-rr.ts",
+      "agent/extensions/free-auto.ts",
+      "agent/extensions/sr-models.ts",
+      "agent/extensions/tps.ts",
+      "agent/npm/node_modules/@gotgenes/pi-permission-system",
+      "agent/npm/node_modules/@narumitw/pi-cache-hit-monitor",
+      "agent/npm/node_modules/pi-codex-accounts"
+    ],
+    "excludeTools": [
+      "edit",
+      "write"
+    ]
+  },
+  "lead": {
+    "model": "free/lead",
+    "thinking": "medium",
+    "skills": [
+      "vendor/agent-skills/skills/using-agent-skills",
+      "vendor/agent-skills/skills/interview-me",
+      "vendor/agent-skills/skills/idea-refine",
+      "vendor/agent-skills/skills/spec-driven-development",
+      "vendor/agent-skills/skills/constraint-driven-development",
+      "vendor/agent-skills/skills/planning-and-task-breakdown",
+      "vendor/agent-skills/skills/context-engineering"
+    ],
+    "extensions": [
+      "agent/extensions/pi-rr.ts",
+      "agent/extensions/free-auto.ts",
+      "agent/extensions/sr-models.ts",
+      "agent/extensions/tps.ts",
+      "agent/npm/node_modules/@gotgenes/pi-permission-system",
+      "agent/npm/node_modules/@narumitw/pi-cache-hit-monitor",
+      "agent/npm/node_modules/@juicesharp/rpiv-ask-user-question",
+      "agent/npm/node_modules/pi-codex-accounts"
+    ],
+    "excludeTools": []
+  }
+}

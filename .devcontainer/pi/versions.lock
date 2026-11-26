@@ -1,0 +1,7 @@
+pi-runtime: 1.6.0 (mới nhất trên npm 23/11/2026; ghim chính xác trong runtime/package.json theo yêu cầu Minh)
+pi-dotfiles: https://github.com/rain-knows/pi-dotfiles 4d53bcd03149a8d16e304e73f3319fcfbffe8673
+dot-pi-agent: https://github.com/maolonglong/dot-pi-agent ed9eafe4d9af1bd3bb95ca041f8027fe534a3668
+addyosmani/agent-skills: https://github.com/addyosmani/agent-skills 301b02b12bff98e4688e6984af6556802322bbde
+mattpocock/skills: https://github.com/mattpocock/skills 5863806dd4e15c63174bee4e7515a4256792ecfa
+cursor/plugins: https://github.com/cursor/plugins 6e359ce0aba9e927914d8a940510aa2ef66a8f23
+ponytail: https://github.com/DietrichGebert/ponytail 96608e078b2d5ea607c5c3b8b5a54d1c1fba6846 (MIT, v5.3.3; bench profile b3-g6-ponytail only, not in agent/)

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# pi-rr: mở Pi với key Dahl/DeepSeek xoay vòng. Dùng y như lệnh pi: pi-rr -p "..." --model dahl/...
+# Key đọc từ <PI_HOME>/keys/{dahl,deepseek}.keys; key nào vừa 429 (có file .cool-*) thì nghỉ COOL_S giây.
+set -euo pipefail
+PI_HOME="${PI_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+KEYS="${PI_KEYS_DIR:-$PI_HOME/keys}"; COOL_S="${COOL_S:-90}"
+export PI_KEYS_DIR="$KEYS"   # extension pi-rr.ts doc cung thu muc key
+export PI_CODING_AGENT_DIR="${PI_CODING_AGENT_DIR:-$PI_HOME/agent}"
+
+pick() {  # pick <provider> -> in ra "index key"
+  local p="$1" f="$KEYS/$1.keys"; [ -f "$f" ] || return 0
+  mapfile -t ks < <(grep -v '^[[:space:]]*#' "$f" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | grep -v '^$' | grep -Ev '^[A-Za-z0-9_.-]+[[:space:]]*=[[:space:]]*$' | sed -E 's/^[A-Za-z0-9_.-]+[[:space:]]*=[[:space:]]*([^=[:space:]][^[:space:]]*)$/\1/')
+  local n=${#ks[@]}; [ "$n" -gt 0 ] || return 0
+  local lock="$KEYS/.lock-$p" i=0
+  for _ in $(seq 50); do mkdir "$lock" 2>/dev/null && break; sleep 0.1; done
+  local last; last=$(cat "$KEYS/.rr-$p" 2>/dev/null || echo -1)
+  local now; now=$(date +%s)
+  for step in $(seq 1 "$n"); do
+    i=$(( (last + step) % n ))
+    local c="$KEYS/.cool-$p-$i"
+    if [ -f "$c" ] && [ $(( now - $(cat "$c") )) -lt "$COOL_S" ]; then continue; fi
+    break
+  done
+  echo "$i" > "$KEYS/.rr-$p"; rmdir "$lock" 2>/dev/null || true
+  echo "$i ${ks[$i]}"
+}
+
+if r=$(pick dahl) && [ -n "$r" ]; then export DAHL_API_KEY="${r#* }"; echo "pi-rr: dahl=#${r%% *}" >&2; fi
+if r=$(pick deepseek) && [ -n "$r" ]; then export DEEPSEEK_API_KEY="${r#* }"; echo "pi-rr: deepseek=#${r%% *}" >&2; fi
+PI_EXE="${PI_EXE:-$PI_HOME/runtime/node_modules/.bin/pi}"
+[ -x "$PI_EXE" ] || [ -f "$PI_EXE.cmd" ] || PI_EXE=pi
+exec "$PI_EXE" "$@"
