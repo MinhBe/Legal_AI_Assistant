@@ -1,4 +1,4 @@
-# Codespaces cho LawVN (máy yếu vẫn code được)
+# Codespaces cho Legal Agentic (máy yếu vẫn code được)
 
 Codespace này chỉ để **code hằng ngày**: sửa backend/frontend, chạy test, chạy Pi.
 Phần nặng không chạy ở đây:

@@ -1,5 +1,5 @@
 {
-  "name": "LawVN (nhẹ: Python + Node + Pi, LLM qua Dahl)",
+  "name": "Legal Agentic (nhẹ: Python + Node + Pi, LLM qua Dahl)",
   "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
   "features": {
     "ghcr.io/devcontainers/features/node:1": { "version": "22" }
