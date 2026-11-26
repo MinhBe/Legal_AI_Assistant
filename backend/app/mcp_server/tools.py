@@ -1,4 +1,4 @@
-"""Công cụ MCP chỉ-đọc trên kho LawVN.
+"""Công cụ MCP chỉ-đọc trên kho Legal Agentic.
 
 Mỗi hàm nhận một Session và trả dict/list thuần JSON, không ghi DB, không gọi LLM.
 Module nghiệp vụ được nạp trễ (qua `_mod`) để import nhẹ và để test thay được bằng giả.

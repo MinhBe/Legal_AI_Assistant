@@ -1,4 +1,4 @@
-# Trợ lý Pháp luật Lao động Việt Nam 🇻🇳
+# Legal Agentic: Trợ lý Pháp luật Lao động Việt Nam 🇻🇳
 
 > AI Assistant for Vietnamese Labor Law — built from scratch with FastAPI, pgvector, and custom Vietnamese embeddings.
 

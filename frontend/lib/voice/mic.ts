@@ -1,6 +1,6 @@
 /* Micro -> PCM int16 16 kHz mono -> WebSocket /api/stt/live (voice intake).
 
-Âm thanh chỉ đi tới máy chủ của LawVN, không dùng Web Speech API của trình duyệt (cách đó gửi
+Âm thanh chỉ đi tới máy chủ của Legal Agentic, không dùng Web Speech API của trình duyệt (cách đó gửi
 âm thanh tới Google). Token đăng nhập đi qua ?token= vì WebSocket không gắn được header.
 */
 import { API_BASE, getToken } from "@/lib/api";

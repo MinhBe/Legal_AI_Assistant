@@ -1,6 +1,6 @@
 "use client";
 
-/* Hiểu hệ thống LawVN: bài học tương tác, sơ đồ SVG chạy từng bước (Minh 20/11/2026).
+/* Hiểu hệ thống Legal Agentic: bài học tương tác, sơ đồ SVG chạy từng bước (Minh 20/11/2026).
    Tự thiết kế; nội dung ở lib/explainer/lessons.ts. Phím ←/→ để lùi/tiến, Space để tự chạy. */
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -79,7 +79,7 @@ export default function Explainer() {
     <main className="ex-page">
       <header className="ex-top">
         <Link href="/" className="auth-link">← Trợ lý</Link>
-        <strong>LawVN · Hiểu hệ thống</strong>
+        <strong>Legal Agentic · Hiểu hệ thống</strong>
       </header>
       <div className="ex-layout">
         <aside className="ex-lessons">

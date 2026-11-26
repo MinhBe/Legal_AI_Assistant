@@ -85,7 +85,7 @@ cd /web && exec node_modules/.bin/next start -p 7860 -H 0.0.0.0
 """
 
 README = """---
-title: LawVN
+title: Legal Agentic
 emoji: ⚖️
 colorFrom: blue
 colorTo: indigo
@@ -94,7 +94,7 @@ app_port: 7860
 pinned: false
 ---
 
-LawVN: trợ lý pháp luật lao động có trích dẫn đúng phiên bản theo thời gian. Bản demo:
+Legal Agentic: trợ lý pháp luật lao động có trích dẫn đúng phiên bản theo thời gian. Bản demo:
 /demo (3 tình huống mẫu), /hieu-he-thong (bài học tương tác), /docs (API).
 Secrets: DATABASE_URL (đặt tự động bởi tools/deploy.py), DAHL_TOKENS (Minh dán, tuỳ chọn).
 """
@@ -194,7 +194,7 @@ def space() -> None:
         # kết nối trực tiếp: pooler của Neon bỏ qua search_path đặt cho role (bảng không kèm schema lỗi)
         api.add_space_secret(SPACE, "DATABASE_URL", _read(NEON_FILE).replace("-pooler.", "."))
     api.upload_folder(folder_path=str(BUNDLE), repo_id=SPACE, repo_type="space",
-                      commit_message="LawVN (tools/deploy.py)")
+                      commit_message="Legal Agentic (tools/deploy.py)")
     print("đã đẩy lên Space:", f"https://huggingface.co/spaces/{SPACE}")
 
 

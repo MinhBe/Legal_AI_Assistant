@@ -1,6 +1,6 @@
-# Máy chủ MCP của LawVN (chỉ đọc)
+# Máy chủ MCP của Legal Agentic (chỉ đọc)
 
-Cho trợ lý AI bên ngoài (Claude Desktop, Cursor, agent nội bộ) dùng kho LawVN qua chuẩn MCP.
+Cho trợ lý AI bên ngoài (Claude Desktop, Cursor, agent nội bộ) dùng kho Legal Agentic qua chuẩn MCP.
 Không ghi DB, không gọi LLM; cập nhật kho vẫn đi qua luồng có người duyệt.
 
 | Công cụ | Việc |

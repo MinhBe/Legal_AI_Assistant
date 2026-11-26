@@ -2,7 +2,7 @@
 
 ## Tóm tắt (tiếng Việt)
 
-`packages/lawvn-ingest` là gói dùng chung cho LawVN và Pi. Mỗi **nguồn** là một *adapter*,
+`packages/lawvn-ingest` là gói dùng chung cho Legal Agentic và Pi. Mỗi **nguồn** là một *adapter*,
 gồm hai việc: liệt kê mục (`list_items`) và tải một mục (`fetch`). Gói lo phần còn lại:
 - ghi tệp vào `record/inbox`, kèm tệp mô tả `<tệp>.meta.json`;
 - ghi thêm một dòng vào `manifest.jsonl`;
@@ -77,7 +77,7 @@ The `.meta.json` and manifest hold **unmasked** captions: local only, never sent
 ### Consumers
 
 - **CLI:** `lawvn-ingest adapters | list | fetch [--dry-run] | push [--collect]`, JSON on stdout.
-- **LawVN:** `lawvn_ingest.pipeline.enqueue("fb-dyi", path=..., push=True)`. `push` runs
+- **Legal Agentic:** `lawvn_ingest.pipeline.enqueue("fb-dyi", path=..., push=True)`. `push` runs
   `tools/record_inbox.py`: Kaggle dataset version → ASR kernel → PII kernel. `--collect`
   downloads only `*.masked.json`. Then prompt v2.1 runs on the masked text.
 - **Pi:** `packages/lawvn-ingest/pi/SKILL.md` calls the CLI. Installing it into a Pi profile is

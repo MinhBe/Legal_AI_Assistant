@@ -1,4 +1,4 @@
-# Lộ trình từ nay đến khi xong LawVN v1.1, và cách dùng $4 DeepSeek
+# Lộ trình từ nay đến khi xong Legal Agentic v1.1, và cách dùng $4 DeepSeek
 
 Ngày 16/11/2026. Ngân sách: **$4 DeepSeek cho coding + $1 cho thử nghiệm**. Dahl đóng băng, không tính vào đây.
 Căn cứ giá và số đo: bench pi-dev B1–B3b (bench/results trong repo pi-dev).

@@ -1,4 +1,4 @@
-"""LawVN trên Modal (Minh 21/11/2026: chọn Modal vì Space Docker của Hugging Face cần gói PRO).
+"""Legal Agentic trên Modal (Minh 21/11/2026: chọn Modal vì Space Docker của Hugging Face cần gói PRO).
 
     python -X utf8 tools/deploy.py bundle          # dựng data/deploy/hf-space (giao diện + API)
     modal deploy tools/modal_app.py                # đẩy lên workspace của token trong ~/.modal.toml

@@ -1,4 +1,4 @@
-# Fine-tune Qwen2.5-7B cho LawVN (KG1)
+# Fine-tune Qwen2.5-7B cho Legal Agentic (KG1)
 
 Mục tiêu: một mô hình 7B "nói như luật sư lao động Việt Nam" để câu trả lời tự nhiên hơn,
 **không** thay RAG + Verifier — trích dẫn vẫn do code kiểm. Dữ liệu huấn luyện chỉ lấy từ

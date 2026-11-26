@@ -1,4 +1,4 @@
-# AGENTS.md — LawVN (Vietnamese labor-law assistant)
+# AGENTS.md — Legal Agentic (Vietnamese labor-law assistant)
 
 Pointer file for coding agents. Keep it short and stable; details live in the docs below.
 

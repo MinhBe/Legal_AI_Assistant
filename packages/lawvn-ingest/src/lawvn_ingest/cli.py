@@ -4,7 +4,7 @@
     lawvn-ingest list  --adapter fb-dyi --opt path=record/inbox [--since 2026-01-01]
     lawvn-ingest fetch --adapter folder --opt path=D:/clips --opt consent=licensed --out record/inbox
     lawvn-ingest fetch ... --dry-run
-    lawvn-ingest push  [--collect]        # LawVN: Kaggle ASR -> PII, or download masked results
+    lawvn-ingest push  [--collect]        # Legal Agentic: Kaggle ASR -> PII, or download masked results
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
         s.add_argument("--opt", action="append", default=[], help="adapter option key=value")
         s.add_argument("--since")
         if name == "fetch":
-            s.add_argument("--out", help="default: <LawVN>/record/inbox")
+            s.add_argument("--out", help="default: <repo Legal Agentic>/record/inbox")
             s.add_argument("--dry-run", action="store_true")
     p = sub.add_parser("push")
     p.add_argument("--collect", action="store_true")

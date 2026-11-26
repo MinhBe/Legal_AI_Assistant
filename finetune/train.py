@@ -1,4 +1,4 @@
-"""QLoRA Qwen2.5-7B-Instruct cho LawVN, chạy trên Kaggle (KG1).
+"""QLoRA Qwen2.5-7B-Instruct cho Legal Agentic, chạy trên Kaggle (KG1).
 
 Notebook `finetune/kaggle_qlora.ipynb` chỉ `%run` tệp này. Sửa cấu hình ở khối CONFIG
 bên dưới là đủ. Unsloth/transformers/trl chỉ được import trong `main()`, nên tệp này
@@ -75,7 +75,7 @@ def time_guard_class():
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="QLoRA Qwen2.5-7B cho LawVN (Kaggle)")
+    ap = argparse.ArgumentParser(description="QLoRA Qwen2.5-7B cho Legal Agentic (Kaggle)")
     ap.add_argument("--data", default=str(DATA_DIR))
     ap.add_argument("--out", default=str(OUT_DIR))
     ap.add_argument("--epochs", type=int, default=EPOCHS)

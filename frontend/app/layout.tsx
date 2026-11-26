@@ -4,7 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "Trợ lý pháp luật lao động",
+  title: "Legal Agentic · Trợ lý pháp luật lao động",
   description: "Hỏi đáp luật lao động Việt Nam có trích dẫn",
 };
 

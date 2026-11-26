@@ -1,4 +1,4 @@
-/* Bài học tương tác "Hiểu hệ thống LawVN" (Minh 20/11/2026). Mỗi bài: các nút (ai/cái gì xử lý),
+/* Bài học tương tác "Hiểu hệ thống Legal Agentic" (Minh 20/11/2026). Mỗi bài: các nút (ai/cái gì xử lý),
    các cạnh (dữ liệu đi đâu), các bước; mỗi bước chiếu sáng nút/cạnh đang chạy và ghi rõ
    đã có / đang làm / lộ trình. Sửa nội dung ở đây, trang tự vẽ. */
 
@@ -141,7 +141,7 @@ export const LESSONS: Lesson[] = [
         body: "Khách hoặc luật sư chọn template, điền thông tin. Code điền biến (tên, ngày, số tiền), không cần AI.",
         metric: [{ label: "Đã có", value: "điền biến có kiểm kiểu (tiền, ngày); mẫu HĐLĐ theo Điều 21 BLLĐ 2019" }] },
       { title: "Model riêng gợi ý câu chữ", status: "roadmap", nodes: ["fill", "model", "kb"], edges: [["fill", "model"], ["kb", "model"]],
-        body: "Chỉ ở chỗ cần diễn đạt (lý do, mô tả vụ việc), model tự train của LawVN gợi ý câu chữ. Bản fine-tune v1a (Qwen2.5-7B, train trên Kaggle) đã cài trong máy; chưa nối vào bước soạn.",
+        body: "Chỉ ở chỗ cần diễn đạt (lý do, mô tả vụ việc), model tự train của Legal Agentic gợi ý câu chữ. Bản fine-tune v1a (Qwen2.5-7B, train trên Kaggle) đã cài trong máy; chưa nối vào bước soạn.",
         metric: [{ label: "Đo v1a", value: "trích dẫn đúng 0,636 (gốc 0,691); JSON hợp lệ 100%" }],
         problem: "Gọi AI cho mọi chữ thì tốn và khó kiểm; nên code làm phần lớn, AI chỉ ở chỗ cần." },
       { title: "Kiểm bằng code", status: "done", nodes: ["model", "fill", "check"], edges: [["model", "check"], ["fill", "check"]],
